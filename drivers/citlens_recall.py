@@ -137,6 +137,19 @@ async def recall(args) -> dict:
 
     families: list[list] = []
     family_sizes: dict[str, int] = {}
+    # Cross-family consensus: which recall families surfaced each record.
+    # A paper found by 3 independent families (query + snowball + survey
+    # harvest) is far likelier on-topic than a single web hit — the vote is
+    # recorded on the Paper (found_by) and consumed by `screen`'s consensus
+    # channel. Votes are noted over each family's SEAT-truncated head (the
+    # part that could actually enter the pool), not its full recall.
+    from citens.eval.litsearch import _key_of as _fuse_key
+
+    votes: dict[str, set[str]] = {}
+
+    def _note(fam_name: str, fam_papers: list) -> None:
+        for p in fam_papers:
+            votes.setdefault(_fuse_key(p), set()).add(fam_name)
 
     # ── family 1: agent-crafted queries (the "planned" leg, you are the planner)
     agent_cells = await _cells(agent_qs, sources, health, AGENT_DEPTH) if agent_qs else {}
@@ -144,6 +157,7 @@ async def recall(args) -> dict:
         fam = fuse_multi_query(agent_cells, sources)
         families.append(fam)
         family_sizes["agent"] = len(fam)
+        _note("agent", fam[:FAMILY_QUOTA])
         _log(f"family agent: {len(fam)} (from {len(agent_qs)} queries)")
     elif "agent" in want:
         notes.append("agent: 无查询，已跳过")
@@ -153,6 +167,7 @@ async def recall(args) -> dict:
     raw_fam = fuse_multi_query(raw_cells, sources)
     families.append(raw_fam)
     family_sizes["raw"] = len(raw_fam)
+    _note("raw", raw_fam[:FAMILY_QUOTA])
     _log(f"family raw: {len(raw_fam)}")
 
     agent_raw = fuse_multi_query({**agent_cells, **raw_cells}, sources)
@@ -169,6 +184,7 @@ async def recall(args) -> dict:
                 )
                 families.append(fam)
                 family_sizes["oa_title"] = len(fam)
+                _note("oa_title", fam[:FAMILY_QUOTA])
                 _log(f"family oa_title: {len(fam)}")
         except Exception as e:  # noqa: BLE001
             notes.append(f"oa_title: 失败，跳过（{str(e)[:120]}）")
@@ -184,6 +200,7 @@ async def recall(args) -> dict:
             rec_dois = [p.doi for p in pool[:10] if is_article_doi(p.doi)][:5]
             items = await _s2_recommended(rec_dois, limit=30) if rec_dois else []
             added = 0
+            added_papers = []
             from citens.eval.litsearch import _key_of
             seen = {_key_of(p) for p in pool}
             for item in items:
@@ -191,8 +208,10 @@ async def recall(args) -> dict:
                 if rec is not None and _key_of(rec) not in seen:
                     seen.add(_key_of(rec))
                     pool.append(rec)
+                    added_papers.append(rec)
                     added += 1
             family_sizes["s2_rec"] = added
+            _note("s2_rec", added_papers)
             _log(f"family s2_rec: +{added}")
         except Exception as e:  # noqa: BLE001
             notes.append(f"s2_rec: 失败，跳过（{str(e)[:120]}）")
@@ -210,12 +229,15 @@ async def recall(args) -> dict:
                 )
                 seen = {_key_of(p) for p in pool}
                 added = 0
+                added_papers = []
                 for p in expanded[:FAMILY_QUOTA]:
                     if _key_of(p) not in seen:
                         seen.add(_key_of(p))
                         pool.append(p)
+                        added_papers.append(p)
                         added += 1
                 family_sizes["snowball"] = added
+                _note("snowball", added_papers)
                 _log(f"family snowball: +{added}")
         except Exception as e:  # noqa: BLE001
             notes.append(f"snowball: 失败，跳过（{str(e)[:120]}）")
@@ -230,12 +252,15 @@ async def recall(args) -> dict:
                 from citens.eval.litsearch import _key_of
                 seen = {_key_of(p) for p in pool}
                 added = 0
+                added_papers = []
                 for p in web_papers[:FAMILY_QUOTA]:
                     if _key_of(p) not in seen:
                         seen.add(_key_of(p))
                         pool.append(p)
+                        added_papers.append(p)
                         added += 1
                 family_sizes["web"] = added
+                _note("web", added_papers)
                 _log(f"family web: +{added}")
             except Exception as e:  # noqa: BLE001
                 notes.append(f"web: 失败，跳过（{str(e)[:120]}）")
@@ -252,21 +277,35 @@ async def recall(args) -> dict:
             report["survey_seeds"] = seeds
             seen = {_key_of(p) for p in pool}
             added = 0
+            added_papers = []
             for p in survey_papers:
                 if _key_of(p) not in seen:
                     seen.add(_key_of(p))
                     pool.append(p)
+                    added_papers.append(p)
                     added += 1
             family_sizes["survey"] = added
+            _note("survey", added_papers)
             _log(f"family survey: +{added}")
         except Exception as e:  # noqa: BLE001
             notes.append(f"survey: 失败，跳过（{str(e)[:120]}）")
 
     # ── ordering: RRF/family seat order (NO LLM cascade in this build) ──────
+    # Stamp the consensus signal BEFORE dedup so every kept record carries it;
+    # rejected records keep theirs too — an exclusion log entry that says
+    # "3 families voted for this paper" is far more reviewable.
+    for p in pool:
+        p.found_by = sorted(votes.get(_fuse_key(p), set()))
+    consensus = {
+        "2plus": sum(1 for v in votes.values() if len(v) >= 2),
+        "3plus": sum(1 for v in votes.values() if len(v) >= 3),
+    }
+
     ranked = deduplicate(pool)
     notes.append(
         "排序说明：本构建无 LLM 级联——顺序为 RRF/家族保底席位序，"
-        "引用前必须由调用方 agent 自行判断相关性（读标题+摘要逐篇过）"
+        "引用前必须由调用方 agent 自行判断相关性（读标题+摘要逐篇过）；"
+        "record.found_by 记录了召回该篇的家族集合，可用 `screen` 工具做三分带分流"
     )
 
     if args.target:
@@ -274,6 +313,7 @@ async def recall(args) -> dict:
 
     report.update(
         family_sizes=family_sizes,
+        family_consensus=consensus,
         pool_size=len(pool),
         kept=len(ranked),
         health=_health_summary(health),
@@ -306,6 +346,7 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
             fh.write(json.dumps({
                 "title": p.title, "doi": p.doi, "source": p.source,
                 "reason": "ranked_below_target", "citation_count": p.citation_count,
+                "found_by": p.found_by,
             }, ensure_ascii=False) + "\n")
 
     fam_rows = "\n".join(
@@ -319,6 +360,7 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
     missing_venue = sum(1 for p in papers if not p.venue)
     no_doi = sum(1 for p in papers if not p.doi)
     reviews = sum(1 for p in papers if p.is_review)
+    cons = report.get("family_consensus", {})
 
     (run_dir / "search_report.md").write_text(f"""# CiteLens 检索报告 — {topic}
 
@@ -330,7 +372,10 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 
 - 候选池：{report.get('pool_size', 0)} 篇 → 保留 **{len(papers)}** 篇
 - 其中综述 {reviews} 篇 · 无 DOI {no_doi} 篇 · 无 venue {missing_venue} 篇
-- 顺序为 RRF/家族席位序（无 LLM 级联）：引用前由 agent 逐篇判断相关性
+- 家族共识：≥2 家族同时命中 {cons.get('2plus', 0)} 篇 · ≥3 家族 {cons.get('3plus', 0)} 篇
+  （`found_by` 已写入每条 pool 记录；`screen` 工具的 consensus 通道消费它）
+- 顺序为 RRF/家族席位序（无 LLM 级联）：引用前由 agent 逐篇判断相关性，
+  可先跑 `screen` 做三分带（core / uncertain / likely_off）分流精读
 - 收工条件未自动判定：请按 SKILL.md 阶段 F 跑锚点核验（`audit` 工具）与
   饱和检查后再声明完成
 

@@ -167,6 +167,59 @@ def cmd_export(args) -> dict:
     }
 
 
+# ── screen ────────────────────────────────────────────────────────────────────
+
+
+def cmd_screen(args) -> dict:
+    """Relevance triage over a pool: score every record against the query set
+    (semantic + lexical + consensus channels) and band it core / uncertain /
+    likely_off. Triage, never judgment — nothing is excluded here."""
+    papers, where = _load_papers(args.topic, args.run_dir)
+    if not papers:
+        return {"ok": False, "error": where}
+    queries = [q for q in (args.queries or []) if q.strip()]
+    if not queries:
+        # The agent should pass its concept-block queries; without them fall
+        # back to the queries that actually found these records (deduped,
+        # field-constrained suffixes stripped) — honest, and reported as such.
+        seen: list[str] = []
+        for p in papers:
+            for q in p.matched_queries:
+                base = q.split(" (")[0].strip()
+                if base and base not in seen:
+                    seen.append(base)
+        queries = seen[:12]
+        fallback_note = (
+            "未传 --queries：已退回 matched_queries（找到这些记录的查询）——"
+            "最好传你自己的概念块查询重跑一次"
+        )
+    else:
+        fallback_note = ""
+    from citens.screening import screen_papers
+
+    if args.run_dir:
+        out_path = Path(args.run_dir) / "screening.jsonl"
+    elif args.topic:
+        from citens.collect import pool_path
+
+        out_path = pool_path(args.topic).with_suffix(".screening.jsonl")
+    else:
+        out_path = None
+    out = screen_papers(
+        papers,
+        queries,
+        model=args.model,
+        core_threshold=args.core,
+        off_threshold=args.off,
+        out_path=None if args.no_write else out_path,
+        limit=args.limit,
+    )
+    if fallback_note:
+        out["fallback_note"] = fallback_note
+    out["ok"] = True
+    return out
+
+
 # ── audit ─────────────────────────────────────────────────────────────────────
 
 
@@ -207,8 +260,23 @@ def main(argv=None) -> int:
     p_audit.add_argument("--topic", required=True)
     p_audit.add_argument("--top-reviews", type=int, default=3)
 
+    p_screen = sub.add_parser(
+        "screen", help="相关性三分带分流（core / uncertain / likely_off）——分流不是判决"
+    )
+    p_screen.add_argument("--topic", help="主题池（data/litdb/<slug>.jsonl）")
+    p_screen.add_argument("--run-dir", help="run 目录（读其 pool.jsonl）")
+    p_screen.add_argument("--queries", nargs="+", default=[],
+                          help="agent 概念块英文查询（强烈建议传；缺省退回 matched_queries）")
+    p_screen.add_argument("--model", default=None,
+                          help="本地嵌入模型（默认取 SCREEN_EMBEDDING_MODEL；空串禁用语义通道）")
+    p_screen.add_argument("--core", type=float, default=None, help="core 带阈值（默认 0.5）")
+    p_screen.add_argument("--off", type=float, default=None, help="likely_off 带阈值（默认 0.32）")
+    p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
+    p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")
+
     args = ap.parse_args(argv)
-    fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit}[args.cmd]
+    fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit,
+          "screen": cmd_screen}[args.cmd]
     try:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001

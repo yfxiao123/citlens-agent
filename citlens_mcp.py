@@ -86,8 +86,10 @@ INSTRUCTIONS = (
     "optionally `title_probes` (anchor papers you already know) and "
     "`web_queries` (English verbatim spans + natural Chinese phrasings). The "
     "tool runs seven recall families fused by RRF; it does NOT rank by relevance "
-    "— read the returned pool yourself and judge relevance paper by paper "
-    "before citing. Never claim coverage from your own web search. After a "
+    "— band the pool with `screen` (core/uncertain/likely_off triage), then read "
+    "the core+uncertain records yourself (title+abstract, paper by paper) before "
+    "citing; batch-review the likely_off band and log every exclusion "
+    "(PRISMA). Never claim coverage from your own web search. After a "
     "search, quote the numbers the tool reports (pool size, kept count, "
     "per-source ok/empty/failed) and never report a failed source as a zero-hit "
     "source. A search job can take minutes: pass wait_seconds, then poll "
@@ -504,6 +506,7 @@ def tool_doctor(cfg: dict) -> dict:
                                "OPENALEX_API_KEY", "OPENALEX_EMAIL",
                                "CROSSREF_EMAIL") if k not in env_keys]
     core_version = None
+    screen_emb = None
     if py and py.is_file():
         try:
             r = subprocess.run(
@@ -514,6 +517,19 @@ def tool_doctor(cfg: dict) -> dict:
             core_version = (r.stdout or "").strip().splitlines()[-1] if r.stdout.strip() else None
         except Exception:  # noqa: BLE001
             core_version = None
+        # `screen`'s semantic channel runs on a LOCAL sentence-transformers
+        # model (optional extra) — probe it so the agent knows which channels
+        # will fire before calling screen. Never an LLM key either way.
+        try:
+            r2 = subprocess.run(
+                [str(py), "-c", "import sentence_transformers as st;print(st.__version__)"],
+                cwd=str(_REPO_ROOT),
+                capture_output=True, text=True, timeout=90,
+            )
+            if r2.returncode == 0 and (r2.stdout or "").strip():
+                screen_emb = (r2.stdout or "").strip().splitlines()[-1]
+        except Exception:  # noqa: BLE001
+            screen_emb = None
     recent = []
     for d in sorted(jobs_root(cfg).iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)[:5]:
         st = _read_json(d / "state.json")
@@ -531,6 +547,7 @@ def tool_doctor(cfg: dict) -> dict:
         "python": cfg.get("python"),
         "python_exists": bool(py and py.is_file()),
         "core_version": core_version,
+        "screen_embedding_runtime": screen_emb,  # None -> screen runs lexical+consensus only
         "llm_keys_required": [],
         "drivers": {k: {"path": v, "exists": bool(v and Path(v).is_file())} for k, v in drivers.items()},
         "env_file": str(env_file) if env_file else None,
@@ -548,6 +565,12 @@ def tool_doctor(cfg: dict) -> dict:
     notes = []
     if not report["ok"]:
         notes.append("Not ready: fix the missing paths above in the config file.")
+    if screen_emb is None:
+        notes.append(
+            "screen semantic channel absent: pip install \"citlens-agent[embedding]\" "
+            "to add local embeddings (no key needed) — screen still works on its "
+            "lexical + consensus channels either way"
+        )
     if recommended:
         notes.append(
             "optional breadth keys absent: " + ", ".join(recommended)
@@ -722,15 +745,40 @@ def _search_view(cfg: dict, st: dict) -> dict:
             head = report.read_text(encoding="utf-8", errors="replace").splitlines()
             out["report_head"] = "\n".join(head[:24])
         out["hint"] = (
-            "Order is RRF/family-seat order, NOT a relevance judgment — read the "
-            "pool yourself (title+abstract, paper by paper) before citing. Read "
-            "`search_report.md` for per-family seat counts and per-source "
+            "Order is RRF/family-seat order, NOT a relevance judgment — run "
+            "`screen` with your concept-block queries first to band the pool "
+            "(core/uncertain/likely_off triage), then read the core+uncertain "
+            "records yourself (title+abstract, paper by paper) before citing. "
+            "Read `search_report.md` for per-family seat counts and per-source "
             "ok/empty/failed health, and `exclusions.jsonl` for the PRISMA reasons. "
             "Report failed sources explicitly; never present them as zero hits. "
             "Then use `pool` for filtering, `fetch` for grounding, `audit` before "
             "claiming coverage, and `export` for the bibliography."
         )
     return out
+
+
+def tool_screen(cfg: dict, args: dict) -> dict:
+    topic = (args.get("topic") or "").strip()
+    run_dir = (args.get("run_dir") or "").strip()
+    if not topic and not run_dir:
+        return {"ok": False, "error": "pass topic or run_dir"}
+    argv = ["screen"]
+    if topic:
+        argv += ["--topic", topic]
+    if run_dir:
+        argv += ["--run-dir", run_dir]
+    queries = _as_list(args.get("queries"))
+    if queries:
+        argv += ["--queries", *queries]
+    if args.get("model") is not None:
+        argv += ["--model", str(args["model"])]
+    for flag, key in (("--core", "core_threshold"), ("--off", "off_threshold"),
+                      ("--limit", "limit")):
+        if args.get(key) is not None:
+            argv += [flag, str(args[key])]
+    # first call may download the local model; give it room
+    return _run_driver_json(cfg, "tools", argv, timeout=900)
 
 
 def tool_status(cfg: dict, args: dict) -> dict:
@@ -950,6 +998,37 @@ TOOL_DEFS = [
         },
     },
     {
+        "name": "screen",
+        "description": (
+            "Relevance TRIAGE over a pool: score every record against YOUR "
+            "concept-block queries on explainable channels (local embedding "
+            "similarity — optional extra, no LLM key; BM25 lexical; "
+            "cross-family consensus from found_by) and band it "
+            "core / uncertain / likely_off. Writes screening.jsonl. This is "
+            "triage, NOT judgment: nothing is excluded automatically — read "
+            "core+uncertain carefully, batch-review likely_off, and log every "
+            "final exclusion in exclusions.jsonl (PRISMA). The first call "
+            "with the semantic channel may download a local model (~0.4 GB); "
+            "without the extra installed it degrades to lexical+consensus "
+            "and says so."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "Topic pool to screen (byte-identical topic slug)."},
+                "run_dir": {"type": "string", "description": "A specific run directory to screen instead."},
+                "queries": {"type": "array", "items": {"type": "string"},
+                            "description": "Your English concept-block queries — same ones you gave `search`."},
+                "model": {"type": "string",
+                          "description": "Local sentence-transformers model override (empty string disables the semantic channel)."},
+                "core_threshold": {"type": "number", "description": "core band cutoff (default 0.5)."},
+                "off_threshold": {"type": "number", "description": "likely_off band cutoff (default 0.32)."},
+                "limit": {"type": "integer", "description": "Records to return (default 30)."},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "status",
         "description": "Poll a running search job by id: state, elapsed, log tail, artifacts and stats.",
         "inputSchema": {
@@ -989,6 +1068,8 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
         return tool_export(cfg, args)
     if name == "audit":
         return tool_audit(cfg, args)
+    if name == "screen":
+        return tool_screen(cfg, args)
     return {"ok": False, "error": f"unknown tool {name!r}", "tools": [t["name"] for t in TOOL_DEFS]}
 
 
@@ -1217,6 +1298,10 @@ def selftest(cfg: dict) -> int:
     return 0
 
 
+_LIST_KEYS = ("families", "sources", "fields", "themes",
+              "queries", "title_probes", "web_queries")
+
+
 def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
     """`cli search --topic X --target 80 --is_review true` -> (tool, args)."""
     if not rest:
@@ -1230,6 +1315,18 @@ def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
             i += 1
             continue
         key = tok[2:].replace("-", "_")
+        # list-valued keys take ALL consecutive non-flag tokens ("--queries a b c"),
+        # not just the first — the drivers' argparse semantics, which the MCP
+        # path gets natively from JSON arrays
+        if key in _LIST_KEYS:
+            vals: list[str] = []
+            j = i + 1
+            while j < len(rest) and not rest[j].startswith("--"):
+                vals.append(rest[j])
+                j += 1
+            args[key] = vals
+            i = j
+            continue
         nxt = rest[i + 1] if i + 1 < len(rest) else None
         if nxt is None or nxt.startswith("--"):
             args[key] = True
@@ -1240,8 +1337,6 @@ def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
             args[key] = low == "true"
         elif re.fullmatch(r"-?\d+", nxt):
             args[key] = int(nxt)
-        elif "," in nxt and key in ("families", "sources", "fields", "themes"):
-            args[key] = [x.strip() for x in nxt.split(",") if x.strip()]
         else:
             args[key] = nxt
         i += 2

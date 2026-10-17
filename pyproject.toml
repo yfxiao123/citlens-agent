@@ -25,6 +25,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.4", "mypy>=1.8"]
+# `screen`'s semantic channel: LOCAL sentence-transformers embeddings.
+# Still no LLM key — the model runs in-process. Without it, screen degrades
+# to its lexical + consensus channels and says so.
+embedding = ["sentence-transformers>=2.7", "torch>=2.1"]
 
 [project.scripts]
 citlens-agent = "citlens_mcp:console_main"

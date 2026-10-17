@@ -32,7 +32,7 @@ ROOT = HERE.parent                  # the citlens-agent repo root
 SERVER = ROOT / "citlens_mcp.py"
 INSTALL = ROOT / "install.py"
 
-TOOLS = {"search", "pool", "fetch", "export", "audit", "status", "doctor"}
+TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "status", "doctor"}
 
 PASS, FAIL = [], []
 
@@ -199,6 +199,15 @@ def test_protocol() -> None:
         noaudit = c.request("tools/call", {"name": "audit", "arguments": {}})
         check("audit without topic is a clean error",
               _payload(noaudit).get("ok") is False)
+
+        noscreen = c.request("tools/call", {"name": "screen", "arguments": {}})
+        check("screen without topic/run_dir is a clean error",
+              _payload(noscreen).get("ok") is False
+              and (noscreen.get("result") or {}).get("isError") is True)
+
+        screen_def = next(t for t in tools if t["name"] == "screen")["inputSchema"]
+        check("screen schema takes agent queries",
+              "queries" in screen_def["properties"])
 
         unknown_tool = c.request("tools/call", {"name": "nope", "arguments": {}})
         check("unknown tool returns isError with the tool list",
@@ -606,6 +615,25 @@ def test_init_wizard() -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_cli_arg_parsing() -> None:
+    print("\n== CLI arg parsing (multi-value list keys) ==")
+    sys.path.insert(0, str(ROOT))
+    import citlens_mcp  # noqa: PLC0415
+
+    name, args = citlens_mcp._parse_cli_args(
+        ["screen", "--topic", "t", "--queries", "sparse attention", "long context",
+         "--limit", "5"])
+    check("multi-value queries collected as a list",
+          args.get("queries") == ["sparse attention", "long context"], str(args))
+    check("scalar after the list still parsed", args.get("limit") == 5)
+    name2, args2 = citlens_mcp._parse_cli_args(
+        ["search", "--topic", "t", "--families", "raw,web", "--append-pool"])
+    check("comma-separated families still accepted",
+          args2.get("families") == ["raw,web"] or args2.get("families") == ["raw", "web"])
+    check("boolean flag becomes True", args2.get("append_pool") is True)
+    check("tool name parsed", name == "screen" and name2 == "search")
+
+
 def main() -> int:
     print(f"server: {SERVER}")
     test_selftest()
@@ -615,6 +643,7 @@ def main() -> int:
     test_cli_fallback()
     test_engine_override_and_driver_scoping()
     test_init_wizard()
+    test_cli_arg_parsing()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:
         print("failed: " + ", ".join(FAIL))
