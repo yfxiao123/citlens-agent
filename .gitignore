@@ -1,0 +1,29 @@
+# secrets — never commit
+.env
+dist/.env
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# data homes (live outside the repo by default; ignore strays)
+.cache/
+data/
+runs/
+citlens-runs/
+papers/
+fulltext/
+exports/
+bench_data/
+bench_results/
+
+# build artifacts
+dist/
+build/
+*.exe
+*.spec
