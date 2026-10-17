@@ -41,6 +41,19 @@
 | `OUTPUT_DIR` | `runs` | 产物目录前缀 |
 | `PROFILE` | 空（通用） | 域档案（当前内置 `finance`：期刊白名单 + 术语表，影响 collect 与排序） |
 
+## `screen` 三分带（可选；全部可按调用覆盖）
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `SCREEN_EMBEDDING_MODEL` | `BAAI/bge-base-en-v1.5` | 语义通道的**本地** sentence-transformers 模型（经 HF 缓存，进程内运行，永不触碰 LLM key）。置空串禁用语义通道（lexical+consensus 仍在）。中文主题可换 `paraphrase-multilingual-MiniLM-L12-v2` 或 `BAAI/bge-m3` |
+| `SCREEN_CORE_THRESHOLD` | `0.5` | score ≥ 此值入 `core` 带（bge cosine 尺度上的启发式默认，未校准） |
+| `SCREEN_OFF_THRESHOLD` | `0.32` | score < 此值入 `likely_off` 带；两值之间为 `uncertain` |
+
+语义通道需要可选依赖：`pip install "citlens-agent[embedding]"`（CPU torch +
+sentence-transformers，约 1 GB 磁盘）。首次调用会下载所选模型（bge-base 约
+0.4 GB）；`doctor` 的 `screen_embedding_runtime` 字段报告运行时可用性。bge-*-en-v1.5
+按模型卡说明无需检索指令前缀。
+
 不存在的键：`LLM_API_KEY` / `LLM_MODEL` / 强弱档位——本构建无 LLM，`doctor` 也不会检查它们。
 若你的 `.env` 里有（从引擎时代沿用），会被 `extra="ignore"` 安静忽略，无需清理。
 

@@ -36,6 +36,7 @@ python -m venv .venv
 |---|---|
 | `search` | 七家族召回，RRF 融合；接受 agent 拟定的检索词、标题探针与 web 查询 |
 | `pool` | 读取并过滤既有文献池，不发起检索 |
+| `screen` | 相关性三分带（core / uncertain / likely_off）：本地嵌入 + BM25 + 家族投票的机械打分分流，分流不是判决，绝不自动剔除 |
 | `fetch` | 抓取单篇开放获取全文，无全文时返回摘要 |
 | `export` | 将文献池导出为 BibTeX / RIS |
 | `audit` | 计算文献池对主题内高被引综述参考文献的覆盖率 |
@@ -54,9 +55,9 @@ python -m venv .venv
 6. web 桥接：Google SERP 检索，结果锚定回论文记录
 7. 综述收割：找到主题综述后收割其参考文献
 
-各家族结果按 Reciprocal Rank Fusion 融合，每家族保底 30 席。常数沿用引擎仓库在 LitSearch 基准上的测量值（RRF k=60，每源深度 20）。在该基准上，这套方法的 recall@20 为 33.3%；作为对照，单组关键词查询为 6.7%，单一来源为 0%。
+各家族结果按 Reciprocal Rank Fusion 融合，每家族保底 30 席。常数沿用引擎仓库在 LitSearch 基准上的测量值（RRF k=60，每源深度 20）。在该基准上，这套方法的 recall@20 为 33.3%；作为对照，单组关键词查询为 6.7%，单一来源为 0%。每条记录同时落盘 `found_by`——命中它的召回家族集合，跨家族独立命中是免费的切题信号。
 
-返回顺序是融合序，不是相关性排序，切题判断由 agent 完成。每次检索落盘三份产物：`pool.jsonl`（结构化文献记录）、`search_report.md`（各家族入池数与逐源健康表）、`exclusions.jsonl`（被裁剪的记录及原因）。检索源的失败单独计数并如实上报，不把失败的源报告成零命中。
+返回顺序是融合序，不是相关性排序。切题判断分两层：先用 `screen` 做机械分流——三个可解释通道（本地嵌入语义相似度 [可选 extra，无 LLM key]、BM25 词面、`found_by` 家族投票），把池子分成 core / uncertain / likely_off 三带并写 `screening.jsonl`；agent 再对 core+uncertain 逐篇精读终审，likely_off 批量复核，所有最终排除记入 `exclusions.jsonl`（PRISMA）。**分流不是判决，screen 绝不自动剔除。** 阈值是启发式默认（未在金标上校准），报告分带时须同时报告阈值与通道。每次检索落盘三份产物：`pool.jsonl`（结构化文献记录）、`search_report.md`（各家族入池数与逐源健康表）、`exclusions.jsonl`（被裁剪的记录及原因）。检索源的失败单独计数并如实上报，不把失败的源报告成零命中。
 
 ## 支持的客户端
 
@@ -74,7 +75,8 @@ python -m venv .venv
 
 - 文献管理增强：去重报告、阅读笔记、更多导出格式（EndNote XML、CSL JSON）
 - 更多客户端进入已实测列表
-- 题面语义（embedding）检索通道，缓解检索词与论文用词不一致造成的召回缺口
+- `screen` 阈值在 LitSearch 金标上校准 + 精排 reranker（cross-encoder）处理 uncertain 带
+- ASReview 式反馈环：agent 的 PRISMA 判定回流为下一轮 pool 读取的优先级
 
 ## 许可证
 

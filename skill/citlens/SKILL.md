@@ -24,8 +24,9 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 
 | tool | purpose |
 |---|---|
-| `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs. No key is required |
-| `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions |
+| `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs, `screen_embedding_runtime`. No key is required |
+| `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) |
+| `screen` | relevance TRIAGE: bands the pool core / uncertain / likely_off (local embeddings + BM25 + family consensus; writes screening.jsonl). Triage, not judgment — nothing is auto-excluded |
 | `pool` | read/filter the pool on disk (citations, years, reviews, DOIs); no new retrieval |
 | `fetch` | one paper's open-access full text (arXiv→S2→OpenAlex→Unpaywall→CORE), or abstract fallback |
 | `export` | pool → BibTeX/RIS via the same citation table the engine used |
@@ -87,14 +88,19 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    and a `report_head`. Read `search_report.md` — it has per-family seat
    counts and per-source `ok / empty / failed` health. **A failed source is
    not a zero-hit source.** If `failed > 0`, say which source failed.
-5. **Judge relevance yourself.** The pool order is RRF/family-seat order, NOT
-   a relevance ranking (the engine's LLM cascade is deliberately absent).
-   Read the pool records (title + abstract) and do the coarse/fine ranking:
-   quickly bucket obviously-off-topic records, then carefully order the rest
-   by topical fit. Append every paper you screen OUT to the run's
-   `exclusions.jsonl` with a reason code (`off_topic`, `wrong_subfield`,
-   `duplicate`, `not_peer_reviewed`, ...) — PRISMA discipline, machine-written
-   log.
+5. **Triage, then judge relevance yourself.** The pool order is RRF/family-seat
+   order, NOT a relevance ranking. Call `screen` with the SAME concept-block
+   queries you gave `search`: it bands the pool into core / uncertain /
+   likely_off on three mechanical channels (local embeddings, BM25,
+   `found_by` family votes) and writes `screening.jsonl`. The bands are
+   TRIAGE, not verdicts — never treat them as exclusions. Then read the
+   core + uncertain records (title + abstract) carefully, bucket by
+   concept-block coverage (a paper covering ZERO blocks is `off_topic`),
+   and batch-review the likely_off band. Append every paper you screen OUT
+   to the run's `exclusions.jsonl` with a reason code (`off_topic`,
+   `wrong_subfield`, `duplicate`, `not_peer_reviewed`, ...) — PRISMA
+   discipline, machine-written log. Report bands WITH their thresholds and
+   which channels fired (they are heuristic defaults, uncalibrated).
 6. **`pool`** to iterate without re-searching: `min_citations`, `year_from`,
    `is_review: true` for surveys, `query` for a substring, `sort_by`. This
    reads disk; it never retrieves.
