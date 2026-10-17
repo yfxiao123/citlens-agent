@@ -1,88 +1,81 @@
-# CiteLens for agents (citlens-agent)
+# CiteLens for agents（citlens-agent）
 
-> **English quick start** — Install CiteLens into any MCP-speaking AI agent (Claude Code, Codex CLI, zcode, DSH, Cursor, ...). The agent plans queries and writes; this repo does the mechanics: 7 recall families over arXiv/Semantic Scholar/OpenAlex/Crossref/web, RRF fusion, citation snowball, survey harvest, open-access full-text fetch, BibTeX/RIS export, PRISMA logs. **No LLM API key needed** — your agent is the model. Optional free keys (Serper/S2/OpenAlex) raise quotas.
+> **English** — CiteLens as an MCP server for AI agents (Claude Code, Codex CLI, zcode, Cursor, etc.): multi-source literature search, open-access full-text fetching, BibTeX/RIS export and coverage audits, with one shared literature pool across agents. No LLM API key is needed; the agent plans the queries and writes, this repo provides the reproducible retrieval machinery. Free keys (Serper / Semantic Scholar / OpenAlex) are optional and only raise rate limits.
+>
 > ```bash
 > git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
-> python -m venv .venv && .venv/Scripts/python -m pip install -e .   # Windows; macOS/Linux: bin/python
-> .venv/Scripts/python install.py apply                               # detects your agents
-> # then ask your agent: "run the citlens doctor tool"
+> python -m venv .venv && .venv/Scripts/python -m pip install -e .   # macOS/Linux: bin/python
+> .venv/Scripts/python install.py apply
 > ```
 
-**把文献检索、文献管理、文献综述装进你的 AI agent——零 LLM key。**
+citlens-agent 把 CiteLens 的文献检索能力做成一个 MCP 工具服务器，装进各类 AI agent 客户端。装好之后，agent 处理找文献、查覆盖、写综述这类请求时会调用这些工具，而不是靠它自己的网页搜索。
 
-你的 agent（Claude、Codex、zcode、DSH……）本身就是模型，所以这个仓库只做它做不好的事：可复现的机械检索。agent 亲拟英文概念块查询传给 `search`，仓库负责七家族召回、RRF 融合、引文滚雪球、综述收割、开放获取全文抓取、BibTeX 导出、PRISMA 排除日志；写作与逐条主张核验由 agent 按 SKILL.md 的验证链亲自执行。一份 `~/.citlens/config.json` 让所有 agent 共享同一个文献池——在这边搜，去那边写。
+## 设计
 
-## 宗旨
+文献工作可以分成两类。一类需要判断力：把研究问题拆成概念块、写出合适的英文检索词、判断一篇论文是否切题、组织综述的论证。这类工作 agent 自己就能做好。另一类需要稳定、可复现的执行：多源检索扇出、结果融合去重、引文网络扩展、开放获取全文抓取、引文格式化导出。这类工作不适合靠每次现写的提示词完成，因为结果既不稳定，也无法复现。
 
-| 主线 | 能力 |
-|---|---|
-| 搜集文献 | 七召回家族 × 四学术源 + web 桥接，RRR 融合与家族席位配额，诚实健康桶（源失败绝不写成零命中） |
-| 管理文献 | 跨 agent 共享池 `data/litdb/<主题>.jsonl`，`pool` 工具多维过滤（年份/引用/综述/DOI），BibTeX/RIS 导出 |
-| 文献综述 | agent 按 SKILL.md 验证链写作：编号主张 → `fetch` 全文 grounding → 四级判定核验 → 蜜罐/辩护/重写 → 诚实数字块 |
+citlens-agent 只承担第二类，因此它不调用任何 LLM，也不需要配置任何 LLM key。agent 把自己拟好的英文检索词传给 `search`，得到一个按固定方法构建的候选池；判断哪些论文切题、如何排序、综述怎么写，是 agent 的事。同样的输入总是得到同样的池子，检索方法写在代码里而不是提示词里，事后可以复查。
 
-## 三分钟装进 agent
+写综述时，工具提供证据材料：单篇全文抓取（取不到全文时退回摘要，并明确标注只能摘要级引用）、PRISMA 式排除日志、综述参考文献覆盖审计、BibTeX/RIS 导出。写作与逐条主张核验由 agent 按 SKILL.md 的流程执行：编号引用，每条主张对照原文给出四级判定（支持、部分支持、不支持、不可验证），写完后做引用真实性检查（每条引用必须能回溯到池内文献）和对抗性复查（以反驳的立场复核已判支持的主张），不支持的主张改写后复验，最后报告引用精度、不可验证率、全文 grounding 比例。这套流程沿用引擎仓库实测过的验证链：初稿引用精度 73%，改写复验后 98%。
+
+## 安装
 
 ```bash
 git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
 python -m venv .venv
 .venv/Scripts/python -m pip install -e .        # macOS/Linux: .venv/bin/python
-.venv/Scripts/python install.py init             # 可选：录入 Serper/S2/OA key（全部可省）
-.venv/Scripts/python install.py apply            # 检测已装的 agent 并注册；--only zcode 可指定
+.venv/Scripts/python install.py init            # 可选：录入检索源 key（全部可不配）
+.venv/Scripts/python install.py apply           # 检测本机已装的 agent 并注册
 ```
 
-重启 agent，说一句 *"run the citlens doctor tool"* 验收。之后任何文献问题，agent 会自己走：**拟查询 → `search` → 逐篇判相关性 → `pool` 迭代 → `audit` 锚点核验**；要写综述时再走验证链。
+重启 agent，让它运行 `doctor` 工具验收。完整流程（代理设置、数据目录布局、卸载回滚、故障排查）见 [INSTALL.md](INSTALL.md)；`.env` 各键的含义见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
 
-完整流程（含代理注意事项、数据家布局、卸载回滚、故障排查）见 **[INSTALL.md](INSTALL.md)**；`.env` 键参考见 **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**。
+## 工具
 
-## 支持的 agent
-
-注册表 `agents.json` 声明 21 个客户端，`install.py apply` 自动检测并写入（写前必备份，只动 `citlens` 一个键）：
-
-- **已实测**：Claude Code、Codex CLI、zcode、aider（CLI 通道）、DSH（bundle 通道）
-- **声明式适配**（json-map / json-opencode / toml-block 方言）：Cursor、Windsurf、Gemini CLI、Qwen Code、Cline、Roo、Kilo、OpenCode、Trae、Copilot CLI、Goose、Crush、SST Opencode …
-- **手工粘贴**：Zed、Continue、AMP 等（`install.py snippet <name>` 打印即贴配置）
-- 新客户端 = 往 `~/.citlens/agents.d/` 丢一个 JSON，零代码
-
-## 七个工具
-
-| 工具 | 职责 |
+| 工具 | 作用 |
 |---|---|
-| `search` | 七家族召回 + RRF 融合 + 席位配额；吃 agent 亲拟的 `queries` / `title_probes` / `web_queries`；写 pool.jsonl + search_report.md + exclusions.jsonl |
-| `pool` | 纯磁盘读取过滤文献池；不检索 |
-| `fetch` | 单篇开放获取全文（arXiv→S2→OpenAlex→Unpaywall→CORE），摘要兜底 |
-| `export` | 池 → BibTeX/RIS（引擎同款 CitationTable，缺字段留空绝不编造） |
-| `audit` | 池对 top 综述参考文献的覆盖率（收工协议锚点核验） |
-| `status` | 轮询后台检索任务（任务进程脱离会话存活） |
-| `doctor` | 健康检查；**没有任何必填 key** |
+| `search` | 七家族召回，RRF 融合；接受 agent 拟定的检索词、标题探针与 web 查询 |
+| `pool` | 读取并过滤既有文献池，不发起检索 |
+| `fetch` | 抓取单篇开放获取全文，无全文时返回摘要 |
+| `export` | 将文献池导出为 BibTeX / RIS |
+| `audit` | 计算文献池对主题内高被引综述参考文献的覆盖率 |
+| `status` | 查询后台检索任务的进度 |
+| `doctor` | 健康检查：路径、key 名称、池数量、任务状态 |
 
-## 一分钟架构
+## 检索方法
 
-```
-        你（agent，模型在此）                    本仓库（机械，可复现在此）
- ┌───────────────────────────────┐    ┌────────────────────────────────────┐
- │ 读题 → PRESS 概念块拟英文查询   │───▶│ search: 7 家族召回（agent 查询/raw/  │
- │ 判相关性（粗排+精排都是你）     │◀───│   OA标题/S2推荐/滚雪球/web/综述收割） │
- │ 写综述 + 逐条主张四级判定       │───▶│ RRF 融合 + 席位配额 + 诚实健康桶     │
- │ 蜜罐/辩护/重写/诚实数字         │◀───│ fetch 全文 · export 引文 · audit 锚点│
- └───────────────────────────────┘    └────────────────────────────────────┘
-            MCP over stdio（21 客户端）      共享数据家 ~/.citlens/home
-```
+检索不依赖单一来源或单一查询词。`search` 执行七个家族：
 
-检索家族与融合函数从引擎仓库 **逐字复制**（含测量常数：RRF k=60、每家族 30 席、每源 20 深）——引擎的 LitSearch 金标基准上，自适应腿 recall@20 = 33.3%，单 Planned 关键词 6.7%，单源 0%。三家族（planned/HyDE/pivot）的任务是"用 LLM 生成查询"，在本构建中由你替代，故不搬运。
+1. agent 检索词：调用方按概念块拟定的英文查询，逐源深度检索
+2. 主题原句：题目原文在 arXiv、Semantic Scholar、OpenAlex、Crossref 四源检索
+3. 标题探针：agent 提供的已知论文标题，走 OpenAlex 标题索引
+4. 相似推荐：以池头文献的 DOI 取 Semantic Scholar 推荐
+5. 引文扩展：对池内锚点文献做被引与引用双向的一跳扩展
+6. web 桥接：Google SERP 检索，结果锚定回论文记录
+7. 综述收割：找到主题综述后收割其参考文献
+
+各家族结果按 Reciprocal Rank Fusion 融合，每家族保底 30 席。常数沿用引擎仓库在 LitSearch 基准上的测量值（RRF k=60，每源深度 20）。在该基准上，这套方法的 recall@20 为 33.3%；作为对照，单组关键词查询为 6.7%，单一来源为 0%。
+
+返回顺序是融合序，不是相关性排序，切题判断由 agent 完成。每次检索落盘三份产物：`pool.jsonl`（结构化文献记录）、`search_report.md`（各家族入池数与逐源健康表）、`exclusions.jsonl`（被裁剪的记录及原因）。检索源的失败单独计数并如实上报，不把失败的源报告成零命中。
+
+## 支持的客户端
+
+安装器通过声明式注册表（`agents.json`）支持 21 个客户端，自动检测本机已安装的并写入配置；写前备份，只增改 `citlens` 一项。已实测：Claude Code、Codex CLI、zcode、aider（CLI 通道）、DSH。声明式适配覆盖 Cursor、Windsurf、Gemini CLI、Qwen Code、Cline、OpenCode 等常见客户端；Zed、Continue 等手工粘贴型客户端用 `install.py snippet <name>` 生成配置。新客户端只需在 `~/.citlens/agents.d/` 放一个同格式的 JSON 文件。
+
+## 数据与共享
+
+所有客户端共用一个数据家（默认 `~/.citlens/home`，安装时可用 `--home` 指定）。文献池按主题累积在 `data/litdb/`，一个 agent 搜到的文献，其他 agent 直接可用。检索任务以后台进程运行，独立于发起它的会话：客户端关闭后任务继续，任何 agent 都能查询进度并读取结果。
 
 ## 与 CiteLens 引擎的关系
 
-- **citlens-agent（本仓库）**：装进任何 agent 的免 LLM 版。检索/池/导出/全文机械层 + skill 验证链。
-- **[citens 引擎](https://github.com/yfxiao123/citens)**：自带 LLM 的全家桶——CLI / Web 控制台 / 桌面 exe / 完整流水线（规划→排序→抽取→写作→验证→反思）。想要"给个题目全自动出综述"、不在乎配 LLM key 时用它。
-
-两者共享同一套检索方法与数据格式（pool.jsonl 可互认）。
+引擎仓库 [citens](https://github.com/yfxiao123/citens) 是自带 LLM 的完整版本：CLI、Web 控制台、桌面 exe，以及从查询规划到写作验证的完整流水线，适合"给一个题目、自动出综述"的独立用法。citlens-agent 面向已经在用 agent 的用户，只保留检索与证据工具。两者使用同一套检索方法和数据格式，`pool.jsonl` 可以互认。
 
 ## Roadmap
 
-- 管理增强：去重报告、阅读笔记、更多导出格式（EndNote XML、CSL JSON）
-- 更多客户端进"已实测"列
-- 题面语义 embedding 召回通道（词汇缺口金标的下一个杠杆，见引擎仓库 postmortem）
+- 文献管理增强：去重报告、阅读笔记、更多导出格式（EndNote XML、CSL JSON）
+- 更多客户端进入已实测列表
+- 题面语义（embedding）检索通道，缓解检索词与论文用词不一致造成的召回缺口
 
-## License
+## 许可证
 
 MIT。
