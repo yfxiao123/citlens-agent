@@ -2,7 +2,7 @@
 
 ## 0.1.0 — 2026-10-17
 
-首个独立版本：从 CiteLens 引擎仓库（yfxao123/citens，portable 层）拆出，重塑为
+首个独立版本：从 CiteLens 引擎仓库（yfxiao123/citens，portable 层）拆出，重塑为
 **面向 agent 安装、零 LLM key** 的独立仓库。
 
 ### 变革

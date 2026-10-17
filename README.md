@@ -2,7 +2,7 @@
 
 > **English quick start** — Install CiteLens into any MCP-speaking AI agent (Claude Code, Codex CLI, zcode, DSH, Cursor, ...). The agent plans queries and writes; this repo does the mechanics: 7 recall families over arXiv/Semantic Scholar/OpenAlex/Crossref/web, RRF fusion, citation snowball, survey harvest, open-access full-text fetch, BibTeX/RIS export, PRISMA logs. **No LLM API key needed** — your agent is the model. Optional free keys (Serper/S2/OpenAlex) raise quotas.
 > ```bash
-> git clone https://github.com/yfxao123/citlens-agent && cd citlens-agent
+> git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
 > python -m venv .venv && .venv/Scripts/python -m pip install -e .   # Windows; macOS/Linux: bin/python
 > .venv/Scripts/python install.py apply                               # detects your agents
 > # then ask your agent: "run the citlens doctor tool"
@@ -23,7 +23,7 @@
 ## 三分钟装进 agent
 
 ```bash
-git clone https://github.com/yfxao123/citlens-agent && cd citlens-agent
+git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
 python -m venv .venv
 .venv/Scripts/python -m pip install -e .        # macOS/Linux: .venv/bin/python
 .venv/Scripts/python install.py init             # 可选：录入 Serper/S2/OA key（全部可省）
@@ -73,7 +73,7 @@ python -m venv .venv
 ## 与 CiteLens 引擎的关系
 
 - **citlens-agent（本仓库）**：装进任何 agent 的免 LLM 版。检索/池/导出/全文机械层 + skill 验证链。
-- **[citens 引擎](https://github.com/yfxao123/citens)**：自带 LLM 的全家桶——CLI / Web 控制台 / 桌面 exe / 完整流水线（规划→排序→抽取→写作→验证→反思）。想要"给个题目全自动出综述"、不在乎配 LLM key 时用它。
+- **[citens 引擎](https://github.com/yfxiao123/citens)**：自带 LLM 的全家桶——CLI / Web 控制台 / 桌面 exe / 完整流水线（规划→排序→抽取→写作→验证→反思）。想要"给个题目全自动出综述"、不在乎配 LLM key 时用它。
 
 两者共享同一套检索方法与数据格式（pool.jsonl 可互认）。
 

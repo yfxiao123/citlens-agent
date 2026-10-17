@@ -30,8 +30,8 @@ dev = ["pytest>=8", "ruff>=0.4", "mypy>=1.8"]
 citlens-agent = "citlens_mcp:console_main"
 
 [project.urls]
-Homepage = "https://github.com/yfxao123/citlens-agent"
-Engine = "https://github.com/yfxao123/citens"
+Homepage = "https://github.com/yfxiao123/citlens-agent"
+Engine = "https://github.com/yfxiao123/citens"
 
 [tool.setuptools]
 py-modules = ["citlens_mcp"]

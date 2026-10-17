@@ -16,7 +16,7 @@
 ## 1. 克隆并安装
 
 ```bash
-git clone https://github.com/yfxao123/citlens-agent
+git clone https://github.com/yfxiao123/citlens-agent
 cd citlens-agent
 python -m venv .venv
 .venv/Scripts/python -m pip install -e .        # macOS/Linux: .venv/bin/python -m pip install -e .
