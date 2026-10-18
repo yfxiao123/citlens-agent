@@ -26,7 +26,7 @@ honest health buckets and the PRISMA exclusion log.
 This file deliberately imports **nothing from citens**. It is a stdlib-only
 supervisor that (a) speaks JSON-RPC 2.0 on stdin/stdout and (b) spawns the two
 drivers — `citlens_recall.py` (seven-family recall) and `citlens_tools.py`
-(fetch / export / audit) — in this repo's own interpreter. The retrieval method
+(fetch / export / audit / screen / verify) — in this repo's own interpreter. The retrieval method
 therefore stays exactly where it is measured and tested; this layer adds no
 retrieval logic of its own.
 
@@ -66,7 +66,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SERVER_NAME = "citlens"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
 _REPO_ROOT = Path(__file__).resolve().parent
@@ -97,7 +97,11 @@ INSTRUCTIONS = (
     "fallback); before declaring a field covered run `audit` (survey-reference "
     "coverage); export citations with `export`. Writing a review is opt-in and "
     "YOUR job under the skill's verification discipline — every claim checked "
-    "against the fetched source text, honesty numbers reported."
+    "against the fetched source text, honesty numbers reported. Before "
+    "delivering a review, call `verify` with the review path and your verdicts "
+    "JSONL: it mechanically checks that every [n] resolves to the pool "
+    "(honeypot) and that every quoted span occurs verbatim in the cited source, "
+    "and it computes the honesty block. clean=false means fix, not ship."
 )
 
 # ── configuration ─────────────────────────────────────────────────────────────
@@ -562,9 +566,24 @@ def tool_doctor(cfg: dict) -> dict:
         "sources": cfg.get("sources"),
         "families": cfg.get("families"),
     }
+    # A config written by an older implementation lists the engine's nine
+    # family names; `search` would reject it. doctor must surface that instead
+    # of reporting ok (it did once — the machine searched nothing for a day).
+    fams = list(cfg.get("families") or [])
+    families_invalid = [f for f in fams if f not in ALL_FAMILIES]
+    report["families_invalid"] = families_invalid
+    if families_invalid:
+        report["ok"] = False
     notes = []
-    if not report["ok"]:
+    if not report["ok"] and not families_invalid:
         notes.append("Not ready: fix the missing paths above in the config file.")
+    if families_invalid:
+        notes.append(
+            "config families contains entries this build does not implement: "
+            + ", ".join(families_invalid)
+            + " — `search` will reject the config. Run `install.py apply` to migrate "
+              "the config (or edit ~/.citlens/config.json to the seven families)."
+        )
     if screen_emb is None:
         notes.append(
             "screen semantic channel absent: pip install \"citlens-agent[embedding]\" "
@@ -779,6 +798,31 @@ def tool_screen(cfg: dict, args: dict) -> dict:
             argv += [flag, str(args[key])]
     # first call may download the local model; give it room
     return _run_driver_json(cfg, "tools", argv, timeout=900)
+
+
+def tool_verify(cfg: dict, args: dict) -> dict:
+    """Mechanical verification of a written review (no LLM, no key)."""
+    review = str(args.get("review") or "").strip()
+    if not review:
+        return {"ok": False, "error": "review is required (path to the review markdown)"}
+    argv = ["verify", "--review", review]
+    for flag, key in (("--topic", "topic"), ("--run_dir", "run_dir"),
+                      ("--verdicts", "verdicts"), ("--text_dir", "text_dir"),
+                      ("--out", "out_dir"), ("--out", "out")):
+        if args.get(key):
+            argv += [flag, str(args[key])]
+    if args.get("core_papers") not in (None, ""):
+        argv += ["--core-papers", str(args["core_papers"])]
+    out = _run_driver_json(cfg, "tools", argv, timeout=600)
+    out.setdefault("note", "")
+    out["note"] = (
+        "clean=false must be fixed before delivery: a reference that does not "
+        "resolve to the pool is a fabricated/untraceable citation; a span that "
+        "does not occur verbatim in the cited source is a guess, not evidence. "
+        "Report `honesty` verbatim — it is computed, not estimated. "
+        + str(out.get("note") or "")
+    )
+    return out
 
 
 def tool_status(cfg: dict, args: dict) -> dict:
@@ -1029,6 +1073,32 @@ TOOL_DEFS = [
         },
     },
     {
+        "name": "verify",
+        "description": (
+            "MECHANICAL verification of a written review — no LLM, no key. Checks "
+            "citation truth (every [n] marker resolves to a reference and every "
+            "reference to the literature pool: the honeypot), then checks each "
+            "agent verdict's quoted `span` verbatim against the cited paper's "
+            "fetched full text (abstract floor otherwise). With a verdicts JSONL "
+            "it computes the honesty block: citation precision, unverifiable rate, "
+            "full-text grounding, papers_cited/pool_size. Use it before delivering "
+            "any review; `clean=false` means fix, do not ship."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "review": {"type": "string", "description": "Path to the review markdown (body with [n] markers + a References section)."},
+                "topic": {"type": "string", "description": "Topic pool to resolve references against (byte-identical to the search topic)."},
+                "run_dir": {"type": "string", "description": "Run directory whose pool.jsonl to resolve against."},
+                "verdicts": {"type": "string", "description": "Path to a verdicts JSONL: one {claim, verdict, span, citations} per line."},
+                "text_dir": {"type": "string", "description": "Fetched full-text directory (default fulltext under the data home)."},
+                "out_dir": {"type": "string", "description": "Artifacts directory (default <review dir>/verification)."},
+                "core_papers": {"type": "integer", "description": "Papers deep-read (grounding denominator; default: distinct cited pool papers)."},
+            },
+            "required": ["review"],
+        },
+    },
+    {
         "name": "status",
         "description": "Poll a running search job by id: state, elapsed, log tail, artifacts and stats.",
         "inputSchema": {
@@ -1045,8 +1115,9 @@ TOOL_DEFS = [
         "description": (
             "Health check: interpreter, drivers, data home, .env keys present "
             "(names only, never values — and NO key is required in this build), "
-            "shared pool count, running/recent jobs. Call it first when a tool "
-            "fails, and before blaming the retrieval."
+            "shared pool count, running/recent jobs, unsupported config families "
+            "(families_invalid). Call it first when a tool fails, and before "
+            "blaming the retrieval."
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
@@ -1070,6 +1141,8 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
         return tool_audit(cfg, args)
     if name == "screen":
         return tool_screen(cfg, args)
+    if name == "verify":
+        return tool_verify(cfg, args)
     return {"ok": False, "error": f"unknown tool {name!r}", "tools": [t["name"] for t in TOOL_DEFS]}
 
 

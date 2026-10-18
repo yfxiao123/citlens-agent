@@ -162,12 +162,69 @@ def test_snowball_ranking() -> None:
     check("empty input safe", _rank_by_query_overlap([], {"x"}) == [])
 
 
+def test_merge_keeps_found_by() -> None:
+    print("\n== dedupe merge keeps family votes ==")
+    from citens.search.base import _merge_variants
+
+    preprint = _p("Semantic ID Tokenization for Generative Recommendation",
+                  "preprint", found_by=["snowball", "agent"], matched_queries=["q1"])
+    published = _p("Semantic ID Tokenization for Generative Recommendation",
+                   "published", doi="10.1/aaa", found_by=["survey"], matched_queries=["q2"])
+    merged = _merge_variants(published, preprint)
+    check("preferred variant wins the merge", merged is published)
+    check("found_by is accumulated, not dropped",
+          merged.found_by == ["survey", "snowball", "agent"], str(merged.found_by))
+    check("matched_queries is accumulated too",
+          merged.matched_queries == ["q2", "q1"], str(merged.matched_queries))
+
+
+def test_exclusion_reasons() -> None:
+    print("\n== PRISMA exclusion log carries reason codes ==")
+    import tempfile as _tempfile
+
+    sys.path.insert(0, str(ROOT / "drivers"))
+    from citlens_recall import write_run
+
+    keep = _p("Kept Paper", "")
+    quota = _p("Quota Cut Paper", "")
+    target_cut = _p("Target Cut Paper", "")
+    merged = _p("Merged Duplicate", "")
+    result = {
+        "papers": [keep],
+        "rejected": [("family_quota", quota), ("ranked_below_target", target_cut),
+                     ("duplicate_or_merged", merged)],
+        "report": {
+            "sources": ["arxiv"], "families_enabled": ["agent"], "pool_size": 4,
+            "family_sizes": {"agent": 2}, "family_consensus": {"2plus": 0, "3plus": 0},
+            "health": {}, "notes": [], "agent_queries": [], "web_queries": [],
+            "survey_seeds": [],
+            "exclusions": {"family_quota": 1, "duplicate_or_merged": 1,
+                           "ranked_below_target": 1},
+        },
+    }
+    with _tempfile.TemporaryDirectory() as td:
+        run_dir = write_run(Path(td), "topic", result)
+        rows = [json.loads(line) for line in
+                (run_dir / "exclusions.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+        reasons = {r["title"]: r["reason"] for r in rows}
+        check("all three fates are logged", len(rows) == 3, str(reasons))
+        check("quota cut is not mislabeled as a target cut",
+              reasons.get("Quota Cut Paper") == "family_quota", str(reasons))
+        check("dedupe merge is not mislabeled as a target cut",
+              reasons.get("Merged Duplicate") == "duplicate_or_merged", str(reasons))
+        check("target cut keeps its own reason",
+              reasons.get("Target Cut Paper") == "ranked_below_target", str(reasons))
+
+
 def main() -> int:
     test_bm25_scores()
     test_screen_bands_offline()
     test_screen_cjk_query()
     test_snowball_query_terms()
     test_snowball_ranking()
+    test_merge_keeps_found_by()
+    test_exclusion_reasons()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:
         print("failed: " + ", ".join(FAIL))

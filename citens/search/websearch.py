@@ -393,6 +393,15 @@ class WebSearchSource(SearchSource):
     name = "Web (blog/forum bridge)"
     BASE_URL = _DDG_URL
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Honest health buckets for the web bridge: [ok, empty, failed] per
+        # query. The engines below fail by returning [] (keyless Bing/DDG
+        # challenge), so without this counter a dead bridge is indistinguishable
+        # from "the web had nothing" — the one thing CiteLens must never report
+        # as a zero hit.
+        self.health = [0, 0, 0]
+
     async def search(self, keywords: list[str], max_results: int) -> list[Paper]:
         # depth ≥8 per query: the SERP call count is fixed per query, so
         # deeper pages are free — they catch golds ranked 6-8 under siblings
@@ -403,38 +412,49 @@ class WebSearchSource(SearchSource):
         ) as client:
             for kw in keywords:
                 try:
-                    results = await self._fetch_results(client, kw, per_query)
+                    results, engine_ok = await self._fetch_results(client, kw, per_query)
                     found = await _anchor_papers(results, client)
                     for p in found:
                         p.matched_queries.append(kw)
                     out.extend(found)
                     self.query_stats[kw] = len(found)
+                    if found:
+                        self.health[0] += 1
+                    elif engine_ok:
+                        self.health[1] += 1
+                    else:
+                        self.health[2] += 1
                 except Exception:  # noqa: BLE001 — optional channel
                     self.query_stats[kw] = 0
+                    self.health[2] += 1
                 await asyncio.sleep(2.5)  # engine politeness
         return out
 
     async def _fetch_results(
         self, client: httpx.AsyncClient, kw: str, limit: int
-    ) -> list[dict]:
+    ) -> tuple[list[dict], bool]:
         """Serper (keyed, Google SERP) primary; keyless scraping as fallback
         (Bing serves degraded SERPs to keyless clients and DDG 202-challenges
-        after bursts — both measured 2026-08-30)."""
+        after bursts — both measured 2026-08-30).
+
+        Returns ``(results, engine_ok)``: engine_ok=False means every engine
+        failed (not "no results"), so the caller can bucket it as `failed`.
+        """
         serper = await _serper_results(client, kw, limit)
         if serper:
-            return serper
+            return serper, True
         r = await client.get(_BING_URL, params={"q": kw})
         if r.status_code == 200 and 'class="b_algo"' in r.text:
             results = parse_bing_results(r.text, limit=limit)
             if results:
-                return results
+                return results, True
         r = await client.get(
             _DDG_URL,
             params={"q": kw, "kl": "cn-zh" if _has_cjk(kw) else "wt-wt"},
         )
         if r.status_code == 200:
-            return parse_ddg_results(r.text, limit=limit)
-        return []
+            return parse_ddg_results(r.text, limit=limit), True
+        return [], False
 
 
 def _has_cjk(s: str) -> bool:

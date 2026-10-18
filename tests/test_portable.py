@@ -32,7 +32,8 @@ ROOT = HERE.parent                  # the citlens-agent repo root
 SERVER = ROOT / "citlens_mcp.py"
 INSTALL = ROOT / "install.py"
 
-TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "status", "doctor"}
+TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "verify",
+         "status", "doctor"}
 
 PASS, FAIL = [], []
 
@@ -160,7 +161,7 @@ def test_protocol() -> None:
 
         tools = (c.request("tools/list").get("result") or {}).get("tools") or []
         names = {t.get("name") for t in tools}
-        check("tools/list exposes all seven tools", names == TOOLS, str(sorted(names)))
+        check("tools/list exposes all nine tools", names == TOOLS, str(sorted(names)))
         check("every tool has a description and an object inputSchema", all(
             t.get("description") and (t.get("inputSchema") or {}).get("type") == "object"
             for t in tools))
@@ -208,6 +209,15 @@ def test_protocol() -> None:
         screen_def = next(t for t in tools if t["name"] == "screen")["inputSchema"]
         check("screen schema takes agent queries",
               "queries" in screen_def["properties"])
+
+        noverify = c.request("tools/call", {"name": "verify", "arguments": {}})
+        check("verify without review is a clean error",
+              _payload(noverify).get("ok") is False
+              and (noverify.get("result") or {}).get("isError") is True)
+        verify_def = next(t for t in tools if t["name"] == "verify")["inputSchema"]
+        check("verify schema requires a review path",
+              "review" in verify_def["properties"]
+              and "review" in (verify_def.get("required") or []))
 
         unknown_tool = c.request("tools/call", {"name": "nope", "arguments": {}})
         check("unknown tool returns isError with the tool list",
@@ -351,7 +361,8 @@ def test_install() -> None:
                   and "name: citlens" in (target / "SKILL.md").read_text(encoding="utf-8"))
         skill_md = (tmp / ".agents" / "skills" / "citlens" / "SKILL.md").read_text(encoding="utf-8")
         check("skill carries the verification chain",
-              all(k in skill_md for k in ("four-way", "honeypot", "Defense pass", "honesty")))
+              all(k in skill_md for k in ("six-grade", "verdicts.jsonl",
+                                          "verify", "clean", "honesty")))
 
         # idempotency: a second apply must change nothing and add no new backup
         before = {p: len(list(p.parent.glob(p.name + ".citlens-backup-*")))
@@ -419,8 +430,9 @@ def test_selftest() -> None:
                        capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=300)
     check("selftest exits 0 on a healthy install", r.returncode == 0, r.stdout[-600:])
-    check("selftest lists the seven tools",
-          all(t in r.stdout for t in ("search", "pool", "fetch", "export", "audit")))
+    check("selftest lists the nine tools",
+          all(t in r.stdout for t in ("search", "pool", "fetch", "export", "audit",
+                                      "screen", "verify")))
 
 
 def test_registry() -> None:
@@ -634,6 +646,50 @@ def test_cli_arg_parsing() -> None:
     check("tool name parsed", name == "screen" and name2 == "search")
 
 
+def test_config_migration() -> None:
+    print("\n== families migration (engine-era 9-family config) ==")
+    tmp = Path(tempfile.mkdtemp(prefix="citlens-migrate-"))
+    home = tmp / "home"
+    home.mkdir(parents=True)
+    cfg_path = tmp / ".citlens" / "config.json"
+    cfg_path.parent.mkdir(parents=True)
+    nine = ["planned", "raw", "hyde", "pivot", "oa_title", "s2_rec",
+            "snowball", "web", "survey"]
+    cfg = {
+        "home": str(home),
+        "python": sys.executable,
+        "engine": str(ROOT),
+        "recall_driver": str(ROOT / "drivers" / "citlens_recall.py"),
+        "tools_driver": str(ROOT / "drivers" / "citlens_tools.py"),
+        "families": nine,
+        "target": 60,
+    }
+    cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+    env = _sandbox_home(tmp)
+    try:
+        r = _run_install(env, "apply", "--only", "zcode")
+        check("apply migrates the old config", r.returncode == 0,
+              (r.stdout + r.stderr)[-400:])
+        migrated = json.loads(cfg_path.read_text(encoding="utf-8"))
+        seven = ["agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey"]
+        check("nine-family list becomes seven", migrated.get("families") == seven,
+              str(migrated.get("families")))
+        check("migration is reported, not silent", "migrated" in r.stdout, r.stdout[-300:])
+
+        # doctor must refuse a config the server would reject
+        cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+        doc = subprocess.run(
+            [sys.executable, str(SERVER), "cli", "--config", str(cfg_path), "doctor"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        )
+        payload = json.loads(doc.stdout) if doc.stdout.strip().startswith("{") else {}
+        check("doctor flags an unsupported family list",
+              payload.get("ok") is False and payload.get("families_invalid") ==
+              ["planned", "hyde", "pivot"], str(payload)[:300])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main() -> int:
     print(f"server: {SERVER}")
     test_selftest()
@@ -644,6 +700,7 @@ def main() -> int:
     test_engine_override_and_driver_scoping()
     test_init_wizard()
     test_cli_arg_parsing()
+    test_config_migration()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:
         print("failed: " + ", ".join(FAIL))

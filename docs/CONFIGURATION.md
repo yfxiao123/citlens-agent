@@ -41,6 +41,20 @@
 | `OUTPUT_DIR` | `runs` | 产物目录前缀 |
 | `PROFILE` | 空（通用） | 域档案（当前内置 `finance`：期刊白名单 + 术语表，影响 collect 与排序） |
 
+## `verify` 综述机械核验（可选；无需任何 key）
+
+`verify` 不调用 LLM，也没有配置项。它读：
+
+- `--review <path>`：综述 markdown（正文 `[n]` + `References/参考文献` 段）；
+- `--topic` 或 `--run-dir`：解析参考文献用的文献池（主题必须与检索时逐字相同）；
+- `--verdicts <path>`：agent 的判定 JSONL，每行
+  `{"claim": "...", "verdict": "supported|partial|background|contradictory|unsupported|unverifiable", "span": "原文逐字引用", "citations": [3]}`；
+- `--text-dir`：`fetch` 的全文目录（默认数据家下 `fulltext/`；取不到全文时退到摘要）。
+
+产物写到综述旁的 `verification/`：`verification.jsonl`（逐条 claim 的引用解析与 span
+检查）、`honesty.json`（调用精度/不可验证率/grounding 的原始计数）。`clean=false` 表示
+存在编造引用、悬空 marker、span 不在原文或判定缺失，必须修完再交付。
+
 ## `screen` 三分带（可选；全部可按调用覆盖）
 
 | 键 | 默认 | 说明 |

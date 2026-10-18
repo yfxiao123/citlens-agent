@@ -13,6 +13,9 @@ mechanical services that pipeline had, and they are all pure I/O:
             CitationTable the engine used — no invented fields.
     audit   recall-vs-reality: how much of the top surveys' bibliographies
             the pool already covers (the stage-F anchor check).
+    verify  mechanical review verification (no LLM): citation truth via the
+            pool (honeypot), verbatim span grounding, six-grade verdict
+            validation and the honesty block (see citens/grounding/verify.py).
 
 Every subcommand prints exactly one JSON document on stdout. Run from the
 data home with this repo's interpreter, like citlens_recall.py.
@@ -30,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from citens.collect import audit_recall, pool_path, read_pool  # noqa: E402
 from citens.grounding.citations import CitationTable  # noqa: E402
 from citens.grounding.fulltext import fetch_fulltext, slugify  # noqa: E402
+from citens.grounding.verify import load_verdicts, verify_review  # noqa: E402
 from citens.models import Paper  # noqa: E402
 
 
@@ -220,6 +224,57 @@ def cmd_screen(args) -> dict:
     return out
 
 
+# ── verify ────────────────────────────────────────────────────────────────────
+
+
+def cmd_verify(args) -> dict:
+    """Mechanical citation/verdict verification for a written review.
+
+    Decidable-from-files checks only: markers→references, references→pool
+    (honeypot), and each agent verdict's quoted span against the cited
+    source's fetched full text (abstract floor otherwise). No LLM.
+    """
+    review_path = Path(args.review).expanduser()
+    if not review_path.is_file():
+        return {"ok": False, "error": f"review not found: {review_path}"}
+    try:
+        review_text = review_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return {"ok": False, "error": f"cannot read review: {e}"}
+
+    papers: list[Paper] = []
+    pool_source = ""
+    if args.topic or args.run_dir:
+        papers, pool_source = _load_papers(args.topic, args.run_dir)
+        if not papers:
+            pool_source = pool_source or "no pool found"
+
+    verdicts = load_verdicts(args.verdicts) if args.verdicts else []
+    text_dir = Path(args.text_dir or "fulltext")
+    out_dir = Path(args.out) if args.out else review_path.parent / "verification"
+    out = verify_review(
+        review_text,
+        papers,
+        verdicts=verdicts,
+        text_dir=text_dir,
+        core_papers=args.core_papers,
+        review_path=str(review_path),
+        out_dir=out_dir,
+    )
+    out["pool_source"] = pool_source or "not loaded (pass --topic or --run-dir to resolve citations)"
+    if not papers:
+        out.setdefault("notes", []).append(
+            "no pool loaded: every reference will be reported as not-in-pool. "
+            "Pass --topic (byte-identical to the search topic) or --run-dir."
+        )
+    if not verdicts:
+        out.setdefault("notes", []).append(
+            "no verdicts file: citation truth was checked, but span/precision checks need "
+            "a verdicts JSONL (see SKILL.md)."
+        )
+    return out
+
+
 # ── audit ─────────────────────────────────────────────────────────────────────
 
 
@@ -274,9 +329,22 @@ def main(argv=None) -> int:
     p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
     p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")
 
+    p_verify = sub.add_parser(
+        "verify",
+        help="机械核验综述引用与判定：marker→参考文献→池（蜜罐）+ span 原文核对 + 诚实数字",
+    )
+    p_verify.add_argument("--review", required=True, help="综述 markdown 路径（正文 + [n] 参考文献）")
+    p_verify.add_argument("--topic", help="主题池（解析参考文献用；与检索 topic 逐字相同）")
+    p_verify.add_argument("--run-dir", help="run 目录（读其 pool.jsonl）")
+    p_verify.add_argument("--verdicts", help="agent 判定的 JSONL（claim/verdict/span[/citations]）")
+    p_verify.add_argument("--text-dir", default="fulltext", help="fetch 全文落盘目录（默认 fulltext）")
+    p_verify.add_argument("--out", help="产物目录（默认 <review 所在目录>/verification）")
+    p_verify.add_argument("--core-papers", type=int, default=0,
+                          help="精读论文数（grounding 分母；缺省=被引池内论文数）")
+
     args = ap.parse_args(argv)
     fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit,
-          "screen": cmd_screen}[args.cmd]
+          "screen": cmd_screen, "verify": cmd_verify}[args.cmd]
     try:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001

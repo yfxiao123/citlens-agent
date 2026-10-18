@@ -1,0 +1,83 @@
+{
+ "created": "2026-10-18T17:34:03",
+ "questions": [
+  {
+   "set": "inline_acl",
+   "query": "Can you point to studies or tasks focused on detecting patronizing and condescending language, particularly in contexts involving vulnerable communities?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find a detailed discussion on automating the assessment of clarifications in instructional text, including tasks for grading these clarifications as plausible, implausible, or neutral and ranking them on a scale?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there any studies on incorporating external commonsense knowledge into conversational models to enhance emotional support?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates graph-based modeling of interactivity among various modalities over time within non-aligned multimodal sequential datasets?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that evaluates the performance decline in various language models, like BLOOM, under 4-bit integer columnar weight-only quantization?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that examines how syntactic configurations affect aspect-level sentiment analysis when employing a pretrained model such as RoBERTa?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates applying conventional data augmentation methods such as removing words and truncating sequences to contrastive learning in NLP applications?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a study that investigates if large language models can assist with generating ideas pertinent to scientific concepts during the scientific writing ideation stage?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that shows that language models' error distribution is different for unfamiliar entities that is not apparent when models are evaluated on familiar entities alone?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that uses evolutionary algorithms and neural MT metrics to produce translations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper studies the concept of enhancing the coverage of a selective prediction system by re-attempting the questions on which it was not sufficiently confident."
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which work discusses an analysis of source and target contributions to output generation based on local interpretation when machine translation models experience hallucinations?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Are there any papers that study whether you can identify if a LLM has been instructed to hide some information?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Are there any papers that use a world model for planning to ensure that decisions meet constraints?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What research first proposed a new kind of cascaded diffusion of a Markov process?"
+  }
+ ],
+ "n": 15,
+ "all_questions": false,
+ "driver_arm": false,
+ "model": "BAAI/bge-base-en-v1.5",
+ "sources": [
+  "arxiv",
+  "semantic_scholar",
+  "openalex",
+  "crossref"
+ ],
+ "per_source": 20,
+ "query_parquet_sha256": "38cdbe4a6b7a7f5776d08055bfbf6e4511000aa2a523866592b4bb273388b914",
+ "gen_cache_sha256": "eb54739482428a0b6daf5f13cd412b0db70fc417d09bce7356bf2ff2ac997dc0",
+ "caveats": [
+  "frozen-planner sample: reused development set, not held out",
+  "agent+raw cells only for the cell arms; the driver7 arm runs the shipped leg",
+  "n≈15 with ~1 gold/question: each point is a 1/15 step"
+ ]
+}

@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.3.0 — 2026-10-18
+
+把"可核验"从散文纪律变成工具，并修掉 0.2.0 在诚实性/口径上的缺陷。仍然零 LLM key。
+
+### 新增
+
+- **`verify` 工具（综述机械核验，零 LLM）**：`citens/grounding/verify.py` +
+  `citlens_tools.py verify` + MCP 工具。检查 (a) 每个 `[n]` → 参考文献条目；
+  (b) 每条参考文献 → 池内记录（DOI 或归一化标题），解析不到即"编造/不可溯源
+  引用"（蜜罐）；(c) 每条判定的 `span` 必须在被引论文的已抓取全文中逐字出现
+  （无全文时退到摘要，并计为 abstract-only）；(d) 六类判定校验（supported /
+  partial / background / contradictory / unsupported / unverifiable）；(e) 计算
+  引擎同一套诚实块（citation_precision、unverifiable_rate、grounding、
+  papers_cited/pool_size），写 `verification.jsonl` + `honesty.json`，返回
+  `clean` 门。`clean=false` 不得交付。verdicts 文件格式见 SKILL.md。
+- **bench 可复现性与统计**：`--driver-arm` 把仓库自己的七家族 recall leg
+  接入为 end-to-end 臂（逐题 live 运行并缓存）；`--all-questions` 支持全量
+  LitSearch 问题（仅 raw 家族，因为冻结 planner cache 只覆盖 15 题）；每次
+  运行写 `manifest_latest.json`（题目、gen-cache hash、caveats）；汇总与配对
+  比较加入 Wilson 95% 区间、exact McNemar、paired bootstrap。
+
+### 修复
+
+- **`found_by` 家族投票不再漏记**：s2_rec / snowball / web / survey 现在按
+  各自家族的（配额内）头部投票，而不是只给"最终新增"的文献投票；去重合并
+  `_merge_variants` 会累计 `found_by`（此前合并会把票丢掉）。共识通道与
+  ≥2/≥3 家族统计因此更接近真实。
+- **web 桥接健康桶**：`WebSearchSource` 记录每个查询 ok/empty/failed，driver
+  写入健康表；失败不再被吞成 `[]`（keyless 引擎挑战/被限流时此前看起来像
+  "零命中"）。
+- **排除日志原因码**：`exclusions.jsonl` 现在区分 `family_quota` /
+  `duplicate_or_merged` / `ranked_below_target`，不再把所有未保留记录都标成
+  "ranked_below_target"；`search_report.md` 与 `report.exclusions` 同步计数。
+- **oa_title 空结果显式说明**：预算耗尽/无匹配不再静默消失。
+- **配置迁移**：`install.py apply` 会把旧安装（引擎/portable 时代）的九家族
+  `families` 迁移为七家族并打印迁移行；`doctor` 新增 `families_invalid`，
+  配置含不支持的家族时 `ok=false` 并给出修复提示（此前 doctor 报 ok 而
+  `search` 直接拒绝——本机踩过）。
+- **docs/口径**：README、CHANGELOG、bench 文档、skill 的"同池只换排序"、
+  "33.3% 与九家族+LLM 持平"、"任何地方都无 LLM"、"七工具"等表述按实测改正；
+  工具数更新为 9，版本号统一（0.3.0）。
+
+### 测试
+
+- 新增 `tests/test_verify.py`（27 checks）：引用解析、DOI/标题解析、蜜罐、
+  dangling marker、span 逐字匹配、六类判定、precision/grounding 算术、产物。
+- `tests/test_screening.py` 增加 `_merge_variants` 保留 found_by 的回归检查。
+
 ## 0.2.0 — 2026-10-18
 
 切题判断的三层增强——仍然零 LLM key，agent 仍是裁判，工具拿到的是可解释的分流。

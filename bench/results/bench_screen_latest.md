@@ -1,18 +1,56 @@
-# bench: screen triage vs. search order (LitSearch, frozen questions)
+# bench: screen triage vs. pool order (LitSearch)
 
-- questions: 15 (the engine's frozen-planner set — the published recall@20=33.3% sample)
-- sources: arxiv, semantic_scholar, openalex, crossref × depth 20 · families: agent(planned, frozen) + raw
+- questions: 15 (the engine's frozen seed-42 stratified sample behind the published adaptive-leg recall@20=33.3%; a reused development sample, not held out)
+- sources: arxiv, semantic_scholar, openalex, crossref × depth 20 · cell arms: agent(planned, frozen) + raw
 - semantic model: BAAI/bge-base-en-v1.5
-- arms share the SAME recall pool; only the ordering differs
+- driver7 arm: off
 
-| arm | gold in pool % | R@5 | R@10 | R@20 | MRR@100 |
+## arm → candidate pool (READ THIS BEFORE QUOTING A DELTA)
+
+| arm | candidate set |
+|---|---|
+| firstwins | agent+raw seat-quota pool (30 seats, 2-family baseline — NOT the shipped 7-family search) |
+| screen_lex / screen_full / sem_only | the SAME quota pool, re-ordered |
+| rrf_global | union of all query×source cells |
+| screen_union | the SAME union, re-ordered |
+| driver7 | the repo's recall leg end-to-end (opt-in) |
+
+So `firstwins` vs `screen_full` is same-pool; `rrf_global` vs `screen_union` is same-union; `firstwins` vs `screen_union` is a DIFFERENT-pool comparison (the union is larger). The 0.2.0 headline used that cross-pool pair.
+
+| arm | pool | gold in pool % | R@5 | R@10 | R@20 | MRR@100 |
+|---|---|---|---|---|---|---|
+| firstwins | agent+raw seat-quota pool (2-family baseline; not the shipped 7-family search) | 13.3 | 0.067 | 0.067 | 0.067 | 0.02 |
+| rrf_global | union of all query×source cells | 33.3 | 0.0 | 0.067 | 0.067 | 0.013 |
+| screen_lex | same quota pool | 13.3 | 0.067 | 0.067 | 0.067 | 0.035 |
+| screen_full | same quota pool | 13.3 | 0.067 | 0.133 | 0.133 | 0.075 |
+| sem_only | same quota pool | 13.3 | 0.133 | 0.133 | 0.133 | 0.056 |
+| screen_union | same union | 33.3 | 0.267 | 0.267 | 0.333 | 0.178 |
+
+## uncertainty (95% Wilson interval; n is tiny — do not over-read)
+
+- **firstwins**: R@5 0.067 [0.012, 0.298] · R@20 0.067 [0.012, 0.298]
+- **rrf_global**: R@5 0.0 [0.0, 0.204] · R@20 0.067 [0.012, 0.298]
+- **screen_lex**: R@5 0.067 [0.012, 0.298] · R@20 0.067 [0.012, 0.298]
+- **screen_full**: R@5 0.067 [0.012, 0.298] · R@20 0.133 [0.037, 0.379]
+- **sem_only**: R@5 0.133 [0.037, 0.379] · R@20 0.133 [0.037, 0.379]
+- **screen_union**: R@5 0.267 [0.109, 0.52] · R@20 0.333 [0.152, 0.583]
+
+## paired comparisons (exact McNemar on hits; bootstrap on deltas)
+
+| A → B | pooling | ΔR@5 [95%] | ΔR@20 [95%] | ΔMRR [95%] | McNemar R@20 p |
 |---|---|---|---|---|---|
-| firstwins | 13.3 | 0.067 | 0.067 | 0.067 | 0.02 |
-| rrf_global | 33.3 | 0.0 | 0.067 | 0.067 | 0.013 |
-| screen_lex | 13.3 | 0.067 | 0.067 | 0.067 | 0.035 |
-| screen_full | 13.3 | 0.067 | 0.133 | 0.133 | 0.075 |
-| sem_only | 13.3 | 0.133 | 0.133 | 0.133 | 0.056 |
-| screen_union | 33.3 | 0.267 | 0.267 | 0.333 | 0.178 |
+| firstwins → screen_union | DIFFERENT pools | 0.2 [-0.067, 0.467] | 0.267 [0.067, 0.467] | 0.158 [0.006, 0.346] | b=4, c=0, p=0.125 |
+| rrf_global → screen_union | same-pool | 0.267 [0.067, 0.467] | 0.267 [0.067, 0.467] | 0.164 [0.018, 0.347] | b=4, c=0, p=0.125 |
+| firstwins → screen_full | same-pool | 0.0 [-0.2, 0.2] | 0.067 [0.0, 0.2] | 0.055 [-0.025, 0.191] | b=1, c=0, p=1.0 |
+
+A bootstrap interval that crosses 0 (or a McNemar p above 0.05) means the delta is not established at this sample size. The interval is the honest statement, not the point estimate.
+
+## caveats
+
+1. The agent queries are the engine's FROZEN planner outputs — the bench is LLM-free at run time, but the planner quality came from the engine; it does not validate an agent as planner.
+2. The cell arms use only agent+raw of the seven shipped families; the driver7 arm is the end-to-end check (and is costly).
+3. 15 questions × ~1 gold = coarse recall; per-question ranks are in the table below and in the JSON so nothing is hidden.
+4. The thresholds/bands are not tuned here: the lever under test is the ORDER, not the cutoffs.
 
 ## per question (gold first-rank; – = not in pool)
 

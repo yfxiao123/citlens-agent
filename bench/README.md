@@ -11,42 +11,69 @@ Reproduce (data lives in the engine repo, gitignored here):
   --env  <citlens home>/.env        # optional, only raises rate limits
 ```
 
-- Questions: the engine's frozen-planner set (15, stratified over the four
-  LitSearch query sets) — the same sample behind the published
-  recall@20 = 33.3% adaptive-leg number, so the anchor is comparable.
-- Recall phase (shared by every arm): agent family = the FROZEN planned
-  keyword queries (zero LLM at bench time) + raw family = question verbatim;
-  4 sources x depth 20. Cells cached in `bench_results/cells.json` — reruns
-  are deterministic and offline.
-- Arms order the SAME candidates; only the ranking differs.
+Added in 0.3.0: `--driver-arm` (the repo's own seven-family recall leg per
+question, live + cached) and `--all-questions` (all LitSearch questions with
+the raw family — the frozen planner cache only exists for the sampled 15).
+Both are opt-in because they hit the network/API quotas.
 
-### Results (bench/results/bench_screen_latest.md, 2026-10-18)
+### What is measured
 
-| arm | gold in pool % | R@5 | R@10 | R@20 | MRR@100 |
-|---|---|---|---|---|---|
-| firstwins (what `search` returns) | 13.3 | 0.067 | 0.067 | 0.067 | 0.020 |
-| rrf_global | 33.3 | 0.000 | 0.067 | 0.067 | 0.013 |
-| screen_lex (BM25+votes) | 13.3 | 0.067 | 0.067 | 0.067 | 0.035 |
-| screen_full (pool, +embeddings) | 13.3 | 0.067 | 0.133 | 0.133 | 0.075 |
-| sem_only (embeddings alone) | 13.3 | 0.133 | 0.133 | 0.133 | 0.056 |
-| **screen_union (full union + embeddings)** | **33.3** | **0.267** | **0.267** | **0.333** | **0.178** |
+- **Questions:** the engine's frozen **seed-42 stratified 15-question** sample
+  (2 `inline_acl` / 6 `inline_nonacl` / 4 `manual_acl` / 3 `manual_iclr`).
+  It is the sample behind the engine's published adaptive-leg recall@20 =
+  33.3%; it is a reused development sample, **not held out**. Verified against
+  `gen_cache.json` and the engine run `litsearch-20260831_231627`.
+- **Recall phase (cached in `bench_results/cells.json`):** 3 frozen planner
+  queries + the question verbatim, 4 sources × depth 20. Zero LLM calls at
+  bench time — but the planner queries are the engine's frozen LLM outputs.
+- **Pools:** two of them. The quota pool is agent+raw merged by family seat
+  (30 seats, 19–60 papers). The union is every distinct paper any cell
+  returned (19–195, median 120).
 
-Findings:
+### Arms — each is tied to a pool
 
-1. **The semantic channel is the lever.** Lexical+votes barely moves the
-   baseline; embeddings alone already double R@5. On identical pools the
-   full screen moves rank-22 golds to rank 1, and deep golds (RRF ranks
-   52/69/81) to 1/4/3.
-2. **screen over the full candidate union reaches R@20 = 33.3%** — the
-   engine's full adaptive leg (nine families + LLM cascade rerank) measured
-   the same number on this sample; this chain has no LLM anywhere.
-3. **The seat/target cut destroys recall screening would rescue.** Golds
-   visible to rrf_global (33.3% in-pool) but cut by family quotas fall to
-   13.3% in the production pool shape. Practical rule: for review workflows,
-   search with `target: 0` (or screen the accumulated litdb pool) rather
-   than letting the truncation decide.
+| arm | candidate pool | reads as |
+|---|---|---|
+| `firstwins` | agent+raw seat-quota pool | the **2-family baseline shape**; NOT the package's 7-family `search` |
+| `screen_lex` / `screen_full` / `sem_only` | same quota pool | re-ordering of the same candidates |
+| `rrf_global` | union of all cells | global RRF over the union |
+| `screen_union` | same union | screen re-ordering of the union |
+| `driver7` (opt-in) | the shipped recall leg | end-to-end seven-family pool |
 
-Caveats, stated plainly: n=15 with ~1 gold per question — each R@20 point is
-a 1/15 step; the union arm scores a larger pool than the production quota
-shape; thresholds/bands are not tuned (the lever under test is the ORDER,
-not the cutoffs).
+Two consequences the 0.2.0 write-up got wrong:
+
+1. `firstwins` vs `screen_union` compares **different pools** (the union is
+   larger). It is not "arms share the same pool, only ordering differs". The
+   valid same-pool pair is `rrf_global` vs `screen_union`; the valid
+   same-quota-pool pairs are `firstwins` vs `screen_full` / `screen_lex` /
+   `sem_only`.
+2. The 6.7→33.3% headline is the cross-pool pair. On the quota pool,
+   `screen_full` moves R@20 from 6.7% to 13.3%; the 33.3% requires the union
+   (`target: 0`-style) shape. Quote the pair you mean.
+
+### Statistics
+
+Every summary carries a **Wilson 95% interval** (binary hit@k over the 15
+questions) and each paired comparison carries an **exact McNemar p** plus a
+paired-bootstrap interval for the mean delta. At n=15 with ~1 gold per
+question each R point is a 1/15 step: do not report a delta as significant
+when its interval crosses 0 or its McNemar p is above 0.05. `manifest_latest.json`
+records the exact questions, gen-cache hash and caveats for each run.
+
+### Results (see `bench/results/bench_screen_latest.md`, regenerated by the run)
+
+The 0.2.0 result — screen over the union: R@5 26.7%, R@20 33.3%, MRR 0.178 —
+reproduced arithmetically. The engine's adaptive leg (9 families + LLM
+cascade) reports the same R@5/R@20 on this sample but a better MRR (≈0.273)
+and a different hit set (R@5 overlap 2/4, R@20 overlap 3/5). Same sample,
+different pipelines: the coarse counts coincide, the ranking quality and the
+questions solved do not. Also note `screen_union`'s R@20 equals its in-pool
+rate (5/5) — it is at the retrieval ceiling; 10/15 golds never enter the
+union.
+
+Caveats, stated plainly: n=15 with ~1 gold/question; the union arm scores a
+larger pool than the production quota shape; thresholds/bands are not tuned
+(the lever under test is the ORDER, not the cutoffs); the bench does not test
+precision/false positives or the actual 7-family end-to-end search unless
+`--driver-arm` is used; and the planner is the engine's frozen LLM, not the
+calling agent.

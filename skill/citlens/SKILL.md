@@ -1,6 +1,6 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, fetch, export, audit, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
@@ -31,6 +31,7 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `fetch` | one paper's open-access full text (arXiv→S2→OpenAlex→Unpaywall→CORE), or abstract fallback |
 | `export` | pool → BibTeX/RIS via the same citation table the engine used |
 | `audit` | stage-F anchor check: pool coverage of the top surveys' bibliographies |
+| `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed |
 | `status` | poll a running search job: state, elapsed, log tail, artifacts, stats |
 
 If your client has no MCP, the same tools are one shell call away:
@@ -170,27 +171,48 @@ markers that decorate rather than ground. Structure: the review argues a
 position (consensus / contradictions / gaps across papers), it does not
 concatenate abstracts.
 
-**Verify every claim (four-way verdicts).** For each claim, compare it
-against the cited paper's ground text and record a verdict:
-`supported` / `partial` / `unsupported` / `unverifiable`. Quote the source
-span that justifies the verdict — a verdict without a span is a guess.
-A claim is `unverifiable` when neither the abstract nor the fetched text can
-settle it; do not silently upgrade.
+**Verify every claim (six-grade verdicts + mechanical check).** For each
+claim, compare it against the cited paper's ground text and record one of the
+engine's six verdicts: `supported` / `partial` / `background` /
+`contradictory` / `unsupported` / `unverifiable`. Quote the source **span**
+that justifies the verdict — a verdict without a span is a guess.
+`background` = the source backs the field context but not this claim;
+`contradictory` = the source conflicts with or narrows it; `unverifiable` =
+neither abstract nor fetched text can settle it (never silently upgrade).
 
-**Honeypot check (蜜罐).** After drafting, re-derive every `[n]` in the prose
-from the pool records. Any reference that does not resolve to a pool paper
-is a fabricated citation — delete it and the claim it supported, then
-re-verify. This is the check that catches invented-but-plausible references.
+Write those verdicts to `verdicts.jsonl` beside the review — one object per
+line:
 
-**Defense pass (辩护律师).** Re-verify every `supported` verdict arguing the
+```json
+{"claim":"<exact claim sentence incl. [n]>","verdict":"supported",
+ "span":"<verbatim quote from the cited source>","citations":[3]}
+```
+
+Then call **`verify --review review.md --topic <byte-identical topic>
+--verdicts verdicts.jsonl`**. It is mechanical (no LLM, no key) and checks:
+
+- every `[n]` resolves to a reference, and every reference resolves to the
+  pool by DOI/title — an unresolved reference is the fabricated-citation
+  (蜜罐) case; delete it and the claims it supported;
+- each verdict value is one of the six, and every claim has one;
+- each `span` occurs **verbatim** in the cited paper's fetched full text
+  (abstract floor otherwise) — a span that does not occur is a guess;
+- it returns `honesty` (computed, not estimated) and `artifacts`
+  (`verification.jsonl`, `honesty.json`).
+
+`clean: false` means fix before delivery; a verifiable claim with no ground
+text must be downgraded to `unverifiable`. Fix, re-run, and only then report.
+
+**Defense pass (辩护律师).** Re-read every `supported` verdict arguing the
 OPPOSITE: hunt for the span that contradicts or weakens the claim. Verdicts
-that flip get rewritten, not defended.
+that flip get rewritten, not defended; re-run `verify` afterwards.
 
-**Rewrite and re-verify.** Delete or rewrite `unsupported` claims to match
-what the source says; re-verify the rewritten text (record pre-rewrite and
-post-rewrite precision). Do not keep a claim because it reads well.
+**Rewrite and re-verify.** Delete or rewrite `unsupported` / `contradictory`
+claims to match what the source says; re-verify the rewritten text (record
+pre-rewrite and post-rewrite precision). Do not keep a claim because it reads
+well.
 
-**Report the honesty block, verbatim:**
+**Report the honesty block the tool computed, verbatim:**
 
 ```
 citation_precision   = (supported + partial) / verifiable_claims
@@ -199,13 +221,14 @@ grounding            = with_fulltext / core_papers   (0 ⇒ the review is ABSTRA
 papers_cited          = n / pool_size
 ```
 
-If `grounding.with_fulltext` is 0, the review is **abstract-only** — label
-it. If your verification was rushed, say so; a review that hides its
-weaknesses is worthless.
+If `grounding` is 0, the review is **abstract-only** — label it. If your
+verification was rushed, say so; a review that hides its weaknesses is
+worthless.
 
-**Deliver.** `review.md`, `references.bib` (via `export`), `exclusions.jsonl`,
-`fetch_list.md`, and the honesty block in the summary. Save them in the run
-directory (`<home>/citlens-runs/<topic>-<ts>/`) or beside the review.
+**Deliver.** `review.md`, `verdicts.jsonl`, `verification/verification.jsonl`,
+`references.bib` (via `export`), `exclusions.jsonl`, `fetch_list.md`, and the
+honesty block in the summary. Save them beside the review or in the run
+directory (`<home>/citlens-runs/<topic>-<ts>/`).
 
 ## 收工协议 (stage F — done means verified)
 
@@ -216,8 +239,8 @@ Before declaring a task finished:
 2. **Saturation**: one differently-phrased search; report the delta.
 3. **Health**: report per-source ok/empty/failed from the last search
    report; failed sources are named, never hidden.
-4. **For reviews**: honesty block reported, honeypot pass clean, defense
-   pass done, exclusions logged.
+4. **For reviews**: `verify` reports `clean: true`, honesty block reported,
+   defense pass done, exclusions logged.
 
 ## Failure modes and what they mean
 
@@ -231,6 +254,7 @@ Before declaring a task finished:
 | pool empty before writing | run `search` for the byte-identical topic first |
 | `rejected: too many concurrent jobs` | poll the existing jobs; the server caps concurrency deliberately |
 | `fetch` returns `fulltext: false` | abstract-only citation; restrict claims accordingly and count it in the honesty block |
+| `verify` returns `clean: false` | fix before delivery: unresolved reference = fabricated citation; `span_not_found` = the quote is not in the source; `unverifiable_but_ground_text_exists` = downgrade or ground it |
 
 ## Sharing
 
