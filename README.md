@@ -57,7 +57,7 @@ python -m venv .venv
 
 各家族结果按 Reciprocal Rank Fusion 融合，每家族保底 30 席。常数沿用引擎仓库在 LitSearch 基准上的测量值（RRF k=60，每源深度 20）。在该基准上，这套方法的 recall@20 为 33.3%；作为对照，单组关键词查询为 6.7%，单一来源为 0%。每条记录同时落盘 `found_by`——命中它的召回家族集合，跨家族独立命中是免费的切题信号。
 
-返回顺序是融合序，不是相关性排序。切题判断分两层：先用 `screen` 做机械分流——三个可解释通道（本地嵌入语义相似度 [可选 extra，无 LLM key]、BM25 词面、`found_by` 家族投票），把池子分成 core / uncertain / likely_off 三带并写 `screening.jsonl`；agent 再对 core+uncertain 逐篇精读终审，likely_off 批量复核，所有最终排除记入 `exclusions.jsonl`（PRISMA）。**分流不是判决，screen 绝不自动剔除。** 阈值是启发式默认（未在金标上校准），报告分带时须同时报告阈值与通道。每次检索落盘三份产物：`pool.jsonl`（结构化文献记录）、`search_report.md`（各家族入池数与逐源健康表）、`exclusions.jsonl`（被裁剪的记录及原因）。检索源的失败单独计数并如实上报，不把失败的源报告成零命中。
+返回顺序是融合序，不是相关性排序。切题判断分两层：先用 `screen` 做机械分流——三个可解释通道（本地嵌入语义相似度 [可选 extra，无 LLM key]、BM25 词面、`found_by` 家族投票），把池子分成 core / uncertain / likely_off 三带并写 `screening.jsonl`；agent 再对 core+uncertain 逐篇精读终审，likely_off 批量复核，所有最终排除记入 `exclusions.jsonl`（PRISMA）。**分流不是判决，screen 绝不自动剔除。** 阈值是启发式默认（未在金标上校准），报告分带时须同时报告阈值与通道。在 LitSearch 冻结 15 题上（同池只换排序，见 `bench/README.md`）：对完整候选并集跑 screen 达 R@20 33.3%、R@5 26.7%、MRR 0.178，对照 family-seat 序 6.7%/6.7%/0.020——与引擎九家族+LLM 级联同 R@20，而本链路无 LLM。每次检索落盘三份产物：`pool.jsonl`（结构化文献记录）、`search_report.md`（各家族入池数与逐源健康表）、`exclusions.jsonl`（被裁剪的记录及原因）。检索源的失败单独计数并如实上报，不把失败的源报告成零命中。
 
 ## 支持的客户端
 

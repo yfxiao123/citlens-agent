@@ -101,6 +101,9 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    `wrong_subfield`, `duplicate`, `not_peer_reviewed`, ...) — PRISMA
    discipline, machine-written log. Report bands WITH their thresholds and
    which channels fired (they are heuristic defaults, uncalibrated).
+   Deep-recall note (bench-measured): the target/seat cut removes golds
+   screening would rank top — for review workflows search with
+   `target: 0` (or screen the accumulated litdb pool) before screening.
 6. **`pool`** to iterate without re-searching: `min_citations`, `year_from`,
    `is_review: true` for surveys, `query` for a substring, `sort_by`. This
    reads disk; it never retrieves.
