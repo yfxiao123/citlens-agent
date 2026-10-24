@@ -143,7 +143,7 @@ def _load_cells(path: Path) -> dict:
     return {}
 
 
-async def _cell(query: str, cells_cache: dict, path: Path) -> dict[str, list[Paper]]:
+async def _cell(query: str, cells_cache: dict, path: Path, state: dict) -> dict[str, list[Paper]]:
     if query in cells_cache:
         return {
             s: [Paper(**p) for p in lst]
@@ -158,9 +158,21 @@ async def _cell(query: str, cells_cache: dict, path: Path) -> dict[str, list[Pap
         # leave uncached so the next run retries the query
         _log(f"    source failures, cell NOT cached (retried next run): {failed}")
         return got
+    # 200-with-zero is not trustworthy either (measured: OpenAlex once
+    # returned zero for EVERY query one afternoon and those empty cells got
+    # cached; S2 flip-flops empty/nonempty on the same query). One targeted
+    # refetch per empty source; still-empty-after-retry is believed genuine.
+    emptied = [s for s in SOURCES if not got.get(s)]
+    for s in emptied:
+        retry = await search_one_query(query, [s], per_source=PER_SOURCE)
+        if retry.get(s):
+            _log(f"    {s}: empty on first pass, {len(retry[s])} on retry")
+            got[s] = retry[s]
     cells_cache[query] = {s: [p.model_dump() for p in lst] for s, lst in got.items()}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cells_cache, ensure_ascii=False), encoding="utf-8")
+    state["new"] += 1
+    if state["new"] % 10 == 0:  # batch rewrites — cells.json grows to tens of MB
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(cells_cache, ensure_ascii=False), encoding="utf-8")
     return got
 
 
@@ -348,8 +360,8 @@ def run(
     else:
         qs = [r for r in rows if r["query"] in planned_by_q]
         qs.sort(key=lambda r: (r["query_set"], r["query"]))
-        if n and n < len(qs):
-            qs = qs[:n]
+    if n and n < len(qs):
+        qs = qs[:n]
     if not qs:
         _log("no questions selected")
         return 1
@@ -370,9 +382,12 @@ def run(
             (data_dir / "query.parquet").read_bytes()).hexdigest(),
         "gen_cache_sha256": hashlib.sha256(gen_cache_path.read_bytes()).hexdigest(),
         "caveats": [
+            ("all-questions mode: raw family only — no frozen planner cache "
+             "outside the engineered sample")
+            if all_questions else
             "frozen-planner sample: reused development set, not held out",
             "agent+raw cells only for the cell arms; the driver7 arm runs the shipped leg",
-            "n≈15 with ~1 gold/question: each point is a 1/15 step",
+            f"n≈{len(qs)} with ~1 gold/question: each point is a 1/{len(qs)} step",
         ],
     }
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -382,6 +397,7 @@ def run(
 
     cells_path = out_dir / "cells.json"
     cells_cache = _load_cells(cells_path)
+    cell_state: dict = {"new": 0}
     driver_cache = out_dir / "driver_cache"
     driver_cache.mkdir(parents=True, exist_ok=True)
 
@@ -402,7 +418,7 @@ def run(
 
         cell_maps: dict[str, dict[str, list[Paper]]] = {}
         for q in queries:
-            cell_maps[q] = asyncio.run(_cell(q, cells_cache, cells_path))
+            cell_maps[q] = asyncio.run(_cell(q, cells_cache, cells_path, cell_state))
             time.sleep(0.3)  # polite spacing between query fan-outs
 
         fam_agent = fuse_multi_query({q: cell_maps[q] for q in planned}, SOURCES) if planned else []
@@ -483,6 +499,9 @@ def run(
              f"screen_full r20 {f['r20']:.2f} rank {f['first_rank']}")
 
     n_q = len(per_q)
+    if cell_state["new"] % 10:  # flush the last batch of new cells
+        cells_path.parent.mkdir(parents=True, exist_ok=True)
+        cells_path.write_text(json.dumps(cells_cache, ensure_ascii=False), encoding="utf-8")
     summary: dict = {}
     for arm, c in agg.items():
         hits5 = sum(1 for q in per_q if q[arm]["r5"] > 0)
