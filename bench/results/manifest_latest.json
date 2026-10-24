@@ -1,13 +1,421 @@
 {
- "created": "2026-10-18T17:34:03",
+ "created": "2026-10-24T17:32:30",
  "questions": [
+  {
+   "set": "inline_acl",
+   "query": "Are there any research papers on methods to compress large-scale language models using task-agnostic knowledge distillation techniques?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Are there any resources available for translating Tunisian Arabic dialect that contain both manually translated comments by native speakers and additional data augmented through methods like segmentation at stop words level?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Are there any studies that explore post-hoc techniques for hallucination detection at both the token- and sentence-level in neural sequence generation tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Are there any tools or studies that have focused on building a morphological analyzer specifically for handling multiple Arabic dialects?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Are there papers that propose contextualized calibration for the probability of answers in language models?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Are there studies that combine convolutional and recurrent neural network approaches to extract multiple types of features for relation extraction? If so, could you point me to one of them?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you direct me to research that explores methods for transforming multi-hop questions into single-hop sub-questions to leverage existing single-hop answer models?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you direct me to studies that explore techniques like question answering and passage retrieval for mitigating the effects of clickbait headlines?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you list some publications that discuss the evaluation metrics used in semantic role labeling tasks, specifically focusing on precision and evaluation scripts used in shared tasks like SemEval?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you point me to a paper that discussed transformer-based sentence embeddings?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you point me to a work that uses diagnostic tools to detect depression from online posts, and investigates strategies that address common temporal and topical artifacts that plague these models?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you point me to studies discussing methods for evaluating text generation models on various dimensions? I'm particularly interested in models like T5 and FLAN-T5, and how to assess their performance on summary-level and turn-level tasks."
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you point me to studies that explore the impact of different data augmentation strategies, such as feature/token/span cutoff or dropout, in the context of contrastive learning for sentence representations?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you point me towards research on contrastive learning methods used for fine-tuning sentence representations, where in-batch negatives may sometimes unintentionally be similar to the positive examples?"
+  },
   {
    "set": "inline_acl",
    "query": "Can you point to studies or tasks focused on detecting patronizing and condescending language, particularly in contexts involving vulnerable communities?"
   },
   {
    "set": "inline_acl",
+   "query": "Can you recommend a conversational QA dataset where the human questioner does not have access to the evidence passage to simulate a more real-world information-seeking environment?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you recommend a foundational paper that provides a scalable framework for generating English sentences with controllable semantic and syntactic attributes for the purpose of augmenting datasets in NLP tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you recommend a paper that uses an NLI model for sentence-level relation extraction using hypothesis generation and verification with entity-type constraints?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you recommend some literature that focuses on dependency-based models for relation extraction, especially those that utilize dependency parsing to capture non-local syntactic relations?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you refer me to research that adapts the concept of Word Mover's Distance to sentences, addressing the limitations of bag-of-words approaches and considering the order of words for text similarity?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest a corpus that contains French encyclopedia documents with semantic annotations and includes a test set of manually written question/answer triplets that align with the constraints of FrameNet semantic analysis?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest any literature that explores the idea of training neural networks to translate text passages into related questions?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest literature on a dataset that categorizes various emotions like anger, anticipation, fear, joy, and sadness in Facebook posts across multiple languages?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest literature on enhanced semantic parsing methods that focus on generating high-quality meaning representations and utilize knowledge-constrained decoding under specific grammar rules?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest recent studies that have integrated prompt fine-tuning into semi-supervised learning workflows for natural language understanding tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest some literature that evaluates the ability of context-aware machine translation systems to handle discourse phenomena such as deixis and lexical cohesion?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Can you suggest some recent datasets that have been used for studying stance detection in tweets, particularly those targeting specific individuals and events since 2020?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you direct me towards a study that explores the potential to predict a reader's native language based on their eye movement patterns while reading English texts?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you point me to research on binary classification systems that predict whether sentences within a context require clarification, particularly using the wikiHowToImprove dataset?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you point me to studies that discuss the development of open information extraction systems with lexical and syntactic constraints to ensure the extraction is coherent and informative?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you point me to studies that have investigated dialectal variations and normalized text in non-Latin scripts, such as Arabic or Japanese?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you point me toward some large-scale multilingual Amazon customer review data?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you provide me with a reference that discusses the development of classifiers for suicide risk detection in a low-resource language, with a specific focus on using explicit suicide-related terminology?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you recommend datasets that include SQL annotations over WikiTQ?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you recommend studies that provide a baseline for experiments using supervised constituency parsers with a focus on few-shot learning settings and have also reported on the use of pre-training and data augmentation techniques for parser performance improvement?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you suggest a paper that introduces an approach to relation extraction that involves learning syntax dependency structures using a tree LSTM model?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Could you suggest studies that employ novel methods for capturing data, specifically in the context of sarcasm detection on social media platforms like Twitter?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Has there been any recent work or competitions focused on the development of methods to counteract clickbait through spoiling, such as revealing key information upfront?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I am exploring state-of-the-art techniques in language representation models that are trained to understand context from both the preceding and succeeding text. Where can I find foundational research on this topic, including information about the Transformer architecture, and the specific tasks such models are pre-trained on?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I am looking for research that has explored topic and frame conditioning in transformer language models to enhance the quality of generated argument claims. Is there a paper discussing this approach?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I am looking to understand more about sequence-to-sequence pre-training and its applications in natural language tasks. Can you suggest a significant paper that describes the denoising process for such models?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I would like to understand the theoretical basis for using the nuclear norm of a weight matrix as a measure of complexity in linear models for probing tasks. Which paper should I refer to?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm conducting research on computational humor and looking at various approaches to detect it within texts. What are some articles that explore features like repetition or use language models like GPT-2 for humor recognition?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm exploring efficient transformer architectures for language embeddings and came across some work that utilizes advanced pre-trained models. Which paper should I reference to learn more about the use of XLM-R for multilingual representation learning in a transformer-based setting?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm exploring research that utilizes large datasets for the task of sentence simplification. Are there any prominent datasets sourced from Wikipedia that I could look into?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm exploring ways to enhance question answering systems through domain adaptation. Could you point me towards research that specifically focuses on synthetic data generation for this purpose?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm interested in understanding how perplexity is utilized in identifying misinformation or fact-checking. Are there studies discussing this application of perplexity?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm looking for a comprehensive dataset that has been influential in fact verification research"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm looking for a paper that discusses improvements in constituency parsing performance by applying a partition strategy for content embedding and positional embedding within self-attention and label attention layers."
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm looking for innovative approaches to data annotation on platforms like Amazon Mechanical Turk that focus on maximizing document coverage. Is there any research discussing strategies that balance the trade-off between full annotation and broader document coverage?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm looking into morphological embedding algorithms that build upon the word2vec model by utilizing character n-grams. Which papers should I read to learn more about this approach?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm looking into the distillation process of language models and would like to examine studies that specifically discuss the attention mechanism alignment in the teacher-student model architecture. Are there any papers you can suggest?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm researching insertion-based decoding methods for semantic parsing and language modeling, and I'm looking for works that discuss alternatives to traditional loss functions such as cross-entropy, particularly those using Kullback–Leibler divergence in this context. Could you point me to some studies on this?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm researching on the efficacy of recurrent networks in language modeling and CCG supertagging. Could you point me to studies that explore LSTM architectures and model comparisons in these tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "I'm searching for studies that explore advancements in dependency parsing, particularly using graph-to-graph transformers with iterative refinement processes. Which publications should I look into?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In discourse parsing literature, which works have explored parser performance by adopting the original Parseval procedure and reporting micro-averaged F1 scores?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In researching metrics for human-interaction with computer-assisted translation tools, which studies have analyzed parameters such as the keystroke ratio and mouse action ratio to quantify user effort or engagement?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In the area of argument mining, could you point to literature that uses of dependency parsers to determine the argumentativeness of texts in dialogue systems?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In the context of Named Entity Recognition tasks across multiple languages, which work highlights the necessity of retrieving related knowledge to aid in the annotation of ambiguous named entities?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In the context of machine translation, can you point me towards literature discussing the specifications for setting up encoder/decoder layers, attention heads, and other hyperparameters for a neural network model?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In the context of natural language processing, I am looking for research that explores the relationship between a model's prediction entropy and its tendencies to copy existing text versus generating novel content. Can you recommend a paper?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In the context of simultaneous machine translation, which tool or technique could I use to generate ground-truth alignments for training models to interpret and generate translations incrementally?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "In the field of reinforcement learning models for multi-hop reasoning, what issue involves an agent erroneously correlating a successful outcome with irrelevant or coincidental actions, and are there any papers discussing this phenomenon?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What approaches have been used to address the limitations of the beam search method in neural machine translation systems in terms of considering the full target context?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some approaches to generating sports news reports from event data and what models have been used for this task in Finnish language NLP?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some good datasets for conversational question answering?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some of the key papers to look at for understanding how attention mechanisms have been used to enhance bidirectional recurrent neural networks in relation classification tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some recent advancements in training systems to parse complex multi-hop questions into a sequence of simpler query steps for improved question answering?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some soft-constrained methods proposed in the literature for terminology translation in neural machine translation systems, and how do they differ from hard-constrained decoding methods that might degrade translation quality or increase complexity?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some studies that leverage statistical machine translation methodologies, like GIZA++, to improve the alignment process between words and grammar rules in the context of semantic parsing and generation of meaning representations?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are some techniques or tools used in machine learning for matching and grounding annotated data to an existing knowledge base, particularly using sentence embedding-based cosine similarity or clustering algorithms?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What are the recent developments in evaluating the flow or 'streaming degree' of the translation processes in simultaneous machine translation (SiMT), and which metric has proven useful for this purpose?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What paper should I look at if I am interested in the challenges of compositional generalization in the context of semantic parsing, especially regarding the impact of unseen local structures in program outputs?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What papers should I refer to if I want to explore datasets and shared tasks designed for the purpose of fact verification using evidence from Wikipedia?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What prior works suggested that exposure bias could lead to hallucinations in neural machine translation models?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What research could I reference to understand the methodology for binarizing non-binary subtrees in the context of discourse parsing?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What research has been done on annotating user comments with claim verifiability"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What research has been done on improving named entity recognition tasks by augmenting them with retrieval of external contexts?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "What research should I explore to understand methods for matching word senses in contexts using embeddings without relying on external lexical resources?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "When using pretrained transformer models for generating sentence embeddings, I've heard different strategies such as mean pooling and using the CLS token's embedding. What study shows that mean pooling outperforms CLS in semantic similarity tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find a corpus of CCG annotations for natural language processing tasks, and what notable work has leveraged this corpus specifically in the domain of supertagging?"
+  },
+  {
+   "set": "inline_acl",
    "query": "Where can I find a detailed discussion on automating the assessment of clarifications in instructional text, including tasks for grading these clarifications as plausible, implausible, or neutral and ranking them on a scale?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find a discourse treebank tailored to Chinese newswire articles that's large enough to make training, development, and test splits?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find a large corpus of annotated social media posts concerning a variety of health conditions?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find a multilingual corpus that includes reviews on DVDs, music, and books for the purposes of cross-language sentiment classification research?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find a paper that discusses annotating events in text with degrees of factuality, including categories such as certain, probable, and underspecified?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find guidelines on standard practices for probing machine learning models to discern what information the models have captured without training them on a new task?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find information on self-attentive parsers that have been trained in a few-shot learning setting, including their official code and hyperparameters?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find interdisciplinary research that investigates how creative natural language generation (NLG) systems are evaluated?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find multilingual datasets used for the task of intended sarcasm detection, particularly involving English and Arabic?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where can I find research about automatic evaluation metrics in summarization tasks disagree with each other?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where might I find a dataset annotated specifically for patronizing and condescending language to use in computational linguistics research?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Where might I find research on the evaluation of consistency in generated summaries?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Which corpora are frequently used in research to benchmark English readability assessment tools?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Which paper specifies the typical configurations used in fine-tuning deep bidirectional transformers like BERT and RoBERTa for language understanding tasks?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Which papers should I refer to for learning about the application of transformer language models to the generation of argumentative text conclusions, including the assessment of their novelty and validity?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Which studies should I look into that have explored the task of factuality in abstractive summarization and proposed ways to detect hallucinated content in generated text?"
+  },
+  {
+   "set": "inline_acl",
+   "query": "Which work should I explore to understand the techniques that expand the scope of open infomation extraction beyond verbs, to include various parts of speech such as nouns and adjectives?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "*Could you suggest a dataset with legally or ethically contentious content, and labels for acceptable and non-acceptable questions."
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there any papers on training video-language models with contrastive approahes and evaluation on temporal localization tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there any recent papers investigating the use of expert and anti-expert models together to guide text generation and mitigate toxic output?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there any research papers investigating the improvement of radiology report summarization through the application of graph neural networks in conjunction with biomedical entity extraction?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there any studies investigating example-based approaches to predict user intent in few-shot learning contexts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there any studies investigating sentiment analysis through text-to-graph conversion models that incorporate contextual embeddings?"
   },
   {
    "set": "inline_nonacl",
@@ -15,7 +423,203 @@
   },
   {
    "set": "inline_nonacl",
+   "query": "Are there studies examining how well question answering systems perform on queries that cannot be directly recalled from their training data?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Are there studies that investigate debiasing language models automatically using prompting?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Can you give me a paper that does self-supervised contrastive learning of sentence embeddings by sampling in-batch negatives?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Can you recommend a dialogue summarization dataset mined from broadcast interviews on the TV or radio?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Can you recommend research that uses an LLM to generate better prompts/tempates given task input/output?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Can you show me a paper that built a large structured knowledge base from wikipedia, that can then be used for entity linking and ranking tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Can you suggest research that deals with the multiple input sources in clinical text processing by combining several recurrent modules which are each responsible for a single source of information?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you direct me to research that evaluates few-shot slot tagging model performance by averaging micro-F1 scores across different test episodes?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you direct me to studies investigating the enhancement of bi-encoder text matching performance through the application of knowledge distillation methods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you point me to research that tackles the issue of disambiguating word senses in infrequent and zero-shot scenarios?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a contemporary research paper that has advanced natural language watermarking quality through algorithmic methods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a paper that builds a writing assistant with autocomplete capabilities conditioned on user intent?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that does data-augmentation for biomedical named-entity recognition by replacing entities in the original sentence with entities of the same type from semantically similar sentences?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that examines how cross project code summarization evaluation methodologies compare to time-segmented eval methodology."
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that examines how incorporating external commonsense knowledge into conversational agents can better interpret user emotions and refine their response formulation techniques?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that examines the intricacies of few-shot relation extraction challenges and introduces an approach integrating both global and local attributes alongside external descriptions of relations?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores a pre-trained multilingual text-to-text transformer applicable to text summarization tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores employing variational autoencoders to standardize open knowledge graphs?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores how language models are not robust to the surface form editing when testing commonsense knowledge?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores mitigating bias in natural language understanding via example reweighting?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores strategies for improving multi-label text classification by incorporating information about label distribution directly into the loss function?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores the difficulties in creating shared multilingual vocabularies, especially focusing on the problem of over segmentation in low-resource languages?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that explores the improvement of Chinese sequence labeling with BERT through the incorporation of lexical data via a character-to-word bilinear attention approach?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that initializes embeddings in multilingual transformer for subwords common with original vocabulary with original embeddings?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates employing graph neural networks to produce replies within multi-party conversational contexts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates employing prefix vectors for conditional natural language generation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates enhancing prompt engineering techniques for generative models using meta-learning strategies?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates enhancing token alignment in speech processing by employing inverse document frequency (idf)?"
+  },
+  {
+   "set": "inline_nonacl",
    "query": "Could you recommend a study that investigates graph-based modeling of interactivity among various modalities over time within non-aligned multimodal sequential datasets?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates guiding abstractive summarization through assessing sentence informativeness?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates how a subset with clean, annotated datasets improve denoising methods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates how contrastive learning enhances sentence-level embeddings in natural language processing, especially for subsequent applications?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates how integrating model quantization with knowledge distillation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates incorporating a fact memory component into neural networks to improve language modeling activities without requiring retraining or fine-tuning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates knowledge transfer from structured databases to unstructured data sources for improving sophisticated question-answering systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates representing entities in knowledge graphs with intricate geometric shapes, emphasizing probabilistic analysis and uncertainty modeling?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates text generation from tabular data, considering elements such as titles, column headings, and cell content, while also integrating numerical reasoning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates the implementation of sparsity within attention mechanisms to enhance the performance of models processing extremely lengthy documents?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates the improvement of knowledge representation learning by incorporating global context into graph attention networks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that investigates the use of trainable prompts to enhance the parameter optimization process in machine learning models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend a study that uses feedback-driven decoding for producing mathematical proofs using language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend articles that explore the role of late interaction in dense retrieval systems and its influence on the performance of information retrieval?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research articles that explore the application of contrastive learning methods to improve sentence embedding efficacy in natural language processing?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research papers that explore applying knowledge distillation to information retrieval, specifically those that concentrate on methods using in-batch negatives"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research papers that investigate employing Transformer-based architectures for completing knowledge graphs?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that analyses prompt tuning as a method to improve the generalizability of pre-trained models while avoiding catastrophic forgetting?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that assesses how well language learning models, such as ChatGPT, perform in creating reading comprehension tasks for educational software?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that assesses how well large language models, such as GPT-3, perform at coreference resolution when tested in a few-shot learning context?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that assesses techniques to mitigate intersectional biases within Transformer-based models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that employs a relaxed l0 regularization for structured pruning to downsize language models with transformer architectures?"
   },
   {
    "set": "inline_nonacl",
@@ -23,7 +627,51 @@
   },
   {
    "set": "inline_nonacl",
+   "query": "Could you recommend research that examines how an annotator's individual attributes, like their gender, ethnicity, and political views, influence their judgment of content deemed offensive?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that examines how decoding strategies like top-k impact hallucinatory in generated text?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that examines how multihead attention networks discern word interrelations in news content for detecting political perspectives?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that examines how optimized continuous prompts perform against discrete prompts in relational tasks?"
+  },
+  {
+   "set": "inline_nonacl",
    "query": "Could you recommend research that examines how syntactic configurations affect aspect-level sentiment analysis when employing a pretrained model such as RoBERTa?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that examines the challenges faced by pre-trained language models in learning inferential commonsense knowledge when the context is sparse?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that examines the effect of example sequencing on machine learning model efficacy in few-shot learning scenarios?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that explores how the loss of spatial information impacts the effectiveness of global features in visual tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that explores identifying excess and insufficient translations in evaluating machine translation, especially regarding resolving label discrepancies in cases of omitted content?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that has introduced a dual-phase method for sentence paraphrasing?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that improves knowledge base generation using non-differentiable evaluation metrics like BLEU, METEOR, and chrF++?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that introduces a metric for assessing Text-to-Image synthesis, emphasizing the semantic congruence between the text and the produced image rather than solely the visual quality?"
   },
   {
    "set": "inline_nonacl",
@@ -31,7 +679,819 @@
   },
   {
    "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates generative modeling approaches for event extraction, specifically focusing on leveraging large pre-trained language models to reduce the complexity of template engineering?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates how to use contrastive learning for improving logical reasoning over text?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates how to use data augmentation for improving logical reasoning over text?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates merging speech and text modalities in a unified representation space for processing spoken language through encoder-decoder models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates methods for fine-tuning generative language models with a focus on parameter efficiency to reduce computational demands?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates techniques for creating counterfactual examples to enhance question-answering systems, such as training a T5 model augmented with retrieval?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates the enhancement of neural passage retrieval through the application of dual encoders and the generation of synthetic questions?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates the impact of randomly removing words from sentences as a data augmentation strategy to mitigate overfitting in NLP models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates the influence of cognitive biases on human interpretation of AI-generated explanations, specifically within the realm of explainable natural language processing?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that investigates using autoencoder architectures to generate e-commerce product descriptions by integrating product titles, features, and supplementary descriptions crafted by marketers?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend research that proposed enhancing the RoBERTa model for event extraction by adding a Bi-LSTM and a CRF layer?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend scholarly articles that investigate the practice of refining language models through the exclusive modification of bias parameters in their linear components?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend studies on hierarchical modeling of user interests for tailoring news recommendation systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend studies that concentrate on analyzing and constructing models for discourse organization in conversations involving multiple turns and parties, aimed at separating dialogues?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend studies that investigate fine-tuning pre-trained language models using weakly supervised learning, especially those employing techniques like contrastive regularization or self-training?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend studies that tackle the issue of popularity bias within news recommendation engines and offer techniques to distinguish between user interests and the popularity of news items?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you recommend studies which explore how to optimally select demonstrations for few-shot in-context learning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a dataset containing diverse, intricate natural language queries that necessitate multi-step reasoning, comparing attributes, and performing set operations for answering questions from a knowledge base, without depending on entity linking?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a dataset for question-answering frameworks utilizing temporal knowledge graphs with broad coverage?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a research article that explores generative methods for extracting information, specifically one that covers the generation of surface forms, labeling of entities, and classification of entity types?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study examining how transformer models utilize feed-forward neural networks (FFNs) to encode factual information?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that evaluates cross-encoder BERT rankers?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that examines how well contrastive learning performs in unimodal representation learning, specifically for sentence embeddings?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores a cohesive pre-training method for code representation learning across different modalities?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores a compression method that merges product quantization with integer quantization for token-level retrieval?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores data annotation paradigms that help assuage concerns in lack of annotator expertise when using crowdsourcing?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores employing a beta distribution to sample span sizes within unsupervised learning frameworks for text representation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores improved training methods for dense passage retrieval within open-domain question answering systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores the idea of using prompts to fine-tune language models, potentially providing an alternative viewpoint to standard optimization and regularization methods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that explores the use of multi-modal pre-training techniques to improve the comprehension of documents with a high visual content?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that investigates the incorporation of human intervention in generating adversarial examples to attack conversational agents, with the aim of improving classifier efficacy"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a study that proposes high-parameter efficeint fine-tuning techinque that only trains the bias terms?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a thorough comparative analysis or review of the performance of different pretrained transformer architectures, such as BERT, in text ranking applications?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest a triplet-formatted structured dataset suitable for training table-to-text generation models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest an article that leverages the spatial information available in documents for multi-modal LMs by using a spatially-aware attention mechanism?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest datasets that can benchmark LLM performance in achieving conversational continuity and recall over long multi-session conversations?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest papers that tackle conversational search by using retrieval and conversational response ranking?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research on detecting common errors like additions and omissions in machine translation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that assesses if language models use extended contextual information, with experiments on the book dataset from Project Gutenberg?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that concentrates on pinpointing sentence components that carry hateful expressions, potentially aiding in sentence-level standardization for content moderation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines a system for multimodal annotation intended to assist people in analyzing dialogues within video content?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how coreference resolution affects dialogue summarization quality?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how prompt tuning can be used for domain transfer?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how prompt tuning efficacy in language model training is affected by scaling?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how strangers exchange information during discussions, specifically concentrating on the kinds of information typically shared during first encounters?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how the order of in-context examples influences the efficacy of in-context learning in language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how well language models work with creole languages, particularly in relation to their effectiveness with Nigerian Pidgin, given its close linguistic relationship with English?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how well prompt tuning using soft embeddings works for utilizing pretrained language models in downstream applications with minimal finetuning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines how well structured pruning techniques perform in developing both small and precise models in natural language processing?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines the application of specialized architecture in pre-trained language models to enhance text-to-SQL tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines the challenges faced by neural networks in discerning causation from correlation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines the difficulties in employing weakly labeled datasets for named entity recognition and offers techniques to mitigate the associated data noise?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that examines the effects of starting language models with weights from pretrained nondiffusion models on the convergence behavior of diffusion losses?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that explores a pre-trained encoder-decoder architecture aimed at comprehending and generating code, potentially beneficial for enhancing automated code repair systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that explores employing independently sampled dropout masks to generate positive pairs in contrastive learning for sentence embeddings?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that explores generating synthetic labels for sentences within a vast text collection to pre-train models for few-shot learning applications?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that explores the drawbacks of dense retrieval systems especially with large-scale indices?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that explores the idea of training soft prompts rather than identifying fixed ones within the realm of prompt tuning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that explores the improvement of Recurrent Neural Network Transducers (RNN-T) through the integration of cross-attention mechanisms for use in simultaneous translation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that includes an online community dataset used to examine machine learning models for hate speech identification?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates a clustering-based efficient attention mechanism within Transformer models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates across multiple languages how dictionary definitions and word embedding models compare?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates applying combinatorial optimization techniques in unsupervised entity matching?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates aspect-based sentiment analysis across different languages, incorporating methods such as code-switching of aspect terms?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates efficient finetuning methods that only trains very very few parameters in language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates employing graph attention techniques for integrating multiple modalities for identifying emotions?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates enhancing zero-shot question answering with prompts from language models integrated with knowledge graph data?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates expanding keyword collections through embedding similarity in weakly-supervised document categorization?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates graph-based methods for predicting connections in knowledge graphs, focusing on n-ary relational facts rather than just simple triple structures?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates how cross-attention mechanisms improve the interplay between token and syntax data within automated program repair systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates how hierarchical structures within transformers enhance task-oriented dialogue systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates how many evidence sentences are needed for document-level RE?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates how neural language models' forecasts correlate with human linguistic processing, especially in terms of syntactic surprisal?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates how undetectable backdoor attacks are in NLP models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates improving retrieval-based conversational systems using by combining masked language modeling and relevance classification objectives?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates the use of past dialogues for enhancing query expansion in conversational search systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that investigates training BERT-based classifiers with Wikipedia data for zero-shot text classification in open domains?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that offers an in-depth examination of the shortcomings associated with pretraining evaluation measures such as BERTScore, particularly regarding their alignment with human evaluative assessments?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that shows multilingual language models can understand plural/singular verb agreement across multiple languages?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that trains language models specifically on mental health-related social media data and the model is helpful for identifying mental health issues?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest research that tries to interpret how bi-directional RNNs manage to carry out Named Entity Recognition (NER) tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest some work that develops multimodal models with contrastive learning approaches?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Could you suggest studies focused on emotion-classification within group dialogues?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Has any research explored using other off-the-shelf summarization techniques to improve neural abstractive summarization?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Has any research tried to mitigate overfitting in weakly-supervised settings by introducing an adversarial framework where the influence of the labeling function is a hyperparameter for the feature representation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Has any study explored the zero-shot extraction of persona characteristics within conversational dialogues?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Has there been any research that uses multiple models to learn the preferences of individual annotators, and then ensembles these models to obtain majority-vote preference scores while also having an uncertainty measure?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Has there been any work that improves the work on integrated gradients by leveraging interpolation strategies to improve gradient accuracies?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any new metrics been developed to assess the factual alignment of machine-generated summaries with their original source texts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any papers tried to address the background-shift problem in named entity recognition by identifying non-entity type tokens belonging to old entity types through knowledge distillation from an old model?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any recent publications explored the use of neural network methods, like transformer architectures, in creating novel readability metrics?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research efforts been made to gather dialogue data via crowdworkers to enhance conversational information retrieval systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers been published on models for representing sentences in under-resourced languages like Slovenian or Romanian?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers collected feedback from real users who were using LLMs for scientific writing?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers critically analyzed the performance speed of non-autoregressive translation models compared to autoregressive models"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers examined the efficacy of multilingual text-to-text transformers across various languages, particularly those less represented in pretraining corpora?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers examined whether using language models for providing evidence in fact-checking systems risks propagating biases?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers explored methods to improve BERT's efficiency on long-text tasks, such as early exiting or self-distillation strategies?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers introduced a dedicated pre-training architecture designed to improve dense retrieval system efficacy?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers investigated human capacity to distinguish AI-generated text from human-authored text?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers investigated the creation of datasets through model-generated data for annotators to identify hallucinations in the results, specifically for developing diagnostic evaluation datasets?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers suggested methods for summarizing arbitrary length documents without truncating the input, by using memory networks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers suggested techniques for automatically choosing in-context examples?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any research papers tried to create conversational agents with inner states represented by a knowledge graph that can be continually updated based on the agent’s environment?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have any studies explored the creation of memory management systems in AI to improve sustained conversational capabilities and tackle the challenge of contextual retention over extended periods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Have there been any advancements in language models that operate without tokenization and emphasize encoding at the character level, and what benefits might they have compared to conventional methods using subword tokenization?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "How can I locate a dataset containing toxic sentence pairs alongside their non-toxic paraphrased counterparts for studying text detoxification?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "How can SQL-to-text be utilized to improve text-to-SQL parsing through data augmentation techniques?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "How can dense retrieval models for open-domain question answering be improved, specifically through the use of hard negative mining techniques?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "I know about prompt tuning, but have any works tried learning embeddings that are inputted to every transformer layer in a language model?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "In multi-hop question answering, is there a paper that explores \"per-hop\" retrieval evaluation that treats each hop of retrieval independently?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is it possible to adatp named entity recognition systems to learn new entities by combining knowledge distillation and synthetic data augmentation by using a two-stage training approach?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a benchmark designed to assess language models' social biases within question answering frameworks, specifically one encompassing diverse categories of social bias and offering instances of ambiguity and its resolution?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a comprehensive dataset available for summarizing broad-spectrum conversational dialogues?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a dataset available for open-domain targeted sentiment analysis containing user reviews from platforms like Yelp and Amazon?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a dataset containing question-answer pairs used in psychological counseling available for research?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a research paper that has developed a customer service conversation dataset aimed at forecasting customer intentions, taking into account the limitations imposed by agent protocols?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there a specialized question answering dataset that concentrates on intricate tables within certain sectors, like the airline industry?"
+  },
+  {
+   "set": "inline_nonacl",
    "query": "Is there a study that investigates if large language models can assist with generating ideas pertinent to scientific concepts during the scientific writing ideation stage?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there any paper that tried fine-tuning mBERT to enhance word-level alignment in a multilingual setting?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there any research that investigates how to use Transformer decoders to extract interactive shared representations from CNN networks on clinical notes?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there research examining if multilingual pre-trained models utilize identical sets of neural units to encode morphosyntactic features in various languages?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there research on a specialized language model designed to detect mental health issues on social media platforms?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there research that argues for transparency and open-access to the training data of LLMs and demontrates its importance with case studies of existing data?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there research that investigates embedding multi-bit data into watermarks to improve resilience to text corruption, particularly aimed at safeguarding keywords and syntactic elements from modification?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Is there work on text classification that explores using BERT for the text and using GNN for the label hierarchy?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What approaches have been suggested to lower the computational demands of basic attention mechanisms in transformers, and is there a study that explores a memory-saving technique through selective key-value pairing for each query?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What are some scholarly articles that explore scaling laws for parameter-efficient prompt tuning techniques for fine-tuning language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What are some scholarly articles that explore the enhancement of dense retrieval in student models through the application of prediction distributions from teacher models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What are some studies that explore data-poisoning strategies that only require very few poisoned training examples?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What are the latest advancements in predicting suicidal tendencies using innovative feature extraction methods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What are the latest developments in conversational agents that integrate external knowledge sources and employ diverse tactics to offer emotional support during interactions?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What benchmarks have prior research utilized to assess models performing knowledge-rich language tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What concerns or key points have been highlighted in scholarly articles about employing random divisions in machine learning datasets, especially with respect to contamination of the test set?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What difficulties do neural conversational models face, particularly concerning the decoder's ability to produce precise and fact-based replies?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What literature is available on training semantic parsers with deep learning for knowledge base question answering systems, especially those employing tree-structured representations of queries?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What methods exist for tailoring news suggestions that consider a user's preferences as well as the current popularity of news stories?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What papers discuss the effect of false negatives among hard negatives in dense retriever training?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What papers explore replacing schema linking with human annotations to study the maximum potential benefit of schema linking for text-to-SQL tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What recent developments in transformer architecture aim to improve the multi-head self-attention mechanism for better transmission of unprocessed attention scores and more stable training?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What recent research has been conducted on improving few-shot learning in pre-trained language models through the use of prompt-based fine tuning techniques?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research articles should I consult to understand a method for quantitatively assessing how successful neuron interventions are at altering a model's predictions?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research exists comparing adapter-based tuning and full fine-tuning efficacy in limited data contexts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research exists on employing generative models with latent variable to capture semantic dependencies in conversational systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research exists on incorporating knowledge graphs into language models to improve their complex question-answering capabilities?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research exists on leveraging syntactic roles and semantic interpretations for backdoor attacks on natural language processing systems?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research exists on the impact of scaling on prompt tuning efficiency in pre-trained language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research exists on using reinforcement learning methods for event prediction in temporal knowledge graphs?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on applying contrastive techniques to distinguish normal from abnormal imagery for the creation of radiology reports?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on creating neural network frameworks for parsing text into SQL?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on determining the ideal segment length for unsupervised keyphrase extraction?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on enhancing conversational generation models using knowledge sourced from the internet?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on incorporating visual data into the text summarization process?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on news recommendation engines that consider individual user preferences as well as the time-sensitive popularity of news content?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on scaling within-document coreference resolution in extended texts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research has been conducted on the impact of intervening at intermediate layers in pretrained language models to alter the resulting text?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research is available on acquiring sentence embeddings through unsupervised approaches, possibly employing contrastive learning methods?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research is available on hybrid approaches that combine extractive and abstractive methods for summarizing extensive texts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research is available on the concept of using prefix tokens as a parameter-efficient method for fine-tuning language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What research should I consult regarding the application of continuous vector prompts in language models instead of the conventional discrete token-level prompts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What resources or toolkits are available to facilitate prompt-based learning model development in PyTorch?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What sources offer research on maintaining factual accuracy at the entity level in abstractive summary generation?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What techniques and frameworks have been suggested for summarizing extensive texts under resource-constrained conditions?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What techniques exist for efficiently fine-tuning transformer language models by adjusting a limited set of parameters?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What techniques exist for incorporating context in detecting emotions within dialogues by leveraging pre-trained language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What techniques exist to enhance the few-shot fine-tuning performance in small pre-trained language models?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "What techniques have been investigated to enhance multimodal sentiment analysis by fusing different modalities?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Where can I find a database of good prompts to use for prompting language models for in-context learning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Where can I read about the using soft embeddings to elicit knowledge from large pre-trained models, at small tuning cost?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which method involves training additional prompt tokens for every layer during the fine-tuning of language models, specifically evaluating their performance on generation tasks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which paper has conducted a thorough analysis of how language models of different architectures generate text that either aligns with or deviates from the properties of natural human language?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which paper introduced the task of creating extended, coherent dialogues from brief summaries?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which paper presents a platform that emphasizes evaluating the robustness of models on benchmarks?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which paper shows that generated captions of models are still worse than human written ones?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which paper shows that human experts and non-experts focus on very different aspects when identifying AI=generated texts?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which work introduces sparse attention modules and evaluate specifically on summarization?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which work pushes the limit of model quantization in BERT models by introducing a ternary network?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which work shows that only emplying instance-level uncertainty metrics could results in sample redundancy in active learning?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which work shows that reducing the number of training epochs effectively limits the impact of backdoor attack, but the method decreases the prediction accuracy?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which work suggests that machine translation models might get too confident and generate coherent but inadequant translations?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "Which works shows that training large language models with purely mathematical and structural data can exhibit emergence of causal reasoning faster?"
+  },
+  {
+   "set": "inline_nonacl",
+   "query": "ould you direct me to research that shows that the transfer of specialized knowledge between various ABSA tasks if trained under the same paradigm?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Are there any examples of using dense phrase retrieval systems in the automatic curation of entity dictionaries?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Are there any large-scale and open-source text simplification datasets dealing with long passages?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Are there any papers that build dense retrievers with mixture-of-experts architecture where each expert is responsible for different types of queries?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Could you recommend a dataset paper which presents relation extraction performance on translated data and compare it to English data?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Find the NLP paper that focuses on dialogue generation and introduces advancements in the augmentation of one-to-many or one-to-one dialogue data by conducting augmentation within the semantic space."
+  },
+  {
+   "set": "manual_acl",
+   "query": "Give me a paper proposing to circumvent a single-truth target in training generative language models."
+  },
+  {
+   "set": "manual_acl",
+   "query": "How to achieve zero-shot lip reading?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "How to better attract readers to news articles by generating personalized headlines?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "How to faithfully and explicitly measure the helpfulness of human explanations to language models during finetuning and inference?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "If one would like to train (or evaluate) a helpful assistant agent that can converse with humans while the humans traverse an environment, which work has the most suitable resource?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "In multimodal (multilingual) abstractive summarization field, is there any paper that propose target-oriented vision modeling method to improve the quality of summaries?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a Chinese hate speech paper that constructs an insulting lexicon while building the dataset?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a dataset that allows to perform aspect-based sentiment classification on French news?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a decoder-only language model that does not use a tokenizer and operates on raw text bytes?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a dialogue dataset where a speaker's utterance is grounded in their persona, consisting of image-text pairs representing their episodic memories?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a method for measuring the critical errors that a dialogue system makes in its responses?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a method that measures the information provided in a (model generated) rationale beyond what the original context provided?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper comparing knowledge distillation and human annotation in terms of cost efficiency?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper exploring the curse of multilinguality for similar languages?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that applies large language models to visual Raven’s Progressive Matrices?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that connects the basic elements of storytelling with biased or imbalanced media reporting?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that links exposure bias to distillation?"
   },
   {
    "set": "manual_acl",
@@ -39,7 +1499,467 @@
   },
   {
    "set": "manual_acl",
+   "query": "Is there a paper that supports the use of automated coherence metrics in topic model evaluations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that uses Explainable AI techniques to investigate how language models represent the expression of morality?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that uses an app for a popular tabletop game to gather real transcripts of gameplay with concrete values for players' and monsters' health?"
+  },
+  {
+   "set": "manual_acl",
    "query": "Is there a paper that uses evolutionary algorithms and neural MT metrics to produce translations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that uses similarity scores to check knowledge in diffusion models"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that uses the tree structure of math equations in autoregressive language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a paper that utilizes the characteristics of human evolutionary knowledge to guide language models in generating scientific ideas?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a study that shows how to help the demonstration retriever better integrate feedback from LLMs?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there a tool that can automatically segment speech and the corresponding text transcriptions, to obtain a finer grained alignment?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there an evaluation metric for natural language generation that predicts the factual consistency score through a mean-max aggregation method?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any dataset that contains minimally-contrasting social situations that lead to different decisions about which behaviors are appropriate in that situation?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper about style transfer for stories?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper exploring real speakers and thus performing multimodal emotion recognition task?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper leverages knowledge distillation of language models for textual out-of-distribution detection or anomaly detection?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that address attacks on code models by leveraging the semantic information of the source code through attention scores, while also guaranteeing that the generated adversarial examples can always be compiled successfully?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that aligns speech and text embeddings better than CTC training?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that applies curriculum learning to various NLG tasks without depending on specific metrics?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that applies symbolic distillation on black-box generalist language models to harvest high-quality counterfactual data for out-of-distribution generalization?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that attempts to evaluate the similarity of meaning representations without using annotated data?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that automatically creates a dataset for summarizing text from one language to another for a large collection of languages?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that combines causal inference and finetuning for language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that constructs augmented training data based on the entity-to-entity correlations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that employs code LLMs to iteratively generate and refine code with execution results to improve the performance?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that explores and annotates the effectiveness of using testimonials or anecdotes in discussions?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that explores using only an encoder-only masked language model for open-ended long text generation (such as story generation)?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that investigates backdoor attacks across various types of tasks, not limited to classification, in language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that leverages graph neural network by integrating label information for multi-label low-resource intent classification?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that leverages syntactic rules to explicitly guide text generation?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that performs adversarial training on frame level for audio-visual representation learning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that proposes a new multimodal video dataset that image-level multimodal models do not work well?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that proposes a set of criteria to comprehensively evaluate generated conversations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that reveals annotation problems in cross-lingual summarization caused by decomposing the task into translation and summarization?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that studies a teacher AI inferring mental states of a student role in a role-playing game setup using reinforcement learning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that tries to investigate LLMs’ capabilities in solving elliptical constructions by using a test-dataset based on the psycolinguistic notion of Thematic Fit?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that uses data collected from the Dark Web, specifically onion domains, to pretrain a language model?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that uses prompt tuning in multi-answer QA?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that uses token-level loss to enhance sentence-level embedding learning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that utilizes Gaussian processes to analyze the vulnerability of text-conditioned generative models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that utilizes graph structure to model conversation history?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any paper that utilizes masked language modeling to defend against word-level adversarial attacks?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any research paper that can extract attributes from both a predefined label set and the surrounding context?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any work that allows large numbers of model outputs to be encoded and compared by causal language models in a single forward pass?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any work that attacks language models in dialogue generation?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there any works that explores how to achieve balance between representativeness and diversity in chosen samples for few-shot data selection?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there commonsense reasoning dataset which generates diverse sentences to describe the relation between concepts?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there such a factuality evaluation dataset that can be used to evaluate the performance of fact-checking models on summaries generated by latest summarization models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Is there such a reading comprehension dataset in understanding a snippet from a long story book, while it requires to integrate the necessary long history texts before the snippet to full understand it?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Provide an example of a paper which proposes a method to learn a dynamic (conditioned on the input) sequence tokenizer (segmenter) via standard gradient backpropagation."
+  },
+  {
+   "set": "manual_acl",
+   "query": "What are some data-efficient ways to learn text embeddings thru contrastive learning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What are some methods for solving the class-incremetal continual learning problems?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What is a large event-coverage general-domain event argument extraction dataset?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What is the first paper to address the problem of predicting knowledge graphs whose nodes, links and attributes change with time?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What is the performance of large language models in text summarization under reference-based and reference-free human evaluations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What limitations do large language models have in evaluating information-seeking question answering?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What paper compares humans' and language models' non-literal interpretations of utterances featuring phenomena like deceit, irony, and humor?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "What work attempts to explore multi-hop reasoning by densifying commonsense knowledge graphs?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which article first proposed shuffled-group-whitening to solve the problem of sentence representation learning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which dataset supports narration generation and temporal localization tasks in Chinese movies?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which family of model generally perform the best for the event conceptualization task"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which is the first multimodal model combining text and speech transformers trained without labelled text-speech pairs?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which knowledge graph completion method focuses on reducing memory usage by pruning features?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which language model distillation paper that first identified the capacity gap in distillation and used the MoE student model to counter the curse of capacity gap?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which numerical reasoning paper first published a dataset that considers different types of size of numbers and their representations in arithmetic questions?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper about parameter-efficient finetuning first proposes to feed the pretrained weight instead of the activation to an adapter?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper combines the advantages of different frameworks for grammar error correction (GEC) and achieves good performance?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper did a comprehensive survey of the code large language model (code LLMs)?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper employs a two-stage approach in generative models to tackle ABSA tasks across various domains?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper enables interactive semantic parsing by training an error correction model with simulated human feedback instead of human annotations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper explored training a GPT-2 for automatic diagnosis, emphasizing efficient data augmentation for symptom prediction and disease identification?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first aggregates statements to represent political actors and learns the mapping from languages to representation via pre-training?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first applied the chain-of-thought technique in the text summarization field?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first apply mixture of experts idea to large language models for domain adaptation?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first attempts to take potential dependencies among same-level labels into account in Hierarchical Text Classification?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first combines different methods for uncertainty quantification in one?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first combines rewriting and expansion methods to reformulate a query for conversational search?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first conducted the positioned error test for the MAUVE metric?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first construct large-scale corpus to improve in-context learning of large language models in the pre-training stage?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first constructed a structured knowledge base to interconnect different human social roles and attributes?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first explored In-context learning in a cross lingual setup and made use of alignment to better it's performance?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first found that multilingual models can inference cross-lingual supervision in MLM training by themself?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first introduced document content as an intermediate generation target and utilized textual document identifiers in generative retrieval?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first propose to mask positions to pre-train multi-modal document transformer？"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first proposed a cross-domain language model to automatically generate much labeled data for a unlabeled target domain?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first proposed extracting the pair of target and stance from sentences?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first proposed shared adapter module across layers?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first proposed to combine pretrained masked language models (BERT) and discrete diffusion language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first proposed to only update some original weights of self-attention layers in parameter-efficient fine-tuning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first published a real-world Chinese-English text image translation dataset?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first shows that it is possible to maintain high LLM reasoning performance with in-context examples that are absurdly wrong?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first shows that large language models can be prompted to act like professional annotators to evaluate text generation quality?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first studied the efficiency robustness of multi-exit language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first use the attention weights to guide the simultaneous inference of speech translation models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper first used structural information for coherence modeling?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper found that mutual learning benefits multlingual models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper highlights the need for leveraging all available resources, including dictionaries, machine translation systems, and language learners, to construct NLP data in low-resource languages?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper introduce a DRO (distribution robust optimization) like training objective for doing adversarial training without constructing adversarial samples."
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper introduced the human-evaluated timeliness metric for misinformation detection?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper introduces the R-GCN technique into document-level joint entity and relation extraction?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper investigates the influence of the diversity of source tasks on the performance of target tasks in prompt tuning using CrossFit?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper is among the earliest to train on extensive collection of signing video and subtitle pairs available from online platforms?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper is the first to comprehensively review the progress of deep learning in mathematical reasoning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper makes sure that the questions used in the paper are all from real users that are genuinely curious about a specific topic or concept?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper measured how well the source-translation contribution by the translation model can be used to detect its own hallucinations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper presents an easy to implement and high performing method for OOD detection with language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper produces a dataset for text simplification in over 12 languages and evaluates both finetuning and in context learning approaches to text simplification in those languages?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposed a learning-based data augmentation method for improving compositional generalization of language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposed decomposing the logit update of each of the attention blocks’ inputs to analyze how the context influences the prediction?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposed dictionary-based Bayesian inference to improve the performance of image text matching model?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposed the integration of human translators' considerations, such as length control, rhyme type control and suggestion, and enhancing compatibility between translation output and unseen melodies, into the design of machine translation models when translating lyrics?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposes a memory-efficient optimizer considering the confidence of each update during the optimization?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposes the two-stage training method, i.e., task-specific fine-tuning and cross-domain pre-training, to train an open-domain dialogue evaluator using the self-collected dataset."
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper proposes to use rewriting based approaches to defending against adversarial attacks in text classification?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper showed that social relationships were helpful for identifying inappropriate messages?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper shows assessment of training instabilities at different levels for language models?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper shows that in instruction tuning, the instructions can be compressed to small supporting sets of words that provide useful information?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper studies how current retrieval systems handle queries which contain multiple constraints?"
   },
   {
    "set": "manual_acl",
@@ -47,7 +1967,67 @@
   },
   {
    "set": "manual_acl",
+   "query": "Which paper surveyed the datasets and tasks of asking clarification questions in conversational systems??"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper used both automatically generated and manual templates with word tuples to adapt language models from one timestamp to another?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper utilizes language models to generate singable lyrics that can go well with a predefined melody?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which paper was the first to propose combining human spoken language and sign language datasets with gloss annotations to enhance the performance of sign language translation?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which papers develop methods to make in-context learning more computationally efficient?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which papers were among the first to explore the task of targeted training data extraction?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which pre-trained model is specifically designed for low-resource dialogue summarization tasks?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which research paper leverages event structure information from Abstract Meaning Representation (AMR) graphs to aid in recognizing causal relations between events?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which vision-language model can demonstrate that visual grounding could facilitate efficient language acquisition? (OctoBERT)"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which vision-language model paper in 2023 developed techniques that reduce input tokens to improve model inference speed?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which was the first paper to explore the online adaptation of neural MT metrics for use during the inference stage?"
+  },
+  {
+   "set": "manual_acl",
    "query": "Which work discusses an analysis of source and target contributions to output generation based on local interpretation when machine translation models experience hallucinations?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "Which work proposes an approach to improve candidate responses in the smart reply task by directly optimizing the metric to ensure that a response is selected by the user?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "what's the first paper that manages to handle KBQA using LLMs without fine-tuning?"
+  },
+  {
+   "set": "manual_acl",
+   "query": "which paper first focuses on addressing the over-smoothing issue for sentence embedding?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Are there any papers that construct convolutional networks which are equivariant with respect to non-compact/non-abelian Lie groups?"
   },
   {
    "set": "manual_iclr",
@@ -59,11 +2039,359 @@
   },
   {
    "set": "manual_iclr",
+   "query": "Are there datasets and benchmarks available for measuring LLM graph reasoning abilities?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Are there sequential learning guarantees for configuring a linear system solver under a distributional assumption on the systems' target vectors?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Can we find the solution of the Bilevel optimization when the lower-level problem is nonconvex?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Can we learn to represent an image with arbitary numbers of tokens?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Can we reduce visual tokens in vision transformers right from the beginning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Can you find a dataset that shows LLM-based evaluation may not be reliable enough?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Can you find a research paper that discusses using structured pruning techniques to scale down language models, where the original model being pruned has billions of parameters?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "I'm using Local SGD with a decaying learning rate for distributed training. Which paper offers guidance on setting the synchronization period in Local SGD to optimize test accuracy?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "In video diffusion models, is there any paper that tried decomposing video instruction into sub instructions of different time?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a paper illustrating that pre-trained transformers from LLMs can be used to encode visual information in a wide range of scenarios?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a paper that takes a mixed machine learning and solver based approach to code translation?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a paper which applies Bayesian optimization to modular continual learning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a paper which proposes a general data selection method based on information theory?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a parameter-efficient fine-tuning method (PEFT) that allows adjusting the number of optimized parameters to any value, irrespective of the model's architecture or choice of the adapter?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a single GNN model that can inductively generalize to any knowledge graph?;What is the method to generalize knowledge graph reasoning to graphs with new entities and relations?;Is there a foundation model for knowledge graphs that does not learn embeddings for each node and relation type?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there a theory paper that explains why sometimes tuning momentum does not boost performance for training a neural network?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there an existing dataset of images with alt-text that also includes the text the image was originally posted with?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any generalizable NeRF paper that disentangles texture and shape?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper applies off-shelf GPT-2 model in D4RL tasks, using PEFT techniques?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper improves adversarial training by forming semantic aware label without extra pre-train time or data?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper that explores ways to parameterize neural networks as proximal operators?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper that previously proposed to control a risk using prediction sets, based on the literature in conformal prediction?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper that seamlessly integrates the multigrid structure in operator learning for solving partial differential equations (PDEs)?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper that theoretically explains why in-context reinforcement learning works?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper that uses Lipschitz continuity in learning a dynamics model?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Is there any paper trying to improve MLE for auto-regressive language modeling through the lens of optimal transport?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Name a paper which proposes a probabilsitic formulation of retrosynthesis."
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What are some evaluation benchmarks for LLM privacy at inference time, targeted towards model input and NOT the training data."
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What are the key advantages of coupling neural SDEs with neural CDEs for treatment effect estimation over existing baselines?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What is a paper studying data being collected in bundles in reinforcement learning ?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What is the first paper that theoretically studies training neural networks under small initialization?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What is the first paper that uses the generalized linear model to analyze multi-neural spike train data?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What molecular representation learning paper introduced a benchmark that focuses on learning over thermodynamically-accessible conformer ensembles across diverse molecular properties and chemical reactions?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What open-source dataset combined knowledge retrieval with constraint satisfaction queries?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper considers sensitive data issue when prompting large language model APIs?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper evaluated the ability of visual few-shot learning models to do in-context learning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first adapted ControlNet to generate continuous videos in a training-free manner?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first associate the modeling frequency with input human skeletons under the NeRF framework?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first extends rotary positional encoding (RoPE) for camera-geometry encoding in multi-view transformers?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first proposed a robust perceptual similarity metric with certificates?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first proposes that simply reversing the output can significantly enhance the sample efficiency and the performance of the arithmetic capability of a decoder-only Transformer model?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first showed that you can score the code explanations using the pass@k metric?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first used the technique of prompt engineering to generate adversarial prompts that can fool LLMs into making wrong predictions in prompt-based learning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper first uses decoupled workers in distributed RL system?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper investigated the effect of the relative position (closer or further away) of the most pertinent retrieved code snippets on repository-level code completion performance?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper is the first to prove finetuned LLM can be a reliable judge?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper mitigates language model sampling errors due to the softmax bottleneck?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper mitigates the vocabulary size limitation when pretraining multilingual masked language models using a contrastive loss?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper proposes breaking down programming problems by predicting the objects that a solution would create?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper provides generalization bounds for self supervised learning models eg. CLIP"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper showed first that one can build a fully differentiable mixture of experts layer with no increase in time complexity?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What paper shows that RLAIF can fully replace RLHF to align language models from scratch?"
+  },
+  {
+   "set": "manual_iclr",
    "query": "What research first proposed a new kind of cascaded diffusion of a Markov process?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What work first uses LLM to code robotic simulation tasks and show sim-to-real benefits with policy pre-training in simulation?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What work proposes a model to learn a latent regular cell complex from data?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "What work proposes to combine video foundation models with vision language models to effective high dimensional robot planning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which backdoor paper first used the CLIP to suppress benign features and enhance poisoning features to design triggers?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which foundation model paper first proposed a time series model with proposed financial time series and text data?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which is one of the first papers to highlight and resolve the distribution shift in RLHF?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which machine learning paper proposed certified robustness in the malware detection domain?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which multimodal large language model represents visual data as the discrete tokens like text and training with the unified next-token prediction objective?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which neural theorem proving paper first attempted to prove theorems in a block-by-block manner?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper considers both weights and activations when pruning large language models?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper contains quantitative results demonstrating taking VQ tokens as inputs is inferior to pixel images for dense recognition tasks?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper examined the scalability of instruction-tuning with respect to Mixture of Expert models?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first applied the chain of thought concepts in 3D localization problem?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first derived online occupany estimation technique to get sqrt(T) bound for reinforcement learning in adversarial linear MDP?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first found that REINFORCE works better than actor critic algorithms like PPO for RL finetuning of pretrained chemistry language models (Transformers and RNNs)?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first found that when transformers are trained to in-context learn function classes, they might exhibit generalization followed by memorization, in certain settings?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first investigates the knowledge preferences of LLMs when there are conflicts between the context and the parametric memory?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first proposes a unified framework for black-box and white-box detection of AI-written text with explanations?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first proved that wide-enough transformer architectures trained with gradient methods on enough data would learn to solve relational reasoning tasks?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first showed that task-specific knowledge embedded in parameters can be extracted from one LLM using seed samples and transferred to another via parameter-efficient fine-tuning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first studied differential privacy for in-context learning to prevent prompt leakage attacks?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first study POMDP with enhanced feedback on observations?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first tried to fine-tune LLMs with chain-of-thoughts and program-of-thoughts for math reasoning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper first used language models to emulate tool executions for studying the risks of language model agents?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper formally defines the problem of model selection in llm agent for multi-modal reasoning?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper found that using common character encodings and ciphers, or even just convincing the model that it is not communicating in natural language, can bypass the safety guardrails of large models?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper in human motion generation can control the spatial location of any joints of the human with either dense or sparse 3D points?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper is the first to model the helpfulness and harmlessness alignment of LLMs as a Constrained MDP problem?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper proposes an alignment framework that steers language models to preferences of individual groups in a few-shot manner through augmenting the LLM with a transformer module?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper proposes to integrate black-box LLMs with a pool of smaller but specialized language models?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper studies how difficult is a policy learning problem under non-additive rewards in terms of theoretical lower bounds, and what could be a potential strategy to solve it empirically while recovering some specialized guarantees?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper systematically examed the input mismatch between training and sampling in diffusion models"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper trains on linear regression to hypothesize how fine-tuning affects language models?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper uses the latent diffusion model for the first time to solve offline reinforcement learning problems based on the sequential modeling framework?"
+  },
+  {
+   "set": "manual_iclr",
+   "query": "Which paper utilized MMD flows with Riesz kernels to solve Bayesian inverse problems?"
   }
  ],
- "n": 15,
- "all_questions": false,
+ "n": 597,
+ "all_questions": true,
  "driver_arm": false,
  "model": "BAAI/bge-base-en-v1.5",
  "sources": [
@@ -76,8 +2404,8 @@
  "query_parquet_sha256": "38cdbe4a6b7a7f5776d08055bfbf6e4511000aa2a523866592b4bb273388b914",
  "gen_cache_sha256": "eb54739482428a0b6daf5f13cd412b0db70fc417d09bce7356bf2ff2ac997dc0",
  "caveats": [
-  "frozen-planner sample: reused development set, not held out",
+  "all-questions mode: raw family only — no frozen planner cache outside the engineered sample",
   "agent+raw cells only for the cell arms; the driver7 arm runs the shipped leg",
-  "n≈15 with ~1 gold/question: each point is a 1/15 step"
+  "n≈597 with ~1 gold/question: each point is a 1/597 step"
  ]
 }

@@ -558,6 +558,9 @@ def run(
 def _write_md(path: Path, summary: dict, per_q: list[dict], model: str, n_q: int,
               all_questions: bool, driver_arm: bool) -> None:
     meta = summary.get("_meta", {})
+    raw_only = ("raw only — the NL question is the sole query; the frozen "
+                "planner cache covers only the engineered 15-question sample"
+                if all_questions else "agent(planned, frozen) + raw")
     hdr = "| arm | pool | gold in pool % | R@5 | R@10 | R@20 | MRR@100 |"
     sep = "|---|---|---|---|---|---|---|"
     lines = [
@@ -569,8 +572,7 @@ def _write_md(path: Path, summary: dict, per_q: list[dict], model: str, n_q: int
                                 " (the engine's frozen seed-42 stratified sample behind the "
                                 "published adaptive-leg recall@20=33.3%; a reused development "
                                 "sample, not held out)"),
-        f"- sources: {', '.join(SOURCES)} × depth {PER_SOURCE} · cell arms: agent(planned, "
-        "frozen) + raw",
+        f"- sources: {', '.join(SOURCES)} × depth {PER_SOURCE} · cell arms: {raw_only}",
         f"- semantic model: {model}",
         f"- driver7 arm: {'on (live 7-family recall leg, cached)' if driver_arm else 'off'}",
         "",
@@ -624,16 +626,31 @@ def _write_md(path: Path, summary: dict, per_q: list[dict], model: str, n_q: int
         lines += ["", "A bootstrap interval that crosses 0 (or a McNemar p above 0.05) "
                   "means the delta is not established at this sample size. The interval is "
                   "the honest statement, not the point estimate."]
-    lines += ["", "## caveats", "",
-              "1. The agent queries are the engine's FROZEN planner outputs — the bench is "
-              "LLM-free at run time, but the planner quality came from the engine; it does "
-              "not validate an agent as planner.",
-              "2. The cell arms use only agent+raw of the seven shipped families; the "
-              "driver7 arm is the end-to-end check (and is costly).",
-              "3. 15 questions × ~1 gold = coarse recall; per-question ranks are in the "
-              "table below and in the JSON so nothing is hidden.",
-              "4. The thresholds/bands are not tuned here: the lever under test is the "
-              "ORDER, not the cutoffs.",
+    if all_questions:
+        caveats = [
+            "1. RAW family only: the natural-language question itself is the sole "
+            "query — no planner, no concept blocks. Absolute recall is therefore a "
+            "LOWER bound on what the shipped workflow (agent-crafted queries) "
+            "reaches; it isolates the no-LLM ordering lever, not the product.",
+            "2. The cell arms use only the raw family of the seven shipped "
+            "families; the driver7 arm is the end-to-end check (and is costly).",
+            f"3. n={n_q} with ~1 gold/question; per-question ranks are in the "
+            "table below and in the JSON so nothing is hidden.",
+        ]
+    else:
+        caveats = [
+            "1. The agent queries are the engine's FROZEN planner outputs — the bench is "
+            "LLM-free at run time, but the planner quality came from the engine; it does "
+            "not validate an agent as planner.",
+            "2. The cell arms use only agent+raw of the seven shipped families; the "
+            "driver7 arm is the end-to-end check (and is costly).",
+            f"3. {n_q} questions × ~1 gold = coarse recall; per-question ranks are in the "
+            "table below and in the JSON so nothing is hidden.",
+        ]
+    caveats.append(
+        "4. The thresholds/bands are not tuned here: the lever under test is the "
+        "ORDER, not the cutoffs.")
+    lines += ["", "## caveats", "", *caveats,
               "",
               "## per question (gold first-rank; – = not in pool)", "",
               "| set | question (60c) | pool | firstwins | rrf | lex | full | sem | union |"

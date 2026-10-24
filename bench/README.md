@@ -77,3 +77,60 @@ larger pool than the production quota shape; thresholds/bands are not tuned
 precision/false positives or the actual 7-family end-to-end search unless
 `--driver-arm` is used; and the planner is the engine's frozen LLM, not the
 calling agent.
+
+### Full-set run — 2026-10-24 (all 597 questions, raw family only)
+
+`--all-questions` runs every LitSearch question with the natural-language
+question itself as the sole query — no planner, no concept blocks, no LLM
+anywhere. It isolates the no-LLM ordering lever at scale and measures the
+raw-question recall ceiling of the four sources.
+
+Run: 597 questions, 3h20m, 597 cells fetched, **zero source failures**, 7
+empty-source retries fired (the new guard; none recovered — all genuine).
+Reproduce: append `--all-questions --out bench_results/full597`.
+
+| arm | pool | gold in pool % | R@5 | R@20 | MRR@100 |
+|---|---|---|---|---|---|
+| firstwins | quota (30 seats) | 14.6 | 0.069 | 0.118 | 0.046 |
+| rrf_global | union | 16.8 | 0.069 | 0.118 | 0.047 |
+| screen_lex | quota | 14.6 | 0.116 | 0.139 | 0.082 |
+| screen_full | quota | 14.6 | 0.132 | 0.141 | 0.117 |
+| sem_only | quota | 14.6 | 0.132 | 0.142 | 0.109 |
+| screen_union | union | 16.8 | 0.147 | 0.161 | 0.124 |
+
+Paired: `firstwins → screen_full` ΔR@20 +0.023 [0.012, 0.035], McNemar
+b=14 c=0 p=0.0001; both baselines `→ screen_union` ΔR@20 +0.043 [0.027,
+0.060], b=27 **c=0** — 27 questions gained, zero lost. The R@5 Wilson
+intervals no longer overlap.
+
+Findings:
+
+1. **The ordering lever is confirmed at n=597.** Screen roughly doubles R@5
+   (0.069→0.147) and MRR (0.046→0.124) with zero regressions (c=0 in every
+   paired comparison).
+2. **The recall ceiling is the bottleneck, now with a full-set number.** Only
+   16.8% of golds enter even the union when the raw NL question is the only
+   query. Ordering cannot fix the other 83%; recall has to come from query
+   crafting (the calling agent) and seed expansion — which is what the
+   `expand --seeds` / judgment-memory roadmap items target.
+3. **The semantic channel carries the ordering gain**: `sem_only` matches
+   `screen_full` on R@20 (0.142 vs 0.141); the ensemble mainly adds R@5 and
+   MRR over lexical alone (0.116/0.082).
+4. Per query set: `inline_acl` 23.5% in-pool / R@20 0.211 vs `manual_iclr`
+   8.8% / 0.088 — abstract-level search struggles most on the math-flavored
+   ICLR questions.
+5. In raw-only mode `firstwins` and `rrf_global` coincide (a single query leg
+   makes both a round-robin of the same four lists); screen is the only
+   ordering lever actually exercised.
+
+### The 15-question numbers were effectively 3-source
+
+Post-mortem: on 2026-10-18 OpenAlex returned HTTP 200 with zero results for
+every bench query (one whole afternoon); those empty cells were cached as
+"empty", so the 0.2.0/0.3.0 15-question results above ran without OpenAlex in
+practice. The same-pool ORDERING comparisons remain internally valid (the
+missing source depresses every arm equally), but absolute recall there is a
+3-source number. The full-set run is clean (0 failures, OpenAlex healthy,
+empty-source retry guard added — 200-with-zero is no longer blindly cached).
+Whether to re-run the 15-question frozen sample on healthy sources is an open
+decision.
