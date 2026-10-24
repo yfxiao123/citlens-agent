@@ -1,6 +1,6 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
@@ -27,6 +27,7 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs, `screen_embedding_runtime`. No key is required |
 | `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) |
 | `screen` | relevance TRIAGE: bands the pool core / uncertain / likely_off (local embeddings + BM25 + family consensus; writes screening.jsonl). Triage, not judgment — nothing is auto-excluded |
+| `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
 | `pool` | read/filter the pool on disk (citations, years, reviews, DOIs); no new retrieval |
 | `fetch` | one paper's open-access full text (arXiv→S2→OpenAlex→Unpaywall→CORE), or abstract fallback |
 | `export` | pool → BibTeX/RIS via the same citation table the engine used |
@@ -73,8 +74,13 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
      is the measured fix — head-first broad queries picked only coverage.
    - Pass them all as `queries` (they become the `agent` family, the
      highest-recall leg). Optionally:
-     - `title_probes`: titles of 1-2 papers you already know are canonical —
-       they feed the OpenAlex title-index family.
+     - `title_probes`: 2-3 **HyDE-style hypothetical titles** — write the
+       title the ideal paper would carry, in PAPER-side vocabulary (method /
+       dataset / task names), not question phrasing. This is the measured
+       escape hatch for vocabulary mismatch: 71% of bench-missed golds share
+       ≤2 content words with the question, so no query phrasing reaches
+       them, but their own titles do. Anchor titles of known-canonical
+       papers work too (max 3 used).
      - `web_queries`: for the web bridge, 2-3 English queries quoting the
        DISTINCTIVE verbatim wording of the question (the 4-8 words a generic
        paper would NOT share), plus 1-2 natural Chinese phrasings
@@ -89,6 +95,11 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    and a `report_head`. Read `search_report.md` — it has per-family seat
    counts and per-source `ok / empty / failed` health. **A failed source is
    not a zero-hit source.** If `failed > 0`, say which source failed.
+   **Check `query_feedback`** (also `weak_queries` in the tool result, and
+   the 查询反馈 table in the report): every query's actual hit count with a
+   verdict. empty/thin blocks are vocabulary mismatch — rephrase THAT block
+   in paper-side vocabulary (method name / dataset name / task acronym) and
+   search again with the fixed block; do not just re-run the same words.
 5. **Triage, then judge relevance yourself.** The pool order is RRF/family-seat
    order, NOT a relevance ranking. Call `screen` with the SAME concept-block
    queries you gave `search`: it bands the pool into core / uncertain /
@@ -105,6 +116,18 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    Deep-recall note (bench-measured): the target/seat cut removes golds
    screening would rank top — for review workflows search with
    `target: 0` (or screen the accumulated litdb pool) before screening.
+5b. **Feed your judgments back — `expand`.** After reading the pool, take the
+   records you judged genuinely on-topic (even 2-3 of them) and call
+   `expand` with `topic` + `seeds` (their DOIs / arXiv ids / titles). It
+   fetches their references (backward), their citers (forward), OpenAlex
+   related works, and S2 recommendations — the neighborhood query
+   vocabulary cannot name. Citation chaining is the strongest recall lever
+   the bench knows: it reaches the 71% of golds that share ≤2 words with
+   the question. The added records carry `found_by: ["expand"]` and are
+   STILL UNJUDGED — screen and read them like any other addition. Iterate:
+   judge the expansion's best hits → expand again from the new seeds
+   (diminishing returns = saturation signal). Check `unresolved` in the
+   result: a seed that did not resolve is a hint, not an error to hide.
 6. **`pool`** to iterate without re-searching: `min_citations`, `year_from`,
    `is_review: true` for surveys, `query` for a substring, `sort_by`. This
    reads disk; it never retrieves.

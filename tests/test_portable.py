@@ -33,7 +33,7 @@ SERVER = ROOT / "citlens_mcp.py"
 INSTALL = ROOT / "install.py"
 
 TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "verify",
-         "status", "doctor"}
+         "expand", "status", "doctor"}
 
 PASS, FAIL = [], []
 
@@ -161,7 +161,7 @@ def test_protocol() -> None:
 
         tools = (c.request("tools/list").get("result") or {}).get("tools") or []
         names = {t.get("name") for t in tools}
-        check("tools/list exposes all nine tools", names == TOOLS, str(sorted(names)))
+        check("tools/list exposes all ten tools", names == TOOLS, str(sorted(names)))
         check("every tool has a description and an object inputSchema", all(
             t.get("description") and (t.get("inputSchema") or {}).get("type") == "object"
             for t in tools))
@@ -218,6 +218,15 @@ def test_protocol() -> None:
         check("verify schema requires a review path",
               "review" in verify_def["properties"]
               and "review" in (verify_def.get("required") or []))
+
+        noexp = c.request("tools/call", {"name": "expand", "arguments": {"topic": "t"}})
+        check("expand without seeds is a clean error",
+              _payload(noexp).get("ok") is False
+              and (noexp.get("result") or {}).get("isError") is True)
+        expand_def = next(t for t in tools if t["name"] == "expand")["inputSchema"]
+        check("expand schema requires topic+seeds",
+              set(expand_def.get("required") or []) == {"topic", "seeds"}
+              and "directions" in expand_def["properties"])
 
         unknown_tool = c.request("tools/call", {"name": "nope", "arguments": {}})
         check("unknown tool returns isError with the tool list",
@@ -643,7 +652,15 @@ def test_cli_arg_parsing() -> None:
     check("comma-separated families still accepted",
           args2.get("families") == ["raw,web"] or args2.get("families") == ["raw", "web"])
     check("boolean flag becomes True", args2.get("append_pool") is True)
-    check("tool name parsed", name == "screen" and name2 == "search")
+    name3, args3 = citlens_mcp._parse_cli_args(
+        ["expand", "--topic", "t", "--seeds", "10.1000/a", "2301.12345",
+         "A Great Paper", "--directions", "backward", "recs"])
+    check("expand seeds collected as a list",
+          args3.get("seeds") == ["10.1000/a", "2301.12345", "A Great Paper"], str(args3))
+    check("expand directions collected as a list",
+          args3.get("directions") == ["backward", "recs"])
+    check("tool name parsed", name == "screen" and name2 == "search"
+          and name3 == "expand")
 
 
 def test_config_migration() -> None:

@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — recall: query feedback, HyDE probes, seed expansion
+
+三项都对着 597 题金标剖析的结论：71% 漏检金标与问题共享 ≤2 个内容词——
+召回瓶颈是词汇错配，不是排序。
+
+### 新增
+
+- **`expand` 工具（判断反馈环）**：`citens/search/expand.py` + CLI/MCP。
+  以你判定的论文为种子（DOI / arXiv id / 标题，经 S2 解析、arXiv-only
+  种子合成 DataCite DOI 供引文方向使用），跑引文链（backward/forward/
+  OpenAlex related）+ S2 相似推荐四个方向，新记录带 `found_by=["expand"]`
+  入池。扩展不是切题认定，仍走 screen + 人工判断。种子上限 6、逐方向
+  解析缓存、unresolved 如实上报。离线 27 检查 + 真网络 smoke（Transformer
+  论文种子：2 种子解析 → 16 新记录）。
+- **查询级反馈**：`search` 报告新增"查询反馈"表与 `queries.json` 工件，
+  MCP 返回带 `query_feedback` / `weak_queries`——每条查询的实际命中数与
+  empty/thin/ok 判定。弱查询=词汇错配信号，SKILL 教 agent 换论文侧词汇
+  重拟该概念块，而不是原词重试。
+- **HyDE 标题探针**：`title_probes` 上限 2→3，语义升级为"假想论文标题"
+  ——用论文侧词汇写理想论文的标题，喂 OpenAlex 标题索引；这是词汇错配
+  的另一个绕行通道（引擎已实测该形态对金标可返回 rank-1）。
+
+### 修复
+
+- **S2 不解析 arXiv DataCite DOI**（expand 种子解析 404）：路由复用
+  snowball 的 `_s2_paper_id`（`DOI:10.48550/*` → `ARXIV:*`）。
+
 ## Unreleased — bench
 
 ### 全量 597 题基准（2026-10-24，`--all-questions`，仅 raw 家族，零 LLM）

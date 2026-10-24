@@ -172,11 +172,39 @@ async def recall(args) -> dict:
 
     agent_raw = fuse_multi_query({**agent_cells, **raw_cells}, sources)
 
+    # ── query-level feedback: which queries the sources actually answered ────
+    # The full-set bench measured 71% of missed golds sharing <=2 content words
+    # with the question — vocabulary mismatch is THE recall killer, and the fix
+    # loop needs to know WHICH concept block came back empty/thin so the agent
+    # can rephrase it in paper-side vocabulary. Computed from the cells already
+    # in hand; a source that FAILED its cell counts as 0 here but its failures
+    # are reported separately in the health table (never conflated).
+    query_feedback: list[dict] = []
+    for q, cells in [*agent_cells.items(), (topic, raw_cells.get(topic, {}))]:
+        by_src = {s: len(cells.get(s) or []) for s in sources}
+        total = sum(by_src.values())
+        verdict = "empty" if total == 0 else ("thin" if total < 12 else "ok")
+        query_feedback.append(
+            {"query": q, "total": total, "verdict": verdict, "by_source": by_src}
+        )
+    report["query_feedback"] = query_feedback
+    weak = [q["query"] for q in query_feedback if q["verdict"] != "ok"]
+    if weak:
+        notes.append(
+            f"查询反馈：{len(weak)}/{len(query_feedback)} 条查询命中过低（empty/thin，见报告表）——"
+            "这些概念块换论文侧词汇（方法名/数据集名/任务名/术语缩写）重拟后补一轮 search；"
+            "命中过低通常意味着词汇错配，不是池子太小"
+        )
+
     # ── family 3: OpenAlex title index over agent-supplied probe titles ──────
     probes = [t for t in (args.title_probes or []) if t.strip()]
     if "oa_title" in want and probes:
         try:
-            oa_cells = await oa_title_search(probes[:2])  # 2 probes max: shared daily budget
+            # 3 probes max (HyDE shape: hypothetical TITLES of the ideal
+            # paper, written in paper vocabulary — the query-vocabulary
+            # escape hatch; still capped, the title index shares the daily
+            # OpenAlex budget)
+            oa_cells = await oa_title_search(probes[:3])
             if any(oa_cells.values()):
                 fam = fuse_multi_query(
                     {f"[title] {t}": {"openalex": cs} for t, cs in oa_cells.items()},
@@ -191,7 +219,10 @@ async def recall(args) -> dict:
         except Exception as e:  # noqa: BLE001
             notes.append(f"oa_title: 失败，跳过（{str(e)[:120]}）")
     elif "oa_title" in want:
-        notes.append("oa_title: 未提供 --title-probes（锚点/已知论文标题），已跳过")
+        notes.append(
+            "oa_title: 未提供 --title-probes——建议按 HyDE 思路拟 2-3 个『理想论文标题』"
+            "（用论文侧词汇，不是提问措辞）喂给标题索引，已跳过"
+        )
 
     pool = _first_wins(families, FAMILY_QUOTA)
     _log(f"pool after quotas: {len(pool)}")
@@ -401,6 +432,15 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
                 "found_by": p.found_by,
             }, ensure_ascii=False) + "\n")
 
+    # query-level feedback as a machine-readable artifact (the MCP search view
+    # surfaces it so the agent can rephrase weak concept blocks without
+    # parsing the markdown report)
+    (run_dir / "queries.json").write_text(
+        json.dumps({"query_feedback": report.get("query_feedback", [])},
+                   ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+
     fam_rows = "\n".join(
         f"| {k} | {v} |" for k, v in report.get("family_sizes", {}).items()
     ) or "| （无） | 0 |"
@@ -414,6 +454,12 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
     reviews = sum(1 for p in papers if p.is_review)
     cons = report.get("family_consensus", {})
     excl = report.get("exclusions", {})
+    qfb_rows = "\n".join(
+        f"| {q['query'][:60]} | {q['total']} | {q['verdict']} | "
+        + " ".join(f"{s.split('_')[0]}:{n}" for s, n in q["by_source"].items())
+        + " |"
+        for q in report.get("query_feedback", [])
+    ) or "| （无查询执行） | 0 | – | – |"
 
     (run_dir / "search_report.md").write_text(f"""# CiteLens 检索报告 — {topic}
 
@@ -447,6 +493,15 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 {health_rows}
 
 > failed > 0 时必须显式报告：源失败绝不能写成"零命中"。
+
+## 查询反馈（每条查询的实际命中——造词迭代的仪表盘）
+
+| 查询 | 总命中 | 判定 | 逐源 |
+|---|---|---|---|
+{qfb_rows}
+
+> empty/thin 的概念块是词汇错配的信号：换成论文侧词汇（方法名/数据集名/
+> 任务名/术语缩写）重拟后补一轮 search，而不是加大同词重试。
 
 ## agent 供查询（家族 1）
 
@@ -482,7 +537,8 @@ def build_args(argv=None):
     ap.add_argument("--queries", nargs="+", default=[],
                     help="agent 亲拟的英文概念块查询（PRESS 纪律），空格分隔多条")
     ap.add_argument("--title-probes", nargs="+", default=[],
-                    help="锚点/已知论文标题，喂 OpenAlex title.search 家族（最多取前 2 条）")
+                    help="锚点/假想论文标题（HyDE：用论文侧词汇拟理想论文的标题），"
+                         "喂 OpenAlex title.search 家族（最多取前 3 条）")
     ap.add_argument("--web-queries", nargs="+", default=[],
                     help="web 桥接查询：英文逐字跨度 + 中文自然短语")
     ap.add_argument("--target", type=int, default=0, help="保留条数上限（0 = 不截断）")
@@ -514,7 +570,7 @@ def main(argv=None) -> int:
         print(json.dumps({
             "topic": args.topic,
             "agent_queries": args.queries,
-            "title_probes": args.title_probes[:2],
+            "title_probes": args.title_probes[:3],
             "web_queries": args.web_queries,
             "sources": args.sources,
             "families": args.families,

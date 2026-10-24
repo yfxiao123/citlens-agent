@@ -275,6 +275,56 @@ def cmd_verify(args) -> dict:
     return out
 
 
+# ── expand ────────────────────────────────────────────────────────────────────
+
+
+def cmd_expand(args) -> dict:
+    """Judgment feedback loop: expand the topic pool around agent-picked seeds
+    (citation chaining + S2 recommendations). Triage, never judgment."""
+    import asyncio
+
+    from citens.search.expand import expand_from_seeds
+
+    seeds = [s for s in (args.seeds or []) if s.strip()]
+    if not seeds:
+        return {"ok": False, "error": "pass --seeds (DOIs / arXiv ids / titles of papers you judged on-topic)"}
+    directions = {d.strip() for d in args.directions.split(",") if d.strip()}
+    pool = read_pool(args.topic)  # may be empty — expansion can seed a new topic
+    existing = {p.id for p in pool}
+    result = asyncio.run(expand_from_seeds(
+        seeds, existing,
+        directions=directions,
+        relevance_terms=[args.topic],
+        limit_per_paper=args.limit_per_paper,
+        top=args.top,
+    ))
+    added = 0
+    if not args.no_write and result["papers"]:
+        from citens.collect import append_pool
+
+        added = append_pool(args.topic, result["papers"])
+    compact = [
+        {"title": p.title, "year": p.year, "doi": p.doi,
+         "citation_count": p.citation_count, "source": p.source}
+        for p in result["papers"][:args.top]
+    ]
+    return {
+        "ok": True,
+        "topic": args.topic,
+        "seeds": seeds,
+        "resolved": result["anchors"],
+        "unresolved": result["unresolved"],
+        "counts": {**result["counts"], "appended_to_pool": added,
+                   "pool_size_before": len(pool)},
+        "papers": compact,
+        "note": (
+            "邻域扩展不是切题认定：新记录只带 found_by=[expand] 入池，"
+            "仍需 screen 分流 + 你逐篇判断（PRISMA 排除照记 exclusions.jsonl）。"
+            "命中过低时换种子或补方向（--directions recs 只跑相似推荐）。"
+        ),
+    }
+
+
 # ── audit ─────────────────────────────────────────────────────────────────────
 
 
@@ -329,6 +379,21 @@ def main(argv=None) -> int:
     p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
     p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")
 
+    p_expand = sub.add_parser(
+        "expand",
+        help="判断反馈环：以你判定的种子论文为中心做引文链 + S2 相似推荐扩展",
+    )
+    p_expand.add_argument("--topic", required=True,
+                          help="并入的主题池（data/litdb/<slug>.jsonl；可为空池——直接从种子起步）")
+    p_expand.add_argument("--seeds", nargs="+", required=True,
+                          help="种子：DOI / arXiv id / 标题（你判过切题的论文）")
+    p_expand.add_argument("--directions", default="backward,forward,related,recs",
+                          help="逗号分隔方向：backward,forward,related,recs（默认全部）")
+    p_expand.add_argument("--limit-per-paper", type=int, default=20,
+                          help="每个种子每个方向最多取几条")
+    p_expand.add_argument("--top", type=int, default=30, help="返回/入池上限")
+    p_expand.add_argument("--no-write", action="store_true", help="只返回结果，不并入池子")
+
     p_verify = sub.add_parser(
         "verify",
         help="机械核验综述引用与判定：marker→参考文献→池（蜜罐）+ span 原文核对 + 诚实数字",
@@ -344,7 +409,7 @@ def main(argv=None) -> int:
 
     args = ap.parse_args(argv)
     fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit,
-          "screen": cmd_screen, "verify": cmd_verify}[args.cmd]
+          "screen": cmd_screen, "verify": cmd_verify, "expand": cmd_expand}[args.cmd]
     try:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001

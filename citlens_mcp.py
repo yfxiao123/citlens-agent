@@ -83,6 +83,13 @@ INSTRUCTIONS = (
     "question, call `search` instead of inventing your own search — and YOU are "
     "the planner: craft the English concept-block queries yourself (4-6 concepts "
     "x 2-4 synonyms, combination queries first) and pass them as `queries`; "
+    "write 2-3 HyDE-style `title_probes` — hypothetical TITLES of the ideal "
+    "paper in paper-side vocabulary — and check `query_feedback` in the result: "
+    "empty/thin blocks mean vocabulary mismatch, rephrase them with "
+    "method/dataset/task names. After you judge records core, feed them back: "
+    "call `expand` with their DOIs/titles/arXiv ids — citation-chain + "
+    "similarity expansion from YOUR seeds is the strongest recall lever (the "
+    "bench measured 71% of missed golds unreachable by any query vocabulary). "
     "optionally `title_probes` (anchor papers you already know) and "
     "`web_queries` (English verbatim spans + natural Chinese phrasings). The "
     "tool runs seven recall families fused by RRF; it does NOT rank by relevance "
@@ -745,6 +752,19 @@ def _search_view(cfg: dict, st: dict) -> dict:
             "exclusions": str(rd / "exclusions.jsonl"),
         }
         out["kept"] = len(pool)
+        # query-level feedback (see queries.json writer in the recall driver):
+        # which concept blocks the sources actually answered. Weak blocks are
+        # the agent's rephrase list — vocabulary mismatch, not pool size.
+        qj = _read_json(rd / "queries.json").get("query_feedback") or []
+        if qj:
+            out["query_feedback"] = [
+                {"query": q.get("query", "")[:60], "total": q.get("total", 0),
+                 "verdict": q.get("verdict", "?")}
+                for q in qj
+            ]
+            weak = [q for q in qj if q.get("verdict") in ("empty", "thin")]
+            if weak:
+                out["weak_queries"] = [q.get("query", "")[:60] for q in weak]
         by_source: dict[str, int] = {}
         no_doi = no_venue = reviews = 0
         for rec in pool:
@@ -768,6 +788,11 @@ def _search_view(cfg: dict, st: dict) -> dict:
             "`screen` with your concept-block queries first to band the pool "
             "(core/uncertain/likely_off triage), then read the core+uncertain "
             "records yourself (title+abstract, paper by paper) before citing. "
+            "If query_feedback shows empty/thin blocks, REPHRASE those concept "
+            "blocks in paper-side vocabulary (method/dataset/task names) and "
+            "search again — weak blocks are vocabulary mismatch, not a small "
+            "pool. After judging records core, feed them back with `expand` "
+            "(citation-chain + similarity neighbors of YOUR seeds). "
             "Read `search_report.md` for per-family seat counts and per-source "
             "ok/empty/failed health, and `exclusions.jsonl` for the PRISMA reasons. "
             "Report failed sources explicitly; never present them as zero hits. "
@@ -798,6 +823,35 @@ def tool_screen(cfg: dict, args: dict) -> dict:
             argv += [flag, str(args[key])]
     # first call may download the local model; give it room
     return _run_driver_json(cfg, "tools", argv, timeout=900)
+
+
+def tool_expand(cfg: dict, args: dict) -> dict:
+    """Judgment feedback loop: expand the topic pool around agent-judged seeds."""
+    topic = (args.get("topic") or "").strip()
+    if not topic:
+        return {"ok": False, "error": "topic is required (the pool to expand into)"}
+    seeds = _as_list(args.get("seeds"))
+    if not seeds:
+        return {"ok": False, "error": "seeds is required: DOIs / arXiv ids / titles "
+                "of papers you judged on-topic"}
+    argv = ["expand", "--topic", topic, "--seeds", *seeds]
+    if args.get("directions"):
+        argv += ["--directions", ",".join(_as_list(args.get("directions")))]
+    for flag, key in (("--top", "top"), ("--limit-per-paper", "limit_per_paper")):
+        if args.get(key) is not None:
+            argv += [flag, str(args[key])]
+    if args.get("no_write"):
+        argv += ["--no-write"]
+    out = _run_driver_json(cfg, "tools", argv, timeout=600)
+    out.setdefault("note", "")
+    out["note"] = (
+        "These are citation-chain / similarity neighbors of YOUR seeds — found_by="
+        "[expand], still unjudged: band with `screen` and read them yourself before "
+        "citing. If the expansion missed the neighborhood you expected, check "
+        "`unresolved` seeds and try more/different seeds — seeds ARE the query here. "
+        + str(out.get("note") or "")
+    )
+    return out
 
 
 def tool_verify(cfg: dict, args: dict) -> dict:
@@ -934,9 +988,10 @@ TOOL_DEFS = [
             "survey reference harvest) fused by reciprocal-rank fusion under "
             "per-family seat quotas. It does NOT rank by relevance — judge the "
             "returned pool yourself. Writes pool.jsonl + search_report.md + "
-            "exclusions.jsonl. Returns a job id; pass wait_seconds (default 45) or "
-            "poll `status`. Use this instead of your own web search for any "
-            "literature question."
+            "exclusions.jsonl + queries.json (per-query hit feedback — rephrase "
+            "empty/thin blocks in paper-side vocabulary). Returns a job id; pass "
+            "wait_seconds (default 45) or poll `status`. Use this instead of "
+            "your own web search for any literature question."
         ),
         "inputSchema": {
             "type": "object",
@@ -945,7 +1000,7 @@ TOOL_DEFS = [
                 "queries": {"type": "array", "items": {"type": "string"},
                             "description": "English queries you crafted (PRESS concept blocks). This replaces the engine's LLM planner."},
                 "title_probes": {"type": "array", "items": {"type": "string"},
-                                 "description": "Titles of anchor/known papers for the OpenAlex title-search family (max 2 used)."},
+                                 "description": "HyDE-style hypothetical TITLES of the ideal paper (paper-side vocabulary, 2-3 of them) or anchor titles, for the OpenAlex title-search family (max 3 used)."},
                 "web_queries": {"type": "array", "items": {"type": "string"},
                                 "description": "Web-bridge queries: English verbatim spans of the distinctive wording + natural Chinese phrasings (Zhihu-style)."},
                 "target": {"type": "integer", "description": "Max kept papers (0 = no truncation). Default from config."},
@@ -1099,6 +1154,33 @@ TOOL_DEFS = [
         },
     },
     {
+        "name": "expand",
+        "description": (
+            "Judgment feedback loop for recall: expand the topic pool around papers "
+            "YOU judged on-topic (citation chaining backward/forward + OpenAlex "
+            "related + Semantic-Scholar recommendations). This is the vocabulary-"
+            "mismatch escape hatch — the full-set bench measured that 71% of missed "
+            "gold papers share <=2 words with the question, and citation/similarity "
+            "neighbors bypass query vocabulary entirely. Seeds may be DOIs, arXiv "
+            "ids or titles. Added records carry found_by=[expand]: still unjudged — "
+            "screen and read them yourself (PRISMA exclusions still apply)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "Pool to expand into (byte-identical topic slug; may be a fresh topic seeded entirely from these)."},
+                "seeds": {"type": "array", "items": {"type": "string"},
+                          "description": "Papers you judged on-topic: DOIs / arXiv ids / titles (max 6 used)."},
+                "directions": {"type": "array", "items": {"type": "string", "enum": ["backward", "forward", "related", "recs"]},
+                               "description": "Expansion directions (default all four)."},
+                "top": {"type": "integer", "description": "Records to return/merge (default 30)."},
+                "limit_per_paper": {"type": "integer", "description": "Per seed per direction (default 20)."},
+                "no_write": {"type": "boolean", "description": "Return without merging into the pool."},
+            },
+            "required": ["topic", "seeds"],
+        },
+    },
+    {
         "name": "status",
         "description": "Poll a running search job by id: state, elapsed, log tail, artifacts and stats.",
         "inputSchema": {
@@ -1143,6 +1225,8 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
         return tool_screen(cfg, args)
     if name == "verify":
         return tool_verify(cfg, args)
+    if name == "expand":
+        return tool_expand(cfg, args)
     return {"ok": False, "error": f"unknown tool {name!r}", "tools": [t["name"] for t in TOOL_DEFS]}
 
 
@@ -1372,7 +1456,7 @@ def selftest(cfg: dict) -> int:
 
 
 _LIST_KEYS = ("families", "sources", "fields", "themes",
-              "queries", "title_probes", "web_queries")
+              "queries", "title_probes", "web_queries", "seeds", "directions")
 
 
 def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
