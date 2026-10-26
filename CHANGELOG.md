@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — library management: dedup, reading notes, export formats
+
+- **去重报告（`dedup` 工具）**：`citens/library.py` 的
+  `duplicate_groups` / `dedup_pool`，三种信号（精确 DOI、arXiv id、模糊
+  题名 + 共享作者——与检索时 dedup 同一套保守规则）找出累积池里的嫌疑
+  组；报告默认只读，`--merge`（仅主题池，写 .bak 后合并）把每组折叠成
+  DOI 承载的保留记录，pdf_url/摘要/found_by/matched_queries 并入、引用
+  数取最大。
+- **阅读笔记（`notes` 工具）**：逐篇判定（core / uncertain / off，与
+  screen 三带对齐）+ 一句话理由，按主题落盘 `data/notes/<slug>.jsonl`；
+  不在池内的 fetch-only 论文也能记。判断记忆落地：`expand --from-notes
+  core` 直接把 core 笔记当种子（与 --seeds 合并去重）——ASReview 式
+  反馈环的第一段闭环。
+- **导出格式**：EndNote XML（ref-type 17/3，DOI 走
+  electronic-resource-num）与 CSL JSON（citeproc 兼容，author 按
+  family/given 拆分），`export` 的 `--format` 增至 bib/ris/endnote/
+  csljson，缺字段照旧留空不编造。
+- 测试：`tests/test_library.py` 30 项离线检查（分组信号/合并语义/笔记
+  存取/两种导出格式解析/from-notes 种子收集），全套 220+ 绿。
+
+
 ## Unreleased — recall: query feedback, HyDE probes, seed expansion
 
 三项都对着 597 题金标剖析的结论：71% 漏检金标与问题共享 ≤2 个内容词——

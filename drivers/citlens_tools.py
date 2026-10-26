@@ -156,12 +156,18 @@ def cmd_export(args) -> dict:
         return {"ok": False, "error": where}
     table = CitationTable(papers)
     fmt = (args.format or "bib").lower()
-    content = table.to_bibtex() if fmt == "bib" else table.to_ris()
+    content = (
+        table.to_bibtex() if fmt == "bib"
+        else table.to_ris() if fmt == "ris"
+        else table.to_endnote_xml() if fmt == "endnote"
+        else table.to_csl_json()
+    )
+    ext = {"bib": "bib", "ris": "ris", "endnote": "xml", "csljson": "json"}[fmt]
     if args.out:
         path = Path(args.out)
     else:
         base = Path(args.run_dir) if args.run_dir else Path("exports")
-        path = base / f"references.{fmt}"
+        path = base / f"references.{ext}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return {
@@ -286,8 +292,23 @@ def cmd_expand(args) -> dict:
     from citens.search.expand import expand_from_seeds
 
     seeds = [s for s in (args.seeds or []) if s.strip()]
+    directions = {d.strip() for d in args.directions.split(",") if d.strip()}
+    from_notes = 0
+    if args.from_notes:
+        # judgment feedback: the topic's own reading notes become seeds —
+        # `expand --from-notes core` expands around everything YOU judged core
+        from citens.library import read_notes
+
+        seen = {s.strip().lower() for s in seeds}
+        for n in read_notes(args.topic, verdict=args.from_notes):
+            seed = n.get("doi") or n.get("title")
+            if seed and seed.strip().lower() not in seen:
+                seen.add(seed.strip().lower())
+                seeds.append(seed)
+                from_notes += 1
     if not seeds:
-        return {"ok": False, "error": "pass --seeds (DOIs / arXiv ids / titles of papers you judged on-topic)"}
+        return {"ok": False, "error": "pass --seeds (DOIs / arXiv ids / titles of papers you judged on-topic)"
+                " or --from-notes core (expand around your judged-core notes)"}
     directions = {d.strip() for d in args.directions.split(",") if d.strip()}
     pool = read_pool(args.topic)  # may be empty — expansion can seed a new topic
     existing = {p.id for p in pool}
@@ -312,6 +333,7 @@ def cmd_expand(args) -> dict:
         "ok": True,
         "topic": args.topic,
         "seeds": seeds,
+        "seeds_from_notes": from_notes,
         "resolved": result["anchors"],
         "unresolved": result["unresolved"],
         "counts": {**result["counts"], "appended_to_pool": added,
@@ -322,6 +344,89 @@ def cmd_expand(args) -> dict:
             "仍需 screen 分流 + 你逐篇判断（PRISMA 排除照记 exclusions.jsonl）。"
             "命中过低时换种子或补方向（--directions recs 只跑相似推荐）。"
         ),
+    }
+
+
+# ── dedup ─────────────────────────────────────────────────────────────────────
+
+
+def cmd_dedup(args) -> dict:
+    """Duplicate report over a pool; --merge (topic pools only) collapses the
+    groups into their DOI-carrying survivor, with a .bak written first."""
+    from citens.library import dedup_pool, duplicate_groups
+
+    papers, where = _load_papers(args.topic, args.run_dir)
+    if not papers:
+        return {"ok": False, "error": where}
+    groups = duplicate_groups(papers)
+    out: dict = {
+        "ok": True,
+        "total": len(papers),
+        "groups": len(groups),
+        "collapsed_records": sum(len(g["members"]) - 1 for g in groups),
+        "duplicates": groups[:args.limit],
+        "merge": False,
+    }
+    if args.merge and groups:
+        if not args.topic:
+            return {
+                "ok": False,
+                "error": "--merge needs --topic (run-directory pools are immutable "
+                         "artifacts of that search; re-run search instead)",
+                "groups": len(groups),
+            }
+        from citens.collect import pool_path, read_pool
+
+        path = pool_path(args.topic)
+        kept, removed = dedup_pool(read_pool(args.topic))
+        if removed and path.is_file():
+            bak = path.with_suffix(".jsonl.bak")
+            bak.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            with path.open("w", encoding="utf-8") as fh:
+                for p in kept:
+                    fh.write(json.dumps(p.model_dump(), ensure_ascii=False) + "\n")
+        out.update(merge=True, removed=removed, pool_after=len(kept),
+                   backup=str(bak) if removed else None)
+    out["note"] = (
+        "报告只指出嫌疑组（doi / arxiv / 题名+共作者三种信号）；要不要合并由你决定。"
+        "--merge 只对主题池生效，合并前写 .bak，被合并记录的 pdf_url/摘要/found_by "
+        "会并入保留记录。"
+    )
+    return out
+
+
+# ── notes ─────────────────────────────────────────────────────────────────────
+
+
+def cmd_notes(args) -> dict:
+    """Reading notes: record per-paper verdicts (core/uncertain/off) + a
+    one-line judgment; list them back. Feeds `expand --from-notes`."""
+    from citens.library import VERDICTS, add_note, notes_path, read_notes
+
+    if args.verdict and args.verdict not in VERDICTS:
+        return {"ok": False, "error": f"verdict must be one of {VERDICTS}"}
+    if args.doi or args.title:
+        if not args.note:
+            return {"ok": False, "error": "adding a note needs --note (your one-line judgment)"}
+        try:
+            rec = add_note(
+                args.topic, doi=args.doi, title=args.title,
+                verdict=args.verdict or "core", note=args.note,
+            )
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
+        return {
+            "ok": True, "added": rec, "path": str(notes_path(args.topic)),
+            "note": "判定已落盘。core 判定会被 expand --from-notes core 直接当种子用。",
+        }
+    notes = read_notes(args.topic, verdict=args.verdict, limit=args.limit)
+    by_verdict: dict[str, int] = {}
+    for n in notes:
+        by_verdict[n.get("verdict", "?")] = by_verdict.get(n.get("verdict", "?"), 0) + 1
+    return {
+        "ok": True, "topic": args.topic, "count": len(notes),
+        "by_verdict": by_verdict, "notes": notes,
+        "path": str(notes_path(args.topic)),
     }
 
 
@@ -357,9 +462,28 @@ def main(argv=None) -> int:
     p_export = sub.add_parser("export", help="把池子导出为 BibTeX/RIS")
     p_export.add_argument("--topic")
     p_export.add_argument("--run-dir")
-    p_export.add_argument("--format", choices=["bib", "ris"], default="bib")
+    p_export.add_argument("--format", choices=["bib", "ris", "endnote", "csljson"],
+                          default="bib")
     p_export.add_argument("--out", help="输出文件路径（默认 run 目录或 exports/ 下）")
     p_export.add_argument("--with-labels", action="store_true", help="附带 [n] APA 标签清单")
+
+    p_dedup = sub.add_parser(
+        "dedup", help="文献池去重报告（doi/arxiv/题名+共作者三信号）；--merge 合并（仅主题池，先备份）")
+    p_dedup.add_argument("--topic")
+    p_dedup.add_argument("--run-dir")
+    p_dedup.add_argument("--merge", action="store_true",
+                         help="把嫌疑组合并成 DOI 承载的保留记录（仅 --topic；写 .bak）")
+    p_dedup.add_argument("--limit", type=int, default=20, help="返回的组数上限")
+
+    p_notes = sub.add_parser(
+        "notes", help="阅读笔记：逐篇判定（core/uncertain/off）+ 一句话理由，落盘并可回流 expand")
+    p_notes.add_argument("--topic", required=True)
+    p_notes.add_argument("--doi", help="添加模式：论文 DOI")
+    p_notes.add_argument("--title", help="添加模式：论文标题")
+    p_notes.add_argument("--verdict", choices=["core", "uncertain", "off"],
+                         help="判定（添加模式默认 core）")
+    p_notes.add_argument("--note", help="一句话判定理由")
+    p_notes.add_argument("--limit", type=int, default=50, help="列表模式返回条数")
 
     p_audit = sub.add_parser("audit", help="池子对 top 综述参考文献的覆盖审计")
     p_audit.add_argument("--topic", required=True)
@@ -385,8 +509,11 @@ def main(argv=None) -> int:
     )
     p_expand.add_argument("--topic", required=True,
                           help="并入的主题池（data/litdb/<slug>.jsonl；可为空池——直接从种子起步）")
-    p_expand.add_argument("--seeds", nargs="+", required=True,
+    p_expand.add_argument("--seeds", nargs="+", default=[],
                           help="种子：DOI / arXiv id / 标题（你判过切题的论文）")
+    p_expand.add_argument("--from-notes", nargs="?", const="core", default=None,
+                          metavar="VERDICT",
+                          help="从阅读笔记取种子（默认 core；与 --seeds 可同用、去重合并）")
     p_expand.add_argument("--directions", default="backward,forward,related,recs",
                           help="逗号分隔方向：backward,forward,related,recs（默认全部）")
     p_expand.add_argument("--limit-per-paper", type=int, default=20,
@@ -409,7 +536,8 @@ def main(argv=None) -> int:
 
     args = ap.parse_args(argv)
     fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit,
-          "screen": cmd_screen, "verify": cmd_verify, "expand": cmd_expand}[args.cmd]
+          "screen": cmd_screen, "verify": cmd_verify, "expand": cmd_expand,
+          "dedup": cmd_dedup, "notes": cmd_notes}[args.cmd]
     try:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001
