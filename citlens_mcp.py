@@ -26,7 +26,7 @@ honest health buckets and the PRISMA exclusion log.
 This file deliberately imports **nothing from citens**. It is a stdlib-only
 supervisor that (a) speaks JSON-RPC 2.0 on stdin/stdout and (b) spawns the two
 drivers — `citlens_recall.py` (seven-family recall) and `citlens_tools.py`
-(fetch / export / audit) — in this repo's own interpreter. The retrieval method
+(fetch / export / audit / screen / verify) — in this repo's own interpreter. The retrieval method
 therefore stays exactly where it is measured and tested; this layer adds no
 retrieval logic of its own.
 
@@ -66,7 +66,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SERVER_NAME = "citlens"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
 _REPO_ROOT = Path(__file__).resolve().parent
@@ -83,11 +83,20 @@ INSTRUCTIONS = (
     "question, call `search` instead of inventing your own search — and YOU are "
     "the planner: craft the English concept-block queries yourself (4-6 concepts "
     "x 2-4 synonyms, combination queries first) and pass them as `queries`; "
+    "write 2-3 HyDE-style `title_probes` — hypothetical TITLES of the ideal "
+    "paper in paper-side vocabulary — and check `query_feedback` in the result: "
+    "empty/thin blocks mean vocabulary mismatch, rephrase them with "
+    "method/dataset/task names. After you judge records core, feed them back: "
+    "call `expand` with their DOIs/titles/arXiv ids — citation-chain + "
+    "similarity expansion from YOUR seeds is the strongest recall lever (the "
+    "bench measured 71% of missed golds unreachable by any query vocabulary). "
     "optionally `title_probes` (anchor papers you already know) and "
     "`web_queries` (English verbatim spans + natural Chinese phrasings). The "
     "tool runs seven recall families fused by RRF; it does NOT rank by relevance "
-    "— read the returned pool yourself and judge relevance paper by paper "
-    "before citing. Never claim coverage from your own web search. After a "
+    "— band the pool with `screen` (core/uncertain/likely_off triage), then read "
+    "the core+uncertain records yourself (title+abstract, paper by paper) before "
+    "citing; batch-review the likely_off band and log every exclusion "
+    "(PRISMA). Never claim coverage from your own web search. After a "
     "search, quote the numbers the tool reports (pool size, kept count, "
     "per-source ok/empty/failed) and never report a failed source as a zero-hit "
     "source. A search job can take minutes: pass wait_seconds, then poll "
@@ -95,7 +104,11 @@ INSTRUCTIONS = (
     "fallback); before declaring a field covered run `audit` (survey-reference "
     "coverage); export citations with `export`. Writing a review is opt-in and "
     "YOUR job under the skill's verification discipline — every claim checked "
-    "against the fetched source text, honesty numbers reported."
+    "against the fetched source text, honesty numbers reported. Before "
+    "delivering a review, call `verify` with the review path and your verdicts "
+    "JSONL: it mechanically checks that every [n] resolves to the pool "
+    "(honeypot) and that every quoted span occurs verbatim in the cited source, "
+    "and it computes the honesty block. clean=false means fix, not ship."
 )
 
 # ── configuration ─────────────────────────────────────────────────────────────
@@ -504,6 +517,7 @@ def tool_doctor(cfg: dict) -> dict:
                                "OPENALEX_API_KEY", "OPENALEX_EMAIL",
                                "CROSSREF_EMAIL") if k not in env_keys]
     core_version = None
+    screen_emb = None
     if py and py.is_file():
         try:
             r = subprocess.run(
@@ -514,6 +528,19 @@ def tool_doctor(cfg: dict) -> dict:
             core_version = (r.stdout or "").strip().splitlines()[-1] if r.stdout.strip() else None
         except Exception:  # noqa: BLE001
             core_version = None
+        # `screen`'s semantic channel runs on a LOCAL sentence-transformers
+        # model (optional extra) — probe it so the agent knows which channels
+        # will fire before calling screen. Never an LLM key either way.
+        try:
+            r2 = subprocess.run(
+                [str(py), "-c", "import sentence_transformers as st;print(st.__version__)"],
+                cwd=str(_REPO_ROOT),
+                capture_output=True, text=True, timeout=90,
+            )
+            if r2.returncode == 0 and (r2.stdout or "").strip():
+                screen_emb = (r2.stdout or "").strip().splitlines()[-1]
+        except Exception:  # noqa: BLE001
+            screen_emb = None
     recent = []
     for d in sorted(jobs_root(cfg).iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)[:5]:
         st = _read_json(d / "state.json")
@@ -531,6 +558,7 @@ def tool_doctor(cfg: dict) -> dict:
         "python": cfg.get("python"),
         "python_exists": bool(py and py.is_file()),
         "core_version": core_version,
+        "screen_embedding_runtime": screen_emb,  # None -> screen runs lexical+consensus only
         "llm_keys_required": [],
         "drivers": {k: {"path": v, "exists": bool(v and Path(v).is_file())} for k, v in drivers.items()},
         "env_file": str(env_file) if env_file else None,
@@ -545,9 +573,30 @@ def tool_doctor(cfg: dict) -> dict:
         "sources": cfg.get("sources"),
         "families": cfg.get("families"),
     }
+    # A config written by an older implementation lists the engine's nine
+    # family names; `search` would reject it. doctor must surface that instead
+    # of reporting ok (it did once — the machine searched nothing for a day).
+    fams = list(cfg.get("families") or [])
+    families_invalid = [f for f in fams if f not in ALL_FAMILIES]
+    report["families_invalid"] = families_invalid
+    if families_invalid:
+        report["ok"] = False
     notes = []
-    if not report["ok"]:
+    if not report["ok"] and not families_invalid:
         notes.append("Not ready: fix the missing paths above in the config file.")
+    if families_invalid:
+        notes.append(
+            "config families contains entries this build does not implement: "
+            + ", ".join(families_invalid)
+            + " — `search` will reject the config. Run `install.py apply` to migrate "
+              "the config (or edit ~/.citlens/config.json to the seven families)."
+        )
+    if screen_emb is None:
+        notes.append(
+            "screen semantic channel absent: pip install \"citlens-agent[embedding]\" "
+            "to add local embeddings (no key needed) — screen still works on its "
+            "lexical + consensus channels either way"
+        )
     if recommended:
         notes.append(
             "optional breadth keys absent: " + ", ".join(recommended)
@@ -703,6 +752,19 @@ def _search_view(cfg: dict, st: dict) -> dict:
             "exclusions": str(rd / "exclusions.jsonl"),
         }
         out["kept"] = len(pool)
+        # query-level feedback (see queries.json writer in the recall driver):
+        # which concept blocks the sources actually answered. Weak blocks are
+        # the agent's rephrase list — vocabulary mismatch, not pool size.
+        qj = _read_json(rd / "queries.json").get("query_feedback") or []
+        if qj:
+            out["query_feedback"] = [
+                {"query": q.get("query", "")[:60], "total": q.get("total", 0),
+                 "verdict": q.get("verdict", "?")}
+                for q in qj
+            ]
+            weak = [q for q in qj if q.get("verdict") in ("empty", "thin")]
+            if weak:
+                out["weak_queries"] = [q.get("query", "")[:60] for q in weak]
         by_source: dict[str, int] = {}
         no_doi = no_venue = reviews = 0
         for rec in pool:
@@ -722,14 +784,98 @@ def _search_view(cfg: dict, st: dict) -> dict:
             head = report.read_text(encoding="utf-8", errors="replace").splitlines()
             out["report_head"] = "\n".join(head[:24])
         out["hint"] = (
-            "Order is RRF/family-seat order, NOT a relevance judgment — read the "
-            "pool yourself (title+abstract, paper by paper) before citing. Read "
-            "`search_report.md` for per-family seat counts and per-source "
+            "Order is RRF/family-seat order, NOT a relevance judgment — run "
+            "`screen` with your concept-block queries first to band the pool "
+            "(core/uncertain/likely_off triage), then read the core+uncertain "
+            "records yourself (title+abstract, paper by paper) before citing. "
+            "If query_feedback shows empty/thin blocks, REPHRASE those concept "
+            "blocks in paper-side vocabulary (method/dataset/task names) and "
+            "search again — weak blocks are vocabulary mismatch, not a small "
+            "pool. After judging records core, feed them back with `expand` "
+            "(citation-chain + similarity neighbors of YOUR seeds). "
+            "Read `search_report.md` for per-family seat counts and per-source "
             "ok/empty/failed health, and `exclusions.jsonl` for the PRISMA reasons. "
             "Report failed sources explicitly; never present them as zero hits. "
             "Then use `pool` for filtering, `fetch` for grounding, `audit` before "
             "claiming coverage, and `export` for the bibliography."
         )
+    return out
+
+
+def tool_screen(cfg: dict, args: dict) -> dict:
+    topic = (args.get("topic") or "").strip()
+    run_dir = (args.get("run_dir") or "").strip()
+    if not topic and not run_dir:
+        return {"ok": False, "error": "pass topic or run_dir"}
+    argv = ["screen"]
+    if topic:
+        argv += ["--topic", topic]
+    if run_dir:
+        argv += ["--run-dir", run_dir]
+    queries = _as_list(args.get("queries"))
+    if queries:
+        argv += ["--queries", *queries]
+    if args.get("model") is not None:
+        argv += ["--model", str(args["model"])]
+    for flag, key in (("--core", "core_threshold"), ("--off", "off_threshold"),
+                      ("--limit", "limit")):
+        if args.get(key) is not None:
+            argv += [flag, str(args[key])]
+    # first call may download the local model; give it room
+    return _run_driver_json(cfg, "tools", argv, timeout=900)
+
+
+def tool_expand(cfg: dict, args: dict) -> dict:
+    """Judgment feedback loop: expand the topic pool around agent-judged seeds."""
+    topic = (args.get("topic") or "").strip()
+    if not topic:
+        return {"ok": False, "error": "topic is required (the pool to expand into)"}
+    seeds = _as_list(args.get("seeds"))
+    if not seeds:
+        return {"ok": False, "error": "seeds is required: DOIs / arXiv ids / titles "
+                "of papers you judged on-topic"}
+    argv = ["expand", "--topic", topic, "--seeds", *seeds]
+    if args.get("directions"):
+        argv += ["--directions", ",".join(_as_list(args.get("directions")))]
+    for flag, key in (("--top", "top"), ("--limit-per-paper", "limit_per_paper")):
+        if args.get(key) is not None:
+            argv += [flag, str(args[key])]
+    if args.get("no_write"):
+        argv += ["--no-write"]
+    out = _run_driver_json(cfg, "tools", argv, timeout=600)
+    out.setdefault("note", "")
+    out["note"] = (
+        "These are citation-chain / similarity neighbors of YOUR seeds — found_by="
+        "[expand], still unjudged: band with `screen` and read them yourself before "
+        "citing. If the expansion missed the neighborhood you expected, check "
+        "`unresolved` seeds and try more/different seeds — seeds ARE the query here. "
+        + str(out.get("note") or "")
+    )
+    return out
+
+
+def tool_verify(cfg: dict, args: dict) -> dict:
+    """Mechanical verification of a written review (no LLM, no key)."""
+    review = str(args.get("review") or "").strip()
+    if not review:
+        return {"ok": False, "error": "review is required (path to the review markdown)"}
+    argv = ["verify", "--review", review]
+    for flag, key in (("--topic", "topic"), ("--run_dir", "run_dir"),
+                      ("--verdicts", "verdicts"), ("--text_dir", "text_dir"),
+                      ("--out", "out_dir"), ("--out", "out")):
+        if args.get(key):
+            argv += [flag, str(args[key])]
+    if args.get("core_papers") not in (None, ""):
+        argv += ["--core-papers", str(args["core_papers"])]
+    out = _run_driver_json(cfg, "tools", argv, timeout=600)
+    out.setdefault("note", "")
+    out["note"] = (
+        "clean=false must be fixed before delivery: a reference that does not "
+        "resolve to the pool is a fabricated/untraceable citation; a span that "
+        "does not occur verbatim in the cited source is a guess, not evidence. "
+        "Report `honesty` verbatim — it is computed, not estimated. "
+        + str(out.get("note") or "")
+    )
     return out
 
 
@@ -842,9 +988,10 @@ TOOL_DEFS = [
             "survey reference harvest) fused by reciprocal-rank fusion under "
             "per-family seat quotas. It does NOT rank by relevance — judge the "
             "returned pool yourself. Writes pool.jsonl + search_report.md + "
-            "exclusions.jsonl. Returns a job id; pass wait_seconds (default 45) or "
-            "poll `status`. Use this instead of your own web search for any "
-            "literature question."
+            "exclusions.jsonl + queries.json (per-query hit feedback — rephrase "
+            "empty/thin blocks in paper-side vocabulary). Returns a job id; pass "
+            "wait_seconds (default 45) or poll `status`. Use this instead of "
+            "your own web search for any literature question."
         ),
         "inputSchema": {
             "type": "object",
@@ -853,7 +1000,7 @@ TOOL_DEFS = [
                 "queries": {"type": "array", "items": {"type": "string"},
                             "description": "English queries you crafted (PRESS concept blocks). This replaces the engine's LLM planner."},
                 "title_probes": {"type": "array", "items": {"type": "string"},
-                                 "description": "Titles of anchor/known papers for the OpenAlex title-search family (max 2 used)."},
+                                 "description": "HyDE-style hypothetical TITLES of the ideal paper (paper-side vocabulary, 2-3 of them) or anchor titles, for the OpenAlex title-search family (max 3 used)."},
                 "web_queries": {"type": "array", "items": {"type": "string"},
                                 "description": "Web-bridge queries: English verbatim spans of the distinctive wording + natural Chinese phrasings (Zhihu-style)."},
                 "target": {"type": "integer", "description": "Max kept papers (0 = no truncation). Default from config."},
@@ -950,6 +1097,90 @@ TOOL_DEFS = [
         },
     },
     {
+        "name": "screen",
+        "description": (
+            "Relevance TRIAGE over a pool: score every record against YOUR "
+            "concept-block queries on explainable channels (local embedding "
+            "similarity — optional extra, no LLM key; BM25 lexical; "
+            "cross-family consensus from found_by) and band it "
+            "core / uncertain / likely_off. Writes screening.jsonl. This is "
+            "triage, NOT judgment: nothing is excluded automatically — read "
+            "core+uncertain carefully, batch-review likely_off, and log every "
+            "final exclusion in exclusions.jsonl (PRISMA). The first call "
+            "with the semantic channel may download a local model (~0.4 GB); "
+            "without the extra installed it degrades to lexical+consensus "
+            "and says so."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "Topic pool to screen (byte-identical topic slug)."},
+                "run_dir": {"type": "string", "description": "A specific run directory to screen instead."},
+                "queries": {"type": "array", "items": {"type": "string"},
+                            "description": "Your English concept-block queries — same ones you gave `search`."},
+                "model": {"type": "string",
+                          "description": "Local sentence-transformers model override (empty string disables the semantic channel)."},
+                "core_threshold": {"type": "number", "description": "core band cutoff (default 0.5)."},
+                "off_threshold": {"type": "number", "description": "likely_off band cutoff (default 0.32)."},
+                "limit": {"type": "integer", "description": "Records to return (default 30)."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "verify",
+        "description": (
+            "MECHANICAL verification of a written review — no LLM, no key. Checks "
+            "citation truth (every [n] marker resolves to a reference and every "
+            "reference to the literature pool: the honeypot), then checks each "
+            "agent verdict's quoted `span` verbatim against the cited paper's "
+            "fetched full text (abstract floor otherwise). With a verdicts JSONL "
+            "it computes the honesty block: citation precision, unverifiable rate, "
+            "full-text grounding, papers_cited/pool_size. Use it before delivering "
+            "any review; `clean=false` means fix, do not ship."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "review": {"type": "string", "description": "Path to the review markdown (body with [n] markers + a References section)."},
+                "topic": {"type": "string", "description": "Topic pool to resolve references against (byte-identical to the search topic)."},
+                "run_dir": {"type": "string", "description": "Run directory whose pool.jsonl to resolve against."},
+                "verdicts": {"type": "string", "description": "Path to a verdicts JSONL: one {claim, verdict, span, citations} per line."},
+                "text_dir": {"type": "string", "description": "Fetched full-text directory (default fulltext under the data home)."},
+                "out_dir": {"type": "string", "description": "Artifacts directory (default <review dir>/verification)."},
+                "core_papers": {"type": "integer", "description": "Papers deep-read (grounding denominator; default: distinct cited pool papers)."},
+            },
+            "required": ["review"],
+        },
+    },
+    {
+        "name": "expand",
+        "description": (
+            "Judgment feedback loop for recall: expand the topic pool around papers "
+            "YOU judged on-topic (citation chaining backward/forward + OpenAlex "
+            "related + Semantic-Scholar recommendations). This is the vocabulary-"
+            "mismatch escape hatch — the full-set bench measured that 71% of missed "
+            "gold papers share <=2 words with the question, and citation/similarity "
+            "neighbors bypass query vocabulary entirely. Seeds may be DOIs, arXiv "
+            "ids or titles. Added records carry found_by=[expand]: still unjudged — "
+            "screen and read them yourself (PRISMA exclusions still apply)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "Pool to expand into (byte-identical topic slug; may be a fresh topic seeded entirely from these)."},
+                "seeds": {"type": "array", "items": {"type": "string"},
+                          "description": "Papers you judged on-topic: DOIs / arXiv ids / titles (max 6 used)."},
+                "directions": {"type": "array", "items": {"type": "string", "enum": ["backward", "forward", "related", "recs"]},
+                               "description": "Expansion directions (default all four)."},
+                "top": {"type": "integer", "description": "Records to return/merge (default 30)."},
+                "limit_per_paper": {"type": "integer", "description": "Per seed per direction (default 20)."},
+                "no_write": {"type": "boolean", "description": "Return without merging into the pool."},
+            },
+            "required": ["topic", "seeds"],
+        },
+    },
+    {
         "name": "status",
         "description": "Poll a running search job by id: state, elapsed, log tail, artifacts and stats.",
         "inputSchema": {
@@ -966,8 +1197,9 @@ TOOL_DEFS = [
         "description": (
             "Health check: interpreter, drivers, data home, .env keys present "
             "(names only, never values — and NO key is required in this build), "
-            "shared pool count, running/recent jobs. Call it first when a tool "
-            "fails, and before blaming the retrieval."
+            "shared pool count, running/recent jobs, unsupported config families "
+            "(families_invalid). Call it first when a tool fails, and before "
+            "blaming the retrieval."
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
@@ -989,6 +1221,12 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
         return tool_export(cfg, args)
     if name == "audit":
         return tool_audit(cfg, args)
+    if name == "screen":
+        return tool_screen(cfg, args)
+    if name == "verify":
+        return tool_verify(cfg, args)
+    if name == "expand":
+        return tool_expand(cfg, args)
     return {"ok": False, "error": f"unknown tool {name!r}", "tools": [t["name"] for t in TOOL_DEFS]}
 
 
@@ -1217,6 +1455,10 @@ def selftest(cfg: dict) -> int:
     return 0
 
 
+_LIST_KEYS = ("families", "sources", "fields", "themes",
+              "queries", "title_probes", "web_queries", "seeds", "directions")
+
+
 def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
     """`cli search --topic X --target 80 --is_review true` -> (tool, args)."""
     if not rest:
@@ -1230,6 +1472,18 @@ def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
             i += 1
             continue
         key = tok[2:].replace("-", "_")
+        # list-valued keys take ALL consecutive non-flag tokens ("--queries a b c"),
+        # not just the first — the drivers' argparse semantics, which the MCP
+        # path gets natively from JSON arrays
+        if key in _LIST_KEYS:
+            vals: list[str] = []
+            j = i + 1
+            while j < len(rest) and not rest[j].startswith("--"):
+                vals.append(rest[j])
+                j += 1
+            args[key] = vals
+            i = j
+            continue
         nxt = rest[i + 1] if i + 1 < len(rest) else None
         if nxt is None or nxt.startswith("--"):
             args[key] = True
@@ -1240,8 +1494,6 @@ def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
             args[key] = low == "true"
         elif re.fullmatch(r"-?\d+", nxt):
             args[key] = int(nxt)
-        elif "," in nxt and key in ("families", "sources", "fields", "themes"):
-            args[key] = [x.strip() for x in nxt.split(",") if x.strip()]
         else:
             args[key] = nxt
         i += 2

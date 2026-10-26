@@ -57,6 +57,11 @@ class Paper(BaseModel):
     author_field_works: int = 0  # in-topic works of first/last author
     # provenance / type flags (filled at collection)
     matched_queries: list[str] = Field(default_factory=list)  # queries that hit this record
+    # recall families (agent/raw/oa_title/s2_rec/snowball/web/survey) that
+    # surfaced this record — cross-family consensus is a cheap on-topic
+    # signal; 2+ independent families beating a single web hit is evidence,
+    # not proof (filled by the recall driver; [] on legacy records).
+    found_by: list[str] = Field(default_factory=list)
     is_review: bool = False  # indexed as a survey/review (OpenAlex type:review)
 
     @field_validator("authors", mode="before")

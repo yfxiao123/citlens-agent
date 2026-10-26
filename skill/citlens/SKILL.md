@@ -1,6 +1,6 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, fetch, export, audit, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
@@ -24,12 +24,15 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 
 | tool | purpose |
 |---|---|
-| `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs. No key is required |
-| `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions |
+| `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs, `screen_embedding_runtime`. No key is required |
+| `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) |
+| `screen` | relevance TRIAGE: bands the pool core / uncertain / likely_off (local embeddings + BM25 + family consensus; writes screening.jsonl). Triage, not judgment — nothing is auto-excluded |
+| `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
 | `pool` | read/filter the pool on disk (citations, years, reviews, DOIs); no new retrieval |
 | `fetch` | one paper's open-access full text (arXiv→S2→OpenAlex→Unpaywall→CORE), or abstract fallback |
 | `export` | pool → BibTeX/RIS via the same citation table the engine used |
 | `audit` | stage-F anchor check: pool coverage of the top surveys' bibliographies |
+| `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed |
 | `status` | poll a running search job: state, elapsed, log tail, artifacts, stats |
 
 If your client has no MCP, the same tools are one shell call away:
@@ -71,8 +74,13 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
      is the measured fix — head-first broad queries picked only coverage.
    - Pass them all as `queries` (they become the `agent` family, the
      highest-recall leg). Optionally:
-     - `title_probes`: titles of 1-2 papers you already know are canonical —
-       they feed the OpenAlex title-index family.
+     - `title_probes`: 2-3 **HyDE-style hypothetical titles** — write the
+       title the ideal paper would carry, in PAPER-side vocabulary (method /
+       dataset / task names), not question phrasing. This is the measured
+       escape hatch for vocabulary mismatch: 71% of bench-missed golds share
+       ≤2 content words with the question, so no query phrasing reaches
+       them, but their own titles do. Anchor titles of known-canonical
+       papers work too (max 3 used).
      - `web_queries`: for the web bridge, 2-3 English queries quoting the
        DISTINCTIVE verbatim wording of the question (the 4-8 words a generic
        paper would NOT share), plus 1-2 natural Chinese phrasings
@@ -87,14 +95,39 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    and a `report_head`. Read `search_report.md` — it has per-family seat
    counts and per-source `ok / empty / failed` health. **A failed source is
    not a zero-hit source.** If `failed > 0`, say which source failed.
-5. **Judge relevance yourself.** The pool order is RRF/family-seat order, NOT
-   a relevance ranking (the engine's LLM cascade is deliberately absent).
-   Read the pool records (title + abstract) and do the coarse/fine ranking:
-   quickly bucket obviously-off-topic records, then carefully order the rest
-   by topical fit. Append every paper you screen OUT to the run's
-   `exclusions.jsonl` with a reason code (`off_topic`, `wrong_subfield`,
-   `duplicate`, `not_peer_reviewed`, ...) — PRISMA discipline, machine-written
-   log.
+   **Check `query_feedback`** (also `weak_queries` in the tool result, and
+   the 查询反馈 table in the report): every query's actual hit count with a
+   verdict. empty/thin blocks are vocabulary mismatch — rephrase THAT block
+   in paper-side vocabulary (method name / dataset name / task acronym) and
+   search again with the fixed block; do not just re-run the same words.
+5. **Triage, then judge relevance yourself.** The pool order is RRF/family-seat
+   order, NOT a relevance ranking. Call `screen` with the SAME concept-block
+   queries you gave `search`: it bands the pool into core / uncertain /
+   likely_off on three mechanical channels (local embeddings, BM25,
+   `found_by` family votes) and writes `screening.jsonl`. The bands are
+   TRIAGE, not verdicts — never treat them as exclusions. Then read the
+   core + uncertain records (title + abstract) carefully, bucket by
+   concept-block coverage (a paper covering ZERO blocks is `off_topic`),
+   and batch-review the likely_off band. Append every paper you screen OUT
+   to the run's `exclusions.jsonl` with a reason code (`off_topic`,
+   `wrong_subfield`, `duplicate`, `not_peer_reviewed`, ...) — PRISMA
+   discipline, machine-written log. Report bands WITH their thresholds and
+   which channels fired (they are heuristic defaults, uncalibrated).
+   Deep-recall note (bench-measured): the target/seat cut removes golds
+   screening would rank top — for review workflows search with
+   `target: 0` (or screen the accumulated litdb pool) before screening.
+5b. **Feed your judgments back — `expand`.** After reading the pool, take the
+   records you judged genuinely on-topic (even 2-3 of them) and call
+   `expand` with `topic` + `seeds` (their DOIs / arXiv ids / titles). It
+   fetches their references (backward), their citers (forward), OpenAlex
+   related works, and S2 recommendations — the neighborhood query
+   vocabulary cannot name. Citation chaining is the strongest recall lever
+   the bench knows: it reaches the 71% of golds that share ≤2 words with
+   the question. The added records carry `found_by: ["expand"]` and are
+   STILL UNJUDGED — screen and read them like any other addition. Iterate:
+   judge the expansion's best hits → expand again from the new seeds
+   (diminishing returns = saturation signal). Check `unresolved` in the
+   result: a seed that did not resolve is a hint, not an error to hide.
 6. **`pool`** to iterate without re-searching: `min_citations`, `year_from`,
    `is_review: true` for surveys, `query` for a substring, `sort_by`. This
    reads disk; it never retrieves.
@@ -161,27 +194,48 @@ markers that decorate rather than ground. Structure: the review argues a
 position (consensus / contradictions / gaps across papers), it does not
 concatenate abstracts.
 
-**Verify every claim (four-way verdicts).** For each claim, compare it
-against the cited paper's ground text and record a verdict:
-`supported` / `partial` / `unsupported` / `unverifiable`. Quote the source
-span that justifies the verdict — a verdict without a span is a guess.
-A claim is `unverifiable` when neither the abstract nor the fetched text can
-settle it; do not silently upgrade.
+**Verify every claim (six-grade verdicts + mechanical check).** For each
+claim, compare it against the cited paper's ground text and record one of the
+engine's six verdicts: `supported` / `partial` / `background` /
+`contradictory` / `unsupported` / `unverifiable`. Quote the source **span**
+that justifies the verdict — a verdict without a span is a guess.
+`background` = the source backs the field context but not this claim;
+`contradictory` = the source conflicts with or narrows it; `unverifiable` =
+neither abstract nor fetched text can settle it (never silently upgrade).
 
-**Honeypot check (蜜罐).** After drafting, re-derive every `[n]` in the prose
-from the pool records. Any reference that does not resolve to a pool paper
-is a fabricated citation — delete it and the claim it supported, then
-re-verify. This is the check that catches invented-but-plausible references.
+Write those verdicts to `verdicts.jsonl` beside the review — one object per
+line:
 
-**Defense pass (辩护律师).** Re-verify every `supported` verdict arguing the
+```json
+{"claim":"<exact claim sentence incl. [n]>","verdict":"supported",
+ "span":"<verbatim quote from the cited source>","citations":[3]}
+```
+
+Then call **`verify --review review.md --topic <byte-identical topic>
+--verdicts verdicts.jsonl`**. It is mechanical (no LLM, no key) and checks:
+
+- every `[n]` resolves to a reference, and every reference resolves to the
+  pool by DOI/title — an unresolved reference is the fabricated-citation
+  (蜜罐) case; delete it and the claims it supported;
+- each verdict value is one of the six, and every claim has one;
+- each `span` occurs **verbatim** in the cited paper's fetched full text
+  (abstract floor otherwise) — a span that does not occur is a guess;
+- it returns `honesty` (computed, not estimated) and `artifacts`
+  (`verification.jsonl`, `honesty.json`).
+
+`clean: false` means fix before delivery; a verifiable claim with no ground
+text must be downgraded to `unverifiable`. Fix, re-run, and only then report.
+
+**Defense pass (辩护律师).** Re-read every `supported` verdict arguing the
 OPPOSITE: hunt for the span that contradicts or weakens the claim. Verdicts
-that flip get rewritten, not defended.
+that flip get rewritten, not defended; re-run `verify` afterwards.
 
-**Rewrite and re-verify.** Delete or rewrite `unsupported` claims to match
-what the source says; re-verify the rewritten text (record pre-rewrite and
-post-rewrite precision). Do not keep a claim because it reads well.
+**Rewrite and re-verify.** Delete or rewrite `unsupported` / `contradictory`
+claims to match what the source says; re-verify the rewritten text (record
+pre-rewrite and post-rewrite precision). Do not keep a claim because it reads
+well.
 
-**Report the honesty block, verbatim:**
+**Report the honesty block the tool computed, verbatim:**
 
 ```
 citation_precision   = (supported + partial) / verifiable_claims
@@ -190,13 +244,14 @@ grounding            = with_fulltext / core_papers   (0 ⇒ the review is ABSTRA
 papers_cited          = n / pool_size
 ```
 
-If `grounding.with_fulltext` is 0, the review is **abstract-only** — label
-it. If your verification was rushed, say so; a review that hides its
-weaknesses is worthless.
+If `grounding` is 0, the review is **abstract-only** — label it. If your
+verification was rushed, say so; a review that hides its weaknesses is
+worthless.
 
-**Deliver.** `review.md`, `references.bib` (via `export`), `exclusions.jsonl`,
-`fetch_list.md`, and the honesty block in the summary. Save them in the run
-directory (`<home>/citlens-runs/<topic>-<ts>/`) or beside the review.
+**Deliver.** `review.md`, `verdicts.jsonl`, `verification/verification.jsonl`,
+`references.bib` (via `export`), `exclusions.jsonl`, `fetch_list.md`, and the
+honesty block in the summary. Save them beside the review or in the run
+directory (`<home>/citlens-runs/<topic>-<ts>/`).
 
 ## 收工协议 (stage F — done means verified)
 
@@ -207,8 +262,8 @@ Before declaring a task finished:
 2. **Saturation**: one differently-phrased search; report the delta.
 3. **Health**: report per-source ok/empty/failed from the last search
    report; failed sources are named, never hidden.
-4. **For reviews**: honesty block reported, honeypot pass clean, defense
-   pass done, exclusions logged.
+4. **For reviews**: `verify` reports `clean: true`, honesty block reported,
+   defense pass done, exclusions logged.
 
 ## Failure modes and what they mean
 
@@ -222,6 +277,7 @@ Before declaring a task finished:
 | pool empty before writing | run `search` for the byte-identical topic first |
 | `rejected: too many concurrent jobs` | poll the existing jobs; the server caps concurrency deliberately |
 | `fetch` returns `fulltext: false` | abstract-only citation; restrict claims accordingly and count it in the honesty block |
+| `verify` returns `clean: false` | fix before delivery: unresolved reference = fabricated citation; `span_not_found` = the quote is not in the source; `unverifiable_but_ground_text_exists` = downgrade or ground it |
 
 ## Sharing
 

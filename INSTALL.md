@@ -59,7 +59,8 @@ Serper（web 桥接家族）、Semantic Scholar（限速提升）、OpenAlex（k
 
 > run the citlens doctor tool
 
-期望 `doctor.ok: true`，七工具（search/pool/fetch/export/audit/status/doctor）可见。
+期望 `doctor.ok: true`（配置里的 families 不含本构建不支持的旧家族名），九个工具
+（search / pool / screen / fetch / export / audit / verify / status / doctor）可见。
 命令行直接验收：
 
 ```bash
@@ -81,6 +82,7 @@ Serper（web 桥接家族）、Semantic Scholar（限速提升）、OpenAlex（k
 <home>/data/litdb/<主题>.jsonl         跨 run 累积的共享文献池（append_pool 落盘处）
 <home>/fulltext/                       fetch 取回的全文文本
 <home>/exports/                        export 产物（references.bib / .ris）
+<home>/<review 所在目录>/verification/ verify 产物（verification.jsonl / honesty.json）
 <home>/.env                            检索源 key（init 写入）
 <home>/.cache/                         检索与全文缓存
 ~/.citlens/jobs/                       后台任务状态（脱离 agent 会话存活）
@@ -90,8 +92,13 @@ Serper（web 桥接家族）、Semantic Scholar（限速提升）、OpenAlex（k
 ## 卸载 / 回滚
 
 ```bash
-.venv/Scripts/python install.py uninstall    # 只移除本安装器写的东西；每个改动文件都有 .citlens-backup-<ts> 副本
+.venv/Scripts/python install.py uninstall
 ```
+
+`uninstall` 只移除本安装器添加的注册项（客户端里的 `citlens` 条目、`~/.agents/skills/citlens`、
+DSH bundle 引用），并保留 `~/.citlens/config.json` / shim / 数据家。客户端配置文件在改写前会写
+`.citlens-backup-<ts>` 副本；shim、skill 目录与 DSH bundle 是**受管重建**（不是用户手写内容），
+因此没有逐文件备份——需要回滚时用 `install.py apply` 重新指向目标实现即可。
 
 ## 故障排查
 

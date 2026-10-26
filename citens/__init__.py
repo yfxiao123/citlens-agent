@@ -7,6 +7,6 @@ try:  # installed package metadata tracks pyproject (the release version)
 
     __version__ = version("citlens-agent")
 except PackageNotFoundError:  # frozen/source-tree fallback
-    __version__ = "0.1.0"
+    __version__ = "0.3.0"
 
 __all__ = ["__version__"]

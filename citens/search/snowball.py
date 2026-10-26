@@ -332,12 +332,50 @@ async def _fetch_related(doi: str, limit: int) -> list[Paper]:
     ]
 
 
-def _relevance_score(paper: Paper, terms: set[str]) -> int:
-    """Query-aware score: distinct topic terms present in title+abstract."""
-    import re
+def _is_cjk(w: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in w)
 
-    text = set(re.findall(r"[a-z]{4,}", f"{paper.title} {paper.abstract}".lower()))
-    return len(terms & text)
+
+def _rank_by_query_overlap(papers: Sequence[Paper], terms: set[str]) -> list[Paper]:
+    """Query-aware admission order: BM25 over title+abstract against the topic
+    terms, citations as the tiebreaker.
+
+    The old set-overlap count ranked a famous methods paper sharing generic
+    words ("method analysis") above a niche exact match, and its
+    ``[a-z]{4,}`` tokenizer scored every Chinese topic term as zero. BM25
+    over the shared ``_terms`` tokenizer (IDF weighting, CJK bigrams) fixes
+    both. Scores stay pool-relative — they order THIS candidate batch and
+    carry no absolute meaning.
+    """
+    from citens.screening import bm25_scores
+
+    ordered = list(papers)
+    if not ordered:
+        return []
+    texts = [f"{p.title} {p.abstract}" for p in ordered]
+    # absolute scores, not ranks: equal-BM25 records must fall through to the
+    # citation tiebreaker (a rank from a stable sort invents a difference)
+    scores = bm25_scores(texts, " ".join(sorted(terms)))
+    idx_order = sorted(
+        range(len(ordered)),
+        key=lambda i: (-scores[i], -ordered[i].citation_count),
+    )
+    return [ordered[i] for i in idx_order]
+
+
+def _query_terms(relevance_terms: list[str] | None) -> set[str] | None:
+    """Topic terms through the shared tokenizer: latin words >= 4 chars plus
+    CJK bigrams (a Chinese topic previously tokenized to NOTHING here)."""
+    from citens.grounding.retrieval import _terms
+
+    if not relevance_terms:
+        return None
+    out: set[str] = set()
+    for t in relevance_terms:
+        for w in _terms(t.lower()):
+            if len(w) >= 4 or _is_cjk(w):
+                out.add(w)
+    return out or None
 
 
 async def snowball(
@@ -383,13 +421,7 @@ async def snowball(
         print("[snowball] skipped: OpenAlex daily budget reached", flush=True)
         return []
 
-    import re as _re
-
-    term_set = (
-        {w for t in relevance_terms for w in _re.findall(r"[a-z]{4,}", t.lower())}
-        if relevance_terms
-        else None
-    )
+    term_set = _query_terms(relevance_terms)
 
     cache_ns = "snowball"
     cache_key = {
@@ -444,14 +476,10 @@ async def snowball(
                 new_papers[p.id] = p
 
     if term_set:
-        # query-aware admission: topical overlap first, popularity as the
+        # query-aware admission: topical BM25 first, popularity as the
         # tiebreaker — a famous off-topic paper must not outrank a
         # less-cited paper that actually matches the query directions
-        sorted_papers = sorted(
-            new_papers.values(),
-            key=lambda p: (_relevance_score(p, term_set), p.citation_count),
-            reverse=True,
-        )
+        sorted_papers = _rank_by_query_overlap(new_papers.values(), term_set)
     else:
         sorted_papers = sorted(
             new_papers.values(), key=lambda p: p.citation_count, reverse=True

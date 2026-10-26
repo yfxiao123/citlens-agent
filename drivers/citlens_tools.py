@@ -13,6 +13,9 @@ mechanical services that pipeline had, and they are all pure I/O:
             CitationTable the engine used — no invented fields.
     audit   recall-vs-reality: how much of the top surveys' bibliographies
             the pool already covers (the stage-F anchor check).
+    verify  mechanical review verification (no LLM): citation truth via the
+            pool (honeypot), verbatim span grounding, six-grade verdict
+            validation and the honesty block (see citens/grounding/verify.py).
 
 Every subcommand prints exactly one JSON document on stdout. Run from the
 data home with this repo's interpreter, like citlens_recall.py.
@@ -30,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from citens.collect import audit_recall, pool_path, read_pool  # noqa: E402
 from citens.grounding.citations import CitationTable  # noqa: E402
 from citens.grounding.fulltext import fetch_fulltext, slugify  # noqa: E402
+from citens.grounding.verify import load_verdicts, verify_review  # noqa: E402
 from citens.models import Paper  # noqa: E402
 
 
@@ -167,6 +171,160 @@ def cmd_export(args) -> dict:
     }
 
 
+# ── screen ────────────────────────────────────────────────────────────────────
+
+
+def cmd_screen(args) -> dict:
+    """Relevance triage over a pool: score every record against the query set
+    (semantic + lexical + consensus channels) and band it core / uncertain /
+    likely_off. Triage, never judgment — nothing is excluded here."""
+    papers, where = _load_papers(args.topic, args.run_dir)
+    if not papers:
+        return {"ok": False, "error": where}
+    queries = [q for q in (args.queries or []) if q.strip()]
+    if not queries:
+        # The agent should pass its concept-block queries; without them fall
+        # back to the queries that actually found these records (deduped,
+        # field-constrained suffixes stripped) — honest, and reported as such.
+        seen: list[str] = []
+        for p in papers:
+            for q in p.matched_queries:
+                base = q.split(" (")[0].strip()
+                if base and base not in seen:
+                    seen.append(base)
+        queries = seen[:12]
+        fallback_note = (
+            "未传 --queries：已退回 matched_queries（找到这些记录的查询）——"
+            "最好传你自己的概念块查询重跑一次"
+        )
+    else:
+        fallback_note = ""
+    from citens.screening import screen_papers
+
+    if args.run_dir:
+        out_path = Path(args.run_dir) / "screening.jsonl"
+    elif args.topic:
+        from citens.collect import pool_path
+
+        out_path = pool_path(args.topic).with_suffix(".screening.jsonl")
+    else:
+        out_path = None
+    out = screen_papers(
+        papers,
+        queries,
+        model=args.model,
+        core_threshold=args.core,
+        off_threshold=args.off,
+        out_path=None if args.no_write else out_path,
+        limit=args.limit,
+    )
+    if fallback_note:
+        out["fallback_note"] = fallback_note
+    out["ok"] = True
+    return out
+
+
+# ── verify ────────────────────────────────────────────────────────────────────
+
+
+def cmd_verify(args) -> dict:
+    """Mechanical citation/verdict verification for a written review.
+
+    Decidable-from-files checks only: markers→references, references→pool
+    (honeypot), and each agent verdict's quoted span against the cited
+    source's fetched full text (abstract floor otherwise). No LLM.
+    """
+    review_path = Path(args.review).expanduser()
+    if not review_path.is_file():
+        return {"ok": False, "error": f"review not found: {review_path}"}
+    try:
+        review_text = review_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return {"ok": False, "error": f"cannot read review: {e}"}
+
+    papers: list[Paper] = []
+    pool_source = ""
+    if args.topic or args.run_dir:
+        papers, pool_source = _load_papers(args.topic, args.run_dir)
+        if not papers:
+            pool_source = pool_source or "no pool found"
+
+    verdicts = load_verdicts(args.verdicts) if args.verdicts else []
+    text_dir = Path(args.text_dir or "fulltext")
+    out_dir = Path(args.out) if args.out else review_path.parent / "verification"
+    out = verify_review(
+        review_text,
+        papers,
+        verdicts=verdicts,
+        text_dir=text_dir,
+        core_papers=args.core_papers,
+        review_path=str(review_path),
+        out_dir=out_dir,
+    )
+    out["pool_source"] = pool_source or "not loaded (pass --topic or --run-dir to resolve citations)"
+    if not papers:
+        out.setdefault("notes", []).append(
+            "no pool loaded: every reference will be reported as not-in-pool. "
+            "Pass --topic (byte-identical to the search topic) or --run-dir."
+        )
+    if not verdicts:
+        out.setdefault("notes", []).append(
+            "no verdicts file: citation truth was checked, but span/precision checks need "
+            "a verdicts JSONL (see SKILL.md)."
+        )
+    return out
+
+
+# ── expand ────────────────────────────────────────────────────────────────────
+
+
+def cmd_expand(args) -> dict:
+    """Judgment feedback loop: expand the topic pool around agent-picked seeds
+    (citation chaining + S2 recommendations). Triage, never judgment."""
+    import asyncio
+
+    from citens.search.expand import expand_from_seeds
+
+    seeds = [s for s in (args.seeds or []) if s.strip()]
+    if not seeds:
+        return {"ok": False, "error": "pass --seeds (DOIs / arXiv ids / titles of papers you judged on-topic)"}
+    directions = {d.strip() for d in args.directions.split(",") if d.strip()}
+    pool = read_pool(args.topic)  # may be empty — expansion can seed a new topic
+    existing = {p.id for p in pool}
+    result = asyncio.run(expand_from_seeds(
+        seeds, existing,
+        directions=directions,
+        relevance_terms=[args.topic],
+        limit_per_paper=args.limit_per_paper,
+        top=args.top,
+    ))
+    added = 0
+    if not args.no_write and result["papers"]:
+        from citens.collect import append_pool
+
+        added = append_pool(args.topic, result["papers"])
+    compact = [
+        {"title": p.title, "year": p.year, "doi": p.doi,
+         "citation_count": p.citation_count, "source": p.source}
+        for p in result["papers"][:args.top]
+    ]
+    return {
+        "ok": True,
+        "topic": args.topic,
+        "seeds": seeds,
+        "resolved": result["anchors"],
+        "unresolved": result["unresolved"],
+        "counts": {**result["counts"], "appended_to_pool": added,
+                   "pool_size_before": len(pool)},
+        "papers": compact,
+        "note": (
+            "邻域扩展不是切题认定：新记录只带 found_by=[expand] 入池，"
+            "仍需 screen 分流 + 你逐篇判断（PRISMA 排除照记 exclusions.jsonl）。"
+            "命中过低时换种子或补方向（--directions recs 只跑相似推荐）。"
+        ),
+    }
+
+
 # ── audit ─────────────────────────────────────────────────────────────────────
 
 
@@ -207,8 +365,51 @@ def main(argv=None) -> int:
     p_audit.add_argument("--topic", required=True)
     p_audit.add_argument("--top-reviews", type=int, default=3)
 
+    p_screen = sub.add_parser(
+        "screen", help="相关性三分带分流（core / uncertain / likely_off）——分流不是判决"
+    )
+    p_screen.add_argument("--topic", help="主题池（data/litdb/<slug>.jsonl）")
+    p_screen.add_argument("--run-dir", help="run 目录（读其 pool.jsonl）")
+    p_screen.add_argument("--queries", nargs="+", default=[],
+                          help="agent 概念块英文查询（强烈建议传；缺省退回 matched_queries）")
+    p_screen.add_argument("--model", default=None,
+                          help="本地嵌入模型（默认取 SCREEN_EMBEDDING_MODEL；空串禁用语义通道）")
+    p_screen.add_argument("--core", type=float, default=None, help="core 带阈值（默认 0.5）")
+    p_screen.add_argument("--off", type=float, default=None, help="likely_off 带阈值（默认 0.32）")
+    p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
+    p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")
+
+    p_expand = sub.add_parser(
+        "expand",
+        help="判断反馈环：以你判定的种子论文为中心做引文链 + S2 相似推荐扩展",
+    )
+    p_expand.add_argument("--topic", required=True,
+                          help="并入的主题池（data/litdb/<slug>.jsonl；可为空池——直接从种子起步）")
+    p_expand.add_argument("--seeds", nargs="+", required=True,
+                          help="种子：DOI / arXiv id / 标题（你判过切题的论文）")
+    p_expand.add_argument("--directions", default="backward,forward,related,recs",
+                          help="逗号分隔方向：backward,forward,related,recs（默认全部）")
+    p_expand.add_argument("--limit-per-paper", type=int, default=20,
+                          help="每个种子每个方向最多取几条")
+    p_expand.add_argument("--top", type=int, default=30, help="返回/入池上限")
+    p_expand.add_argument("--no-write", action="store_true", help="只返回结果，不并入池子")
+
+    p_verify = sub.add_parser(
+        "verify",
+        help="机械核验综述引用与判定：marker→参考文献→池（蜜罐）+ span 原文核对 + 诚实数字",
+    )
+    p_verify.add_argument("--review", required=True, help="综述 markdown 路径（正文 + [n] 参考文献）")
+    p_verify.add_argument("--topic", help="主题池（解析参考文献用；与检索 topic 逐字相同）")
+    p_verify.add_argument("--run-dir", help="run 目录（读其 pool.jsonl）")
+    p_verify.add_argument("--verdicts", help="agent 判定的 JSONL（claim/verdict/span[/citations]）")
+    p_verify.add_argument("--text-dir", default="fulltext", help="fetch 全文落盘目录（默认 fulltext）")
+    p_verify.add_argument("--out", help="产物目录（默认 <review 所在目录>/verification）")
+    p_verify.add_argument("--core-papers", type=int, default=0,
+                          help="精读论文数（grounding 分母；缺省=被引池内论文数）")
+
     args = ap.parse_args(argv)
-    fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit}[args.cmd]
+    fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit,
+          "screen": cmd_screen, "verify": cmd_verify, "expand": cmd_expand}[args.cmd]
     try:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001

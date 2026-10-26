@@ -1,0 +1,744 @@
+{
+ "summary": {
+  "firstwins": {
+   "n": 15,
+   "in_pool%": 13.3,
+   "recall@5": 0.067,
+   "recall@10": 0.067,
+   "recall@20": 0.067,
+   "MRR@100": 0.02
+  },
+  "rrf_global": {
+   "n": 15,
+   "in_pool%": 33.3,
+   "recall@5": 0.0,
+   "recall@10": 0.067,
+   "recall@20": 0.067,
+   "MRR@100": 0.013
+  },
+  "screen_lex": {
+   "n": 15,
+   "in_pool%": 13.3,
+   "recall@5": 0.067,
+   "recall@10": 0.067,
+   "recall@20": 0.067,
+   "MRR@100": 0.035
+  },
+  "screen_full": {
+   "n": 15,
+   "in_pool%": 13.3,
+   "recall@5": 0.067,
+   "recall@10": 0.133,
+   "recall@20": 0.133,
+   "MRR@100": 0.075
+  },
+  "sem_only": {
+   "n": 15,
+   "in_pool%": 13.3,
+   "recall@5": 0.133,
+   "recall@10": 0.133,
+   "recall@20": 0.133,
+   "MRR@100": 0.056
+  }
+ },
+ "per_question": [
+  {
+   "question": "Can you point to studies or tasks focused on detecting patronizing and condescending language, particularly in contexts involving vulnerable communities?",
+   "set": "inline_acl",
+   "pool": 48,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": true,
+    "first_rank": 4,
+    "r5": 1.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 0.25
+   },
+   "rrf_global": {
+    "in_pool": true,
+    "first_rank": 9,
+    "r5": 0.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 0.1111111111111111
+   },
+   "screen_lex": {
+    "in_pool": true,
+    "first_rank": 33,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.030303030303030304
+   },
+   "screen_full": {
+    "in_pool": true,
+    "first_rank": 8,
+    "r5": 0.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 0.125
+   },
+   "sem_only": {
+    "in_pool": true,
+    "first_rank": 2,
+    "r5": 1.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 0.5
+   }
+  },
+  {
+   "question": "Where can I find a detailed discussion on automating the assessment of clarifications in instructional text, including tasks for grading these clarifications as plausible, implausible, or neutral and ranking them on a scale?",
+   "set": "inline_acl",
+   "pool": 60,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": true,
+    "first_rank": 22,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.045454545454545456
+   },
+   "rrf_global": {
+    "in_pool": true,
+    "first_rank": 23,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.043478260869565216
+   },
+   "screen_lex": {
+    "in_pool": true,
+    "first_rank": 2,
+    "r5": 1.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 0.5
+   },
+   "screen_full": {
+    "in_pool": true,
+    "first_rank": 1,
+    "r5": 1.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 1.0
+   },
+   "sem_only": {
+    "in_pool": true,
+    "first_rank": 3,
+    "r5": 1.0,
+    "r10": 1.0,
+    "r20": 1.0,
+    "mrr100": 0.3333333333333333
+   }
+  },
+  {
+   "question": "Are there any studies on incorporating external commonsense knowledge into conversational models to enhance emotional support?",
+   "set": "inline_nonacl",
+   "pool": 47,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Could you recommend a study that investigates graph-based modeling of interactivity among various modalities over time within non-aligned multimodal sequential datasets?",
+   "set": "inline_nonacl",
+   "pool": 60,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": true,
+    "first_rank": 69,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.014492753623188406
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Could you recommend research that evaluates the performance decline in various language models, like BLOOM, under 4-bit integer columnar weight-only quantization?",
+   "set": "inline_nonacl",
+   "pool": 59,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Could you recommend research that examines how syntactic configurations affect aspect-level sentiment analysis when employing a pretrained model such as RoBERTa?",
+   "set": "inline_nonacl",
+   "pool": 57,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Could you recommend research that investigates applying conventional data augmentation methods such as removing words and truncating sequences to contrastive learning in NLP applications?",
+   "set": "inline_nonacl",
+   "pool": 51,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Is there a study that investigates if large language models can assist with generating ideas pertinent to scientific concepts during the scientific writing ideation stage?",
+   "set": "inline_nonacl",
+   "pool": 48,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": true,
+    "first_rank": 81,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.012345679012345678
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Is there a paper that shows that language models' error distribution is different for unfamiliar entities that is not apparent when models are evaluated on familiar entities alone?",
+   "set": "manual_acl",
+   "pool": 59,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Is there a paper that uses evolutionary algorithms and neural MT metrics to produce translations?",
+   "set": "manual_acl",
+   "pool": 60,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": true,
+    "first_rank": 52,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.019230769230769232
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Which paper studies the concept of enhancing the coverage of a selective prediction system by re-attempting the questions on which it was not sufficiently confident.",
+   "set": "manual_acl",
+   "pool": 30,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Which work discusses an analysis of source and target contributions to output generation based on local interpretation when machine translation models experience hallucinations?",
+   "set": "manual_acl",
+   "pool": 19,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Are there any papers that study whether you can identify if a LLM has been instructed to hide some information?",
+   "set": "manual_iclr",
+   "pool": 47,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "Are there any papers that use a world model for planning to ensure that decisions meet constraints?",
+   "set": "manual_iclr",
+   "pool": 30,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  },
+  {
+   "question": "What research first proposed a new kind of cascaded diffusion of a Markov process?",
+   "set": "manual_iclr",
+   "pool": 47,
+   "golds": 1,
+   "firstwins": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "rrf_global": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_lex": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "screen_full": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   },
+   "sem_only": {
+    "in_pool": false,
+    "first_rank": null,
+    "r5": 0.0,
+    "r10": 0.0,
+    "r20": 0.0,
+    "mrr100": 0.0
+   }
+  }
+ ],
+ "model": "BAAI/bge-base-en-v1.5",
+ "sources": [
+  "arxiv",
+  "semantic_scholar",
+  "openalex",
+  "crossref"
+ ],
+ "elapsed_s": 1267
+}
