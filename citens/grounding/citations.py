@@ -189,6 +189,94 @@ class CitationTable:
             blocks.append("\n".join(lines))
         return "\n\n".join(blocks) + "\n"
 
+    def to_csl_json(self) -> str:
+        """CSL-JSON (citeproc-compatible items) — the interchange format
+        Pandoc/paper piles speak. Missing fields are omitted, never invented."""
+        import json
+
+        items = []
+        for p in self.papers:
+            venue = _bib_venue(p.source, getattr(p, "venue", ""))
+            item: dict = {
+                "type": "article-journal",
+                "title": p.title,
+            }
+            authors = []
+            for a in p.authors:
+                tokens = [t for t in str(a).replace(",", " ").split() if t]
+                if len(tokens) >= 2:
+                    authors.append({"family": tokens[-1], "given": " ".join(tokens[:-1])})
+                elif tokens:
+                    authors.append({"literal": tokens[0]})
+            if authors:
+                item["author"] = authors
+            if p.year:
+                item["issued"] = {"date-parts": [[p.year]]}
+            if venue and venue != "Unknown":
+                item["container-title"] = venue
+            if p.volume:
+                item["volume"] = p.volume
+            if p.issue:
+                item["issue"] = p.issue
+            if getattr(p, "pages", ""):
+                item["page"] = p.pages
+            if p.doi:
+                item["DOI"] = p.doi
+            if p.url and "openalex.org" not in p.url:
+                item["URL"] = p.url
+            items.append(item)
+        return json.dumps(items, ensure_ascii=False, indent=1)
+
+    def to_endnote_xml(self) -> str:
+        """EndNote's tagged XML import format (the file EndNote itself emits).
+
+        Field mapping follows EndNote's export vocabulary: ref-type 17 is
+        Journal Article, 3 is Conference Proceedings (venue heuristic);
+        electronic-resource-num carries the DOI; secondary-title the venue.
+        Every text node is wrapped in <style> per EndNote's schema.
+        """
+        from xml.sax.saxutils import escape
+
+        def _s(value: object) -> str:
+            return f"<style>{escape(_bib_escape(value))}</style>"
+
+        records = []
+        for p in self.papers:
+            venue = _bib_venue(p.source, getattr(p, "venue", ""))
+            low = venue.lower()
+            if any(k in low for k in ("proceedings", "conference", "workshop", "symposium")):
+                ref_type = '<ref-type name="Conference Proceedings">3</ref-type>'
+            else:
+                ref_type = '<ref-type name="Journal Article">17</ref-type>'
+            parts = [
+                '<database name="citlens-export">citlens-export</database>',
+                ref_type,
+            ]
+            if p.authors:
+                au = "".join(_s(a) for a in p.authors)
+                parts.append(f"<contributors><authors>{au}</authors></contributors>")
+            parts.append(f"<titles><title>{_s(p.title)}</title>"
+                         f"<secondary-title>{_s(venue)}</secondary-title></titles>")
+            parts.append(f"<periodical><full-title>{_s(venue)}</full-title></periodical>")
+            if p.year:
+                parts.append(f"<dates><year>{_s(p.year)}</year></dates>")
+            if p.volume:
+                parts.append(f"<volume>{_s(p.volume)}</volume>")
+            if p.issue:
+                parts.append(f"<number>{_s(p.issue)}</number>")
+            if getattr(p, "pages", ""):
+                parts.append(f"<pages>{_s(p.pages)}</pages>")
+            if p.doi:
+                parts.append(f"<electronic-resource-num>{_s(p.doi)}</electronic-resource-num>")
+            if p.url and "openalex.org" not in p.url:
+                parts.append(f"<urls><related-urls>{_s(p.url)}</related-urls></urls>")
+            records.append("<record>" + "".join(parts) + "</record>")
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>\n<xml><records>'
+            + "".join(records)
+            + "</records></xml>\n"
+        )
+
 
 def parse_claims_from_review(markdown: str) -> list[Claim]:
     """Extract cited claims from a review's body (skips the references section).
