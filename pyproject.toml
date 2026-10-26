@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "citlens-agent"
-version = "0.1.0"
+version = "0.3.0"
 description = "CiteLens for AI agents: high-recall literature search and citation-grounded survey tools behind one MCP server — no LLM key required."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.4", "mypy>=1.8"]
+# `screen`'s semantic channel: LOCAL sentence-transformers embeddings.
+# Still no LLM key — the model runs in-process. Without it, screen degrades
+# to its lexical + consensus channels and says so.
+embedding = ["sentence-transformers>=2.7", "torch>=2.1"]
 
 [project.scripts]
 citlens-agent = "citlens_mcp:console_main"

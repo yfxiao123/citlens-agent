@@ -66,6 +66,19 @@ class Settings(BaseSettings):
     retriever: str = "bm25"
     embedding_model: str = ""  # e.g. text-embedding-3-small (OpenAI-compatible)
 
+    # --- Relevance screening (pool triage — the agent stays the judge) ------
+    # Local sentence-transformers model for `screen`'s semantic channel.
+    # "" disables the channel (lexical + consensus remain). Needs the optional
+    # extra:  pip install "citlens-agent[embedding]"  — never an LLM key.
+    # bge-*-en-v1.5 needs no retrieval instruction prefix (model card).
+    screen_embedding_model: str = "BAAI/bge-base-en-v1.5"
+    # Band cutoffs on the composite score: >= core -> "core"; < off ->
+    # "likely_off"; between -> "uncertain". Heuristic defaults on the bge
+    # cosine scale — provisional until calibrated on the LitSearch labels;
+    # every call can override them.
+    screen_core_threshold: float = 0.5
+    screen_off_threshold: float = 0.32
+
     # --- Defaults for a run (overridable via CLI / RunOptions) ---------------
     default_max_results: int = 60  # candidate pool target before filtering
     default_max_papers: int = 20  # final papers kept after filtering (0 = no cap)

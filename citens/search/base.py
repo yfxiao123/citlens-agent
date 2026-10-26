@@ -231,6 +231,13 @@ def _merge_variants(keep: Paper, drop: Paper) -> Paper:
     preferred.matched_queries = list(
         dict.fromkeys((preferred.matched_queries or []) + (other.matched_queries or []))
     )
+    # ... and so are recall families: dropping found_by here silently erased
+    # the cross-family consensus the screen's channel and the honesty report
+    # depend on (measured: a paper reached by snowball AND survey lost both
+    # votes when it merged with its own published variant).
+    preferred.found_by = list(
+        dict.fromkeys((preferred.found_by or []) + (other.found_by or []))
+    )
     return preferred
 
 

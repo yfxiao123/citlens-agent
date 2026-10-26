@@ -6,7 +6,7 @@ Agent-agnostic by design
 Almost every modern agent client speaks **MCP over stdio**, and almost all of
 them store MCP servers in the *same shape* (a JSON map at some path, or a TOML
 table). So this installer is not a pile of per-agent adapters: it reads a
-declarative registry (`agents.json`) and has four writers.
+declarative registry (`agents.json`) and has six registration shapes.
 
     dialect          how the server is registered                    used by
     --------------   ----------------------------------------------  ----------------------------
@@ -43,10 +43,14 @@ Usage
     python install.py snippet zed              # paste-ready config for a manual client
     python install.py uninstall                # remove only what this script added
 
-Safety: a file is never written without a `<file>.citlens-backup-<ts>` copy, TOML
-edits live between `# >>> citlens ...>>>` markers, JSON edits only add/remove the
-one `citlens` key, a skill dir is only deleted when its SKILL.md says
-`name: citlens`, and no secret is ever written (keys stay in the engine's .env).
+Safety: client config files are written with a `<file>.citlens-backup-<ts>`
+copy, TOML edits live between `# >>> citlens ...>>>` markers, JSON edits only
+add/remove the one `citlens` key, and a skill dir is only deleted when its
+SKILL.md says `name: citlens`. The shim, the skill copy and the DSH bundle are
+managed/regenerated files and are intentionally not backed up; `uninstall`
+removes this installer's registrations but leaves `~/.citlens/config.json`,
+the shim and the data home in place. No secret is ever written (keys stay in
+the data home's `.env`).
 """
 
 from __future__ import annotations
@@ -346,6 +350,25 @@ def install_config(p: Plan, cfg: dict) -> None:
     for key in ("home", "python", "engine",
                 "recall_driver", "tools_driver", "jobs_dir"):
         merged[key] = cfg[key]
+    # Migrate a config written by the engine/portable install: it lists the
+    # engine's NINE families, and this build's `search` hard-rejects the three
+    # LLM-era names (planned/hyde/pivot). Without this the first search after
+    # `apply` fails with "unknown families" while doctor said ok.
+    fams = merged.get("families")
+    if not isinstance(fams, list) or not fams:
+        merged["families"] = list(cfg["families"])
+    else:
+        kept = [f for f in fams if f in cfg["families"]]
+        dropped = [f for f in fams if f not in cfg["families"]]
+        if dropped:
+            # the engine-era list names three query-generating families
+            # (planned/HyDE/pivot) where this build has ONE agent family;
+            # an old config therefore migrates to six names — re-add agent.
+            if "agent" not in kept:
+                kept = ["agent", *kept]
+            merged["families"] = kept
+            p.note(f"config families: migrated {fams} -> {merged['families']}"
+                   f" (dropped unsupported {dropped})")
     text = _dump_json(merged)
     if _read_text(CONFIG_PATH) == text:
         return

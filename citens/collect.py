@@ -141,6 +141,9 @@ def append_pool(topic: str, papers: list[Paper]) -> int:
                     "matched_queries": list(
                         dict.fromkeys(old.matched_queries + p.matched_queries)
                     )[:12],
+                    "found_by": list(
+                        dict.fromkeys(old.found_by + p.found_by)
+                    )[:7],
                     "is_review": old.is_review or p.is_review,
                     "volume": old.volume or p.volume,
                     "issue": old.issue or p.issue,

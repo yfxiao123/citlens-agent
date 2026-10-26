@@ -32,7 +32,8 @@ ROOT = HERE.parent                  # the citlens-agent repo root
 SERVER = ROOT / "citlens_mcp.py"
 INSTALL = ROOT / "install.py"
 
-TOOLS = {"search", "pool", "fetch", "export", "audit", "status", "doctor"}
+TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "verify",
+         "expand", "status", "doctor"}
 
 PASS, FAIL = [], []
 
@@ -160,7 +161,7 @@ def test_protocol() -> None:
 
         tools = (c.request("tools/list").get("result") or {}).get("tools") or []
         names = {t.get("name") for t in tools}
-        check("tools/list exposes all seven tools", names == TOOLS, str(sorted(names)))
+        check("tools/list exposes all ten tools", names == TOOLS, str(sorted(names)))
         check("every tool has a description and an object inputSchema", all(
             t.get("description") and (t.get("inputSchema") or {}).get("type") == "object"
             for t in tools))
@@ -199,6 +200,33 @@ def test_protocol() -> None:
         noaudit = c.request("tools/call", {"name": "audit", "arguments": {}})
         check("audit without topic is a clean error",
               _payload(noaudit).get("ok") is False)
+
+        noscreen = c.request("tools/call", {"name": "screen", "arguments": {}})
+        check("screen without topic/run_dir is a clean error",
+              _payload(noscreen).get("ok") is False
+              and (noscreen.get("result") or {}).get("isError") is True)
+
+        screen_def = next(t for t in tools if t["name"] == "screen")["inputSchema"]
+        check("screen schema takes agent queries",
+              "queries" in screen_def["properties"])
+
+        noverify = c.request("tools/call", {"name": "verify", "arguments": {}})
+        check("verify without review is a clean error",
+              _payload(noverify).get("ok") is False
+              and (noverify.get("result") or {}).get("isError") is True)
+        verify_def = next(t for t in tools if t["name"] == "verify")["inputSchema"]
+        check("verify schema requires a review path",
+              "review" in verify_def["properties"]
+              and "review" in (verify_def.get("required") or []))
+
+        noexp = c.request("tools/call", {"name": "expand", "arguments": {"topic": "t"}})
+        check("expand without seeds is a clean error",
+              _payload(noexp).get("ok") is False
+              and (noexp.get("result") or {}).get("isError") is True)
+        expand_def = next(t for t in tools if t["name"] == "expand")["inputSchema"]
+        check("expand schema requires topic+seeds",
+              set(expand_def.get("required") or []) == {"topic", "seeds"}
+              and "directions" in expand_def["properties"])
 
         unknown_tool = c.request("tools/call", {"name": "nope", "arguments": {}})
         check("unknown tool returns isError with the tool list",
@@ -342,7 +370,8 @@ def test_install() -> None:
                   and "name: citlens" in (target / "SKILL.md").read_text(encoding="utf-8"))
         skill_md = (tmp / ".agents" / "skills" / "citlens" / "SKILL.md").read_text(encoding="utf-8")
         check("skill carries the verification chain",
-              all(k in skill_md for k in ("four-way", "honeypot", "Defense pass", "honesty")))
+              all(k in skill_md for k in ("six-grade", "verdicts.jsonl",
+                                          "verify", "clean", "honesty")))
 
         # idempotency: a second apply must change nothing and add no new backup
         before = {p: len(list(p.parent.glob(p.name + ".citlens-backup-*")))
@@ -410,8 +439,9 @@ def test_selftest() -> None:
                        capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=300)
     check("selftest exits 0 on a healthy install", r.returncode == 0, r.stdout[-600:])
-    check("selftest lists the seven tools",
-          all(t in r.stdout for t in ("search", "pool", "fetch", "export", "audit")))
+    check("selftest lists the nine tools",
+          all(t in r.stdout for t in ("search", "pool", "fetch", "export", "audit",
+                                      "screen", "verify")))
 
 
 def test_registry() -> None:
@@ -606,6 +636,77 @@ def test_init_wizard() -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_cli_arg_parsing() -> None:
+    print("\n== CLI arg parsing (multi-value list keys) ==")
+    sys.path.insert(0, str(ROOT))
+    import citlens_mcp  # noqa: PLC0415
+
+    name, args = citlens_mcp._parse_cli_args(
+        ["screen", "--topic", "t", "--queries", "sparse attention", "long context",
+         "--limit", "5"])
+    check("multi-value queries collected as a list",
+          args.get("queries") == ["sparse attention", "long context"], str(args))
+    check("scalar after the list still parsed", args.get("limit") == 5)
+    name2, args2 = citlens_mcp._parse_cli_args(
+        ["search", "--topic", "t", "--families", "raw,web", "--append-pool"])
+    check("comma-separated families still accepted",
+          args2.get("families") == ["raw,web"] or args2.get("families") == ["raw", "web"])
+    check("boolean flag becomes True", args2.get("append_pool") is True)
+    name3, args3 = citlens_mcp._parse_cli_args(
+        ["expand", "--topic", "t", "--seeds", "10.1000/a", "2301.12345",
+         "A Great Paper", "--directions", "backward", "recs"])
+    check("expand seeds collected as a list",
+          args3.get("seeds") == ["10.1000/a", "2301.12345", "A Great Paper"], str(args3))
+    check("expand directions collected as a list",
+          args3.get("directions") == ["backward", "recs"])
+    check("tool name parsed", name == "screen" and name2 == "search"
+          and name3 == "expand")
+
+
+def test_config_migration() -> None:
+    print("\n== families migration (engine-era 9-family config) ==")
+    tmp = Path(tempfile.mkdtemp(prefix="citlens-migrate-"))
+    home = tmp / "home"
+    home.mkdir(parents=True)
+    cfg_path = tmp / ".citlens" / "config.json"
+    cfg_path.parent.mkdir(parents=True)
+    nine = ["planned", "raw", "hyde", "pivot", "oa_title", "s2_rec",
+            "snowball", "web", "survey"]
+    cfg = {
+        "home": str(home),
+        "python": sys.executable,
+        "engine": str(ROOT),
+        "recall_driver": str(ROOT / "drivers" / "citlens_recall.py"),
+        "tools_driver": str(ROOT / "drivers" / "citlens_tools.py"),
+        "families": nine,
+        "target": 60,
+    }
+    cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+    env = _sandbox_home(tmp)
+    try:
+        r = _run_install(env, "apply", "--only", "zcode")
+        check("apply migrates the old config", r.returncode == 0,
+              (r.stdout + r.stderr)[-400:])
+        migrated = json.loads(cfg_path.read_text(encoding="utf-8"))
+        seven = ["agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey"]
+        check("nine-family list becomes seven", migrated.get("families") == seven,
+              str(migrated.get("families")))
+        check("migration is reported, not silent", "migrated" in r.stdout, r.stdout[-300:])
+
+        # doctor must refuse a config the server would reject
+        cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+        doc = subprocess.run(
+            [sys.executable, str(SERVER), "cli", "--config", str(cfg_path), "doctor"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+        )
+        payload = json.loads(doc.stdout) if doc.stdout.strip().startswith("{") else {}
+        check("doctor flags an unsupported family list",
+              payload.get("ok") is False and payload.get("families_invalid") ==
+              ["planned", "hyde", "pivot"], str(payload)[:300])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main() -> int:
     print(f"server: {SERVER}")
     test_selftest()
@@ -615,6 +716,8 @@ def main() -> int:
     test_cli_fallback()
     test_engine_override_and_driver_scoping()
     test_init_wizard()
+    test_cli_arg_parsing()
+    test_config_migration()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:
         print("failed: " + ", ".join(FAIL))
