@@ -170,6 +170,9 @@ one. Before starting, ask and WAIT for answers:
 4. **Supporting layer** — one layer of abstract-only citations (default 15) or off.
 5. **Full-text grounding** — on by default; off is faster but every
    full-text-level claim must be dropped and the output labelled abstract-only.
+6. **Own research to position** — for the 定 step: a description of the
+   user's own work/idea. Without it the review ends at 找 (the gaps), and
+   that ending is complete — never invent a positioning for them.
 
 Then run the whole chain below. It is the engine's measured pipeline
 translated into your discipline — the numbers it produced (citation
@@ -188,11 +191,37 @@ restricted to what its abstract states. Write the unfetchable ones into
 `fetch_list.md` (DOI + suggested filename) and count them — they cap how
 strong the review can honestly be.
 
-**Write with numbered claims.** Every factual sentence carries a `[n]`
-citation marker tied to the reference list. No uncited claims, no citation
-markers that decorate rather than ground. Structure: the review argues a
-position (consensus / contradictions / gaps across papers), it does not
-concatenate abstracts.
+**Write with numbered claims, structured 归 → 评 → 找 → 定.** Every factual
+sentence carries a `[n]` citation marker tied to the reference list; no
+uncited claims, no markers that decorate rather than ground. And the review
+ARGUES — it never lists one paper's findings after another's. Organize the
+body in four movements:
+
+1. **归 (consolidate).** Open with what the corpus AGREES on. A consensus
+   statement cites the papers that establish it (`[3][7][12]`): one sentence
+   synthesized across several papers beats five sentences quoting each.
+2. **评 (discriminate).** Map the disagreements: who claims what, under
+   which conditions, and WHY they diverge (different benchmarks, scales,
+   task definitions, datasets). Put the disagreeing papers side by side
+   (`[4]` vs `[9]`) so the reader sees the fault line — two unrelated
+   paragraphs are a listing failure, not an analysis.
+3. **找 (locate the gap).** State what the searched corpus does NOT
+   establish, precisely and relative to what it does: cite what exists
+   (`[2][5]`), then name the missing piece — the setting never tested, the
+   contradiction never reconciled, the population absent. A gap must be
+   EARNED by the preceding 归 and 评; a gap no cited disagreement or stated
+   limitation supports is a guess, not a finding.
+4. **定 (position).** Place the user's own work on that gap: what it does
+   differently and which 找-finding it answers. If the user gave no
+   description of their own work, STOP after 找 and present the gaps —
+   never invent their contribution.
+
+The integration is the deliverable (整合辨析): each movement synthesizes
+ACROSS papers. The claim-level verification below applies unchanged — a 归
+claim is verdict-checked against every cited paper's span, a 评 claim needs
+spans from both sides, a 找 claim grounds its "what exists" half normally
+while its "what is missing" half must stay inside what the searched corpus
+actually shows.
 
 **Verify every claim (six-grade verdicts + mechanical check).** For each
 claim, compare it against the cited paper's ground text and record one of the
