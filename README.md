@@ -40,8 +40,10 @@ python -m venv .venv
 | `pool` | 读取并过滤既有文献池，不发起检索 |
 | `screen` | 相关性分带（core / uncertain / likely_off）：本地嵌入、BM25、家族投票三通道打分；只分流，不自动剔除任何记录 |
 | `expand` | 拿你判过的论文当种子，做前向/后向引文链和相似推荐扩展；词汇对不上也能顺着引文找到（漏检金标里 71% 与问题只共享 ≤2 个内容词） |
+| `notes` | 阅读笔记：逐篇判定（core / uncertain / off）加一句话理由落盘，是判断记忆，`expand` 可直接取 core 笔记当种子 |
+| `dedup` | 去重报告：doi / arXiv / 题名+共作者三信号找嫌疑组（预印本与正式版是典型），--merge 合并（仅主题池，先写 .bak） |
 | `fetch` | 抓取单篇开放获取全文，无全文时返回摘要 |
-| `export` | 将文献池导出为 BibTeX / RIS |
+| `export` | 将文献池导出为 BibTeX / RIS / EndNote XML / CSL JSON |
 | `audit` | 计算文献池对主题内高被引综述参考文献的覆盖率 |
 | `verify` | 机械核验综述：[n]→参考文献→池内记录逐层可解析，span 在被引原文逐字出现，最后算引用精度等诚实数字 |
 | `status` | 查询后台检索任务的进度 |
@@ -83,7 +85,6 @@ screen 用三个通道给每条记录打分：本地嵌入（可选 extra）算�
 
 ## Roadmap
 
-- 文献管理增强：去重报告、阅读笔记、更多导出格式（EndNote XML、CSL JSON）
 - 更多客户端进入已实测列表
 - `screen` 阈值在 LitSearch 金标上校准，uncertain 带加 cross-encoder 精排
 - ASReview 式反馈环：agent 的 PRISMA 判定回流为下一轮 pool 读取的优先级
