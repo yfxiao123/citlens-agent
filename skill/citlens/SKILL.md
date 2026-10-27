@@ -27,10 +27,12 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs, `screen_embedding_runtime`. No key is required |
 | `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) |
 | `screen` | relevance TRIAGE: bands the pool core / uncertain / likely_off (local embeddings + BM25 + family consensus; writes screening.jsonl). Triage, not judgment — nothing is auto-excluded |
-| `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
+| `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles, or `from_notes: core` to seed from your notes). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
+| `notes` | reading notes: per-paper verdict (core / uncertain / off) + one-line reason, persisted per topic in data/notes/. The judgment memory — record as you read |
+| `dedup` | duplicate report over a pool (doi / arXiv / title+author signals); merge=true collapses groups into the DOI-carrying survivor (topic pools, .bak first) |
 | `pool` | read/filter the pool on disk (citations, years, reviews, DOIs); no new retrieval |
 | `fetch` | one paper's open-access full text (arXiv→S2→OpenAlex→Unpaywall→CORE), or abstract fallback |
-| `export` | pool → BibTeX/RIS via the same citation table the engine used |
+| `export` | pool → BibTeX / RIS / EndNote XML / CSL JSON via the same citation table the engine used |
 | `audit` | stage-F anchor check: pool coverage of the top surveys' bibliographies |
 | `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed |
 | `status` | poll a running search job: state, elapsed, log tail, artifacts, stats |
@@ -128,6 +130,10 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    judge the expansion's best hits → expand again from the new seeds
    (diminishing returns = saturation signal). Check `unresolved` in the
    result: a seed that did not resolve is a hint, not an error to hide.
+   While you read, record verdicts with `notes` (core/uncertain/off + one
+   line each) — the next `expand` can pass from_notes=core and seed from
+   everything you already judged, and `dedup` before `export` keeps the
+   bibliography free of preprint/published twins.
 6. **`pool`** to iterate without re-searching: `min_citations`, `year_from`,
    `is_review: true` for surveys, `query` for a substring, `sort_by`. This
    reads disk; it never retrieves.

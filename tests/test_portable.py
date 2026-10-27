@@ -33,7 +33,7 @@ SERVER = ROOT / "citlens_mcp.py"
 INSTALL = ROOT / "install.py"
 
 TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "verify",
-         "expand", "status", "doctor"}
+         "expand", "notes", "dedup", "status", "doctor"}
 
 PASS, FAIL = [], []
 
@@ -161,7 +161,7 @@ def test_protocol() -> None:
 
         tools = (c.request("tools/list").get("result") or {}).get("tools") or []
         names = {t.get("name") for t in tools}
-        check("tools/list exposes all ten tools", names == TOOLS, str(sorted(names)))
+        check("tools/list exposes all twelve tools", names == TOOLS, str(sorted(names)))
         check("every tool has a description and an object inputSchema", all(
             t.get("description") and (t.get("inputSchema") or {}).get("type") == "object"
             for t in tools))
@@ -224,9 +224,25 @@ def test_protocol() -> None:
               _payload(noexp).get("ok") is False
               and (noexp.get("result") or {}).get("isError") is True)
         expand_def = next(t for t in tools if t["name"] == "expand")["inputSchema"]
-        check("expand schema requires topic+seeds",
-              set(expand_def.get("required") or []) == {"topic", "seeds"}
+        check("expand schema: topic required, seeds optional with from_notes",
+              set(expand_def.get("required") or []) == {"topic"}
+              and "from_notes" in expand_def["properties"]
               and "directions" in expand_def["properties"])
+
+        nonotes = c.request("tools/call", {"name": "notes", "arguments": {}})
+        check("notes without topic is a clean error",
+              _payload(nonotes).get("ok") is False)
+        notes_def = next(t for t in tools if t["name"] == "notes")["inputSchema"]
+        check("notes schema has verdict enum",
+              notes_def["properties"]["verdict"].get("enum")
+              == ["core", "uncertain", "off"])
+
+        dedup_def = next(t for t in tools if t["name"] == "dedup")["inputSchema"]
+        check("dedup schema has merge flag", "merge" in dedup_def["properties"])
+        export_def = next(t for t in tools if t["name"] == "export")["inputSchema"]
+        check("export formats include endnote + csljson",
+              set(export_def["properties"]["format"]["enum"])
+              == {"bib", "ris", "endnote", "csljson"})
 
         unknown_tool = c.request("tools/call", {"name": "nope", "arguments": {}})
         check("unknown tool returns isError with the tool list",

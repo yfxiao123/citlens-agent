@@ -90,6 +90,10 @@ INSTRUCTIONS = (
     "call `expand` with their DOIs/titles/arXiv ids — citation-chain + "
     "similarity expansion from YOUR seeds is the strongest recall lever (the "
     "bench measured 71% of missed golds unreachable by any query vocabulary). "
+    "Record your verdicts with `notes` (core/uncertain/off + one line each) — "
+    "they are the judgment memory, and `expand` from_notes=core seeds straight "
+    "from them; `dedup` reports (and optionally merges) the preprint/published "
+    "duplicates accumulating pools pick up. "
     "optionally `title_probes` (anchor papers you already know) and "
     "`web_queries` (English verbatim spans + natural Chinese phrasings). The "
     "tool runs seven recall families fused by RRF; it does NOT rank by relevance "
@@ -836,10 +840,16 @@ def tool_expand(cfg: dict, args: dict) -> dict:
     if not topic:
         return {"ok": False, "error": "topic is required (the pool to expand into)"}
     seeds = _as_list(args.get("seeds"))
-    if not seeds:
-        return {"ok": False, "error": "seeds is required: DOIs / arXiv ids / titles "
-                "of papers you judged on-topic"}
-    argv = ["expand", "--topic", topic, "--seeds", *seeds]
+    from_notes = (args.get("from_notes") or "").strip()
+    if not seeds and not from_notes:
+        return {"ok": False, "error": "pass seeds (DOIs / arXiv ids / titles of papers "
+                "you judged on-topic) or from_notes=core (expand around your "
+                "judged-core reading notes)"}
+    argv = ["expand", "--topic", topic]
+    if seeds:
+        argv += ["--seeds", *seeds]
+    if from_notes:
+        argv += ["--from-notes", from_notes]
     if args.get("directions"):
         argv += ["--directions", ",".join(_as_list(args.get("directions")))]
     for flag, key in (("--top", "top"), ("--limit-per-paper", "limit_per_paper")):
@@ -857,6 +867,41 @@ def tool_expand(cfg: dict, args: dict) -> dict:
         + str(out.get("note") or "")
     )
     return out
+
+
+def tool_notes(cfg: dict, args: dict) -> dict:
+    """Reading notes: record per-paper verdicts, or list them back."""
+    topic = (args.get("topic") or "").strip()
+    if not topic:
+        return {"ok": False, "error": "topic is required"}
+    argv = ["notes", "--topic", topic]
+    if args.get("doi"):
+        argv += ["--doi", str(args["doi"])]
+    if args.get("title"):
+        argv += ["--title", str(args["title"])]
+    if args.get("verdict"):
+        argv += ["--verdict", str(args["verdict"])]
+    if args.get("note"):
+        argv += ["--note", str(args["note"])]
+    if args.get("limit") is not None:
+        argv += ["--limit", str(args["limit"])]
+    return _run_driver_json(cfg, "tools", argv, timeout=120)
+
+
+def tool_dedup(cfg: dict, args: dict) -> dict:
+    """Duplicate report over a pool (report-only unless merge=true)."""
+    if not (args.get("topic") or args.get("run_dir")):
+        return {"ok": False, "error": "pass topic or run_dir"}
+    argv = ["dedup"]
+    if args.get("topic"):
+        argv += ["--topic", str(args["topic"])]
+    if args.get("run_dir"):
+        argv += ["--run-dir", str(args["run_dir"])]
+    if args.get("merge"):
+        argv += ["--merge"]
+    if args.get("limit") is not None:
+        argv += ["--limit", str(args["limit"])]
+    return _run_driver_json(cfg, "tools", argv, timeout=240)
 
 
 def tool_verify(cfg: dict, args: dict) -> dict:
@@ -1078,7 +1123,7 @@ TOOL_DEFS = [
             "properties": {
                 "topic": {"type": "string"},
                 "run_dir": {"type": "string"},
-                "format": {"type": "string", "enum": ["bib", "ris"], "description": "Default bib."},
+                "format": {"type": "string", "enum": ["bib", "ris", "endnote", "csljson"], "description": "Default bib."},
                 "out": {"type": "string", "description": "Output path (default: run dir or exports/references.<fmt>)."},
                 "with_labels": {"type": "boolean", "description": "Include the numbered [n] APA label list."},
             },
@@ -1176,13 +1221,58 @@ TOOL_DEFS = [
                 "topic": {"type": "string", "description": "Pool to expand into (byte-identical topic slug; may be a fresh topic seeded entirely from these)."},
                 "seeds": {"type": "array", "items": {"type": "string"},
                           "description": "Papers you judged on-topic: DOIs / arXiv ids / titles (max 6 used)."},
+                "from_notes": {"type": "string", "enum": ["core", "uncertain", "off"],
+                               "description": "Also seed from the topic's reading notes with this verdict (core = expand around everything you judged core)."},
                 "directions": {"type": "array", "items": {"type": "string", "enum": ["backward", "forward", "related", "recs"]},
                                "description": "Expansion directions (default all four)."},
                 "top": {"type": "integer", "description": "Records to return/merge (default 30)."},
                 "limit_per_paper": {"type": "integer", "description": "Per seed per direction (default 20)."},
                 "no_write": {"type": "boolean", "description": "Return without merging into the pool."},
             },
-            "required": ["topic", "seeds"],
+            "required": ["topic"],
+        },
+    },
+    {
+        "name": "notes",
+        "description": (
+            "Reading notes — your per-paper judgment memory. While judging the "
+            "pool, record each paper's verdict (core / uncertain / off) plus a "
+            "one-line reason; notes persist per topic in data/notes/. They feed "
+            "the recall loop: `expand` with from_notes=core seeds the citation "
+            "expansion around everything you judged core. Call without doi/title "
+            "to list the notes so far."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "Topic slug (byte-identical)."},
+                "doi": {"type": "string", "description": "Adding a note: the paper's DOI."},
+                "title": {"type": "string", "description": "Adding a note: the paper's title (if no DOI)."},
+                "verdict": {"type": "string", "enum": ["core", "uncertain", "off"]},
+                "note": {"type": "string", "description": "Your one-line judgment (required when doi/title given)."},
+                "limit": {"type": "integer", "description": "List mode: max notes returned."},
+            },
+            "required": ["topic"],
+        },
+    },
+    {
+        "name": "dedup",
+        "description": (
+            "Duplicate report over a pool: groups suspected duplicates by three "
+            "signals (exact DOI, arXiv id, fuzzy title + shared author — the "
+            "arXiv preprint and its published version are the classic case). "
+            "Report-only by default; merge=true collapses each group into its "
+            "DOI-carrying survivor (topic pools only, .bak written first; "
+            "pdf_url/abstract/found_by carry over)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string"},
+                "run_dir": {"type": "string"},
+                "merge": {"type": "boolean", "description": "Collapse the groups (topic pools only; writes .bak)."},
+                "limit": {"type": "integer", "description": "Max groups returned (default 20)."},
+            },
         },
     },
     {
@@ -1232,6 +1322,10 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
         return tool_verify(cfg, args)
     if name == "expand":
         return tool_expand(cfg, args)
+    if name == "notes":
+        return tool_notes(cfg, args)
+    if name == "dedup":
+        return tool_dedup(cfg, args)
     return {"ok": False, "error": f"unknown tool {name!r}", "tools": [t["name"] for t in TOOL_DEFS]}
 
 
