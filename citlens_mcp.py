@@ -108,7 +108,12 @@ INSTRUCTIONS = (
     "delivering a review, call `verify` with the review path and your verdicts "
     "JSONL: it mechanically checks that every [n] resolves to the pool "
     "(honeypot) and that every quoted span occurs verbatim in the cited source, "
-    "and it computes the honesty block. clean=false means fix, not ship."
+    "and it computes the honesty block. clean=false means fix, not ship. "
+    "Structure the review body as 归→评→找→定: consolidate the consensus across "
+    "papers, discriminate the disagreements and why they diverge, locate the "
+    "research gap those two movements earn, then position the user's own work "
+    "on it (stop at the gaps if the user described no work of their own) — "
+    "integrative analysis, never a paper-by-paper listing."
 )
 
 # ── configuration ─────────────────────────────────────────────────────────────
