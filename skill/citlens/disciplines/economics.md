@@ -62,7 +62,9 @@ is systematically stale. Frontier-reading discipline:
 - **评**: quantitative disagreements are often magnitude disagreements — two
   estimates can agree in sign and differ threefold in size, and the policy
   meaning lives in the size. Discriminate sizes, not only positions.
-- **找**: policy-note data gaps (above) are earned support for a gap claim.
+- **找**: policy-note data gaps (above) are earned support for a gap claim —
+  the `gaps` tool's mining channel extracts such stated limitations from
+  fetched fulltexts mechanically, span included.
 - **定**: state the stakes — which policy tradeoff, welfare impact, or
   real-world outcome turns on the answer. A positioning that names no
   consequence reads as an exercise.

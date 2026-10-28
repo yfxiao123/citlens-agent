@@ -230,6 +230,37 @@ def cmd_screen(args) -> dict:
     return out
 
 
+# ── gaps ─────────────────────────────────────────────────────────────────────
+
+
+def cmd_gaps(args) -> dict:
+    """Mechanical substrate for the 找 movement: coverage matrix (EGM-style
+    structural gap candidates), stated-gap mining (verbatim limitation/
+    future-work sentences from fetched fulltexts), novelty check (a draft gap
+    statement scored against the pool — nearest existing work as mechanical
+    refutation). All channels opt-in; all zero LLM."""
+    papers, where = _load_papers(args.topic, args.run_dir)
+    if not papers:
+        return {"ok": False, "error": where}
+    qs = [q for q in (args.queries or []) if q.strip()]
+    check = (args.check or "").strip()
+    if not qs and not check and not args.mine:
+        return {"ok": False, "error": "pass --queries (coverage matrix), "
+                "--check (novelty check) and/or --mine (stated gaps) — all optional"}
+    out: dict = {"ok": True, "n": len(papers)}
+    from citens.gapfinding import coverage_matrix, mine_stated_gaps, novelty_check
+
+    if qs:
+        out["coverage"] = coverage_matrix(papers, qs)
+    if check:
+        out["novelty"] = novelty_check(check, papers, k=args.limit or 8)
+    if args.mine:
+        out["stated_gaps"] = mine_stated_gaps(
+            Path(args.fulltext_dir), papers, limit=args.limit or 40
+        )
+    return out
+
+
 # ── verify ────────────────────────────────────────────────────────────────────
 
 
@@ -503,6 +534,19 @@ def main(argv=None) -> int:
     p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
     p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")
 
+    p_gaps = sub.add_parser(
+        "gaps", help="「找」的机械基底：覆盖矩阵（结构 gap 候选）/ 自陈空白挖掘 / novelty check"
+    )
+    p_gaps.add_argument("--topic", help="主题池（data/litdb/<slug>.jsonl）")
+    p_gaps.add_argument("--run-dir", help="run 目录（读其 pool.jsonl）")
+    p_gaps.add_argument("--queries", nargs="+", default=[],
+                        help="概念块英文查询——按块×年代生成覆盖矩阵")
+    p_gaps.add_argument("--check", help="gap 陈述草稿：对池子找最近邻已有工作")
+    p_gaps.add_argument("--mine", action="store_true",
+                        help="从 fetch 全文目录挖掘 limitations/future work 原句")
+    p_gaps.add_argument("--fulltext-dir", default="fulltext", help="全文目录（默认 fulltext）")
+    p_gaps.add_argument("--limit", type=int, default=40, help="novelty/stated-gaps 返回上限")
+
     p_expand = sub.add_parser(
         "expand",
         help="判断反馈环：以你判定的种子论文为中心做引文链 + S2 相似推荐扩展",
@@ -537,7 +581,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     fn = {"fetch": cmd_fetch, "export": cmd_export, "audit": cmd_audit,
           "screen": cmd_screen, "verify": cmd_verify, "expand": cmd_expand,
-          "dedup": cmd_dedup, "notes": cmd_notes}[args.cmd]
+          "dedup": cmd_dedup, "notes": cmd_notes, "gaps": cmd_gaps}[args.cmd]
     try:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001

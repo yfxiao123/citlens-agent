@@ -27,6 +27,7 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs, `screen_embedding_runtime`. No key is required |
 | `search` | eight-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) and `doc_type`/`policy_org` (journal vs policy-side) |
 | `screen` | relevance TRIAGE: bands the pool core / uncertain / likely_off (local embeddings + BM25 + family consensus; writes screening.jsonl). Triage, not judgment — nothing is auto-excluded |
+| `gaps` | mechanical substrate for 找: coverage matrix (concept blocks × time bands — empty cells are structural gap candidates), stated-gap mining (verbatim limitation/future-work sentences from fetched fulltexts), novelty check (a draft gap statement vs the pool's nearest existing work) |
 | `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles, or `from_notes: core` to seed from your notes). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
 | `notes` | reading notes: per-paper verdict (core / uncertain / off) + one-line reason, persisted per topic in data/notes/. The judgment memory — record as you read |
 | `dedup` | duplicate report over a pool (doi / arXiv / title+author signals); merge=true collapses groups into the DOI-carrying survivor (topic pools, .bak first) |
@@ -265,6 +266,18 @@ body in four movements:
    contradiction never reconciled, the population absent. A gap must be
    EARNED by the preceding 归 and 评; a gap no cited disagreement or stated
    limitation supports is a guess, not a finding.
+
+   Run `gaps` before writing this movement — it turns the gap from an
+   inference into contrastable structure, mechanically: the coverage matrix
+   (your concept blocks × time bands) exposes cells the pool never reached —
+   structural gap candidates, visible rather than argued; `mine: true`
+   returns verbatim limitation/future-work sentences from the fetched
+   fulltexts — quote those with `[n]` and they become gap evidence `verify`
+   can check like any other span (author-testimony beats inference from
+   silence); `check: "<draft gap statement>"` scores the draft against the
+   pool and returns its nearest existing work — a close neighbour is
+   mechanical refutation that the gap may already be done. No close
+   neighbour is WEAK positive evidence — never ship it alone.
 4. **定 (position).** Place the user's own work on that gap: what it does
    differently and which 找-finding it answers. If the user gave no
    description of their own work, STOP after 找 and present the gaps —
