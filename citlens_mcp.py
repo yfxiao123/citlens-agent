@@ -121,14 +121,11 @@ INSTRUCTIONS = (
     "papers, discriminate the disagreements and why they diverge, locate the "
     "research gap those two movements earn, then position the user's own work "
     "on it (stop at the gaps if the user described no work of their own) — "
-    "integrative analysis, never a paper-by-paper listing. When the evidence "
-    "reports coefficients, elasticities or impulse responses, separate "
-    "statistical from ECONOMIC significance: state the magnitude against a "
-    "reference scale and the policy tradeoff that size implies — policy notes "
-    "are written with a how-big-before-we-act yardstick; mirror it. In 找, "
-    "mine policy notes' stated data gaps and unresolved questions as gap "
-    "evidence; in 定, state the real-world stakes — the policy tradeoffs and "
-    "welfare impact the research carries. Prose style, 去AI味: "
+    "integrative analysis, never a paper-by-paper listing. Search results may "
+    "carry a `discipline` hint (e.g. economics), detected mechanically from "
+    "your topic and queries: when present, apply that field's disciplines — "
+    "the pointer text arriving with the result states their core rules, and "
+    "the skill's discipline layers hold the full versions. Prose style, 去AI味: "
     "alternate long and short sentences, no double quotes around concepts, "
     "results stated in the sentence rather than parenthesized, no templated "
     "layered listing, and every sentence carries a clear subject."
@@ -788,6 +785,12 @@ def _search_view(cfg: dict, st: dict) -> dict:
             weak = [q for q in qj if q.get("verdict") in ("empty", "thin")]
             if weak:
                 out["weak_queries"] = [q.get("query", "")[:60] for q in weak]
+        # discipline layer hint (detected mechanically from the topic/queries):
+        # carries the matched field's core disciplines as a pointer, so a
+        # client that never loaded the skill still receives them
+        disc = _read_json(rd / "discipline.json")
+        if disc.get("name"):
+            out["discipline"] = disc
         by_source: dict[str, int] = {}
         no_doi = no_venue = reviews = 0
         for rec in pool:

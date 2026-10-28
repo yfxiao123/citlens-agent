@@ -123,6 +123,7 @@ async def recall(args) -> dict:
     # raw-search source; the driver runs it over its own queries.
     from citens.search.websearch import WebSearchSource
     from citens.search.policy import PolicySearchSource, stamp_doc_types
+    from citens.disciplines import detect_discipline
 
     want = set(args.families)
     topic, sources = args.topic, args.sources
@@ -438,6 +439,16 @@ async def recall(args) -> dict:
             doc_types[p.doc_type] = doc_types.get(p.doc_type, 0) + 1
         if p.policy_org:
             policy_orgs[p.policy_org] = policy_orgs.get(p.policy_org, 0) + 1
+
+    # discipline layer: mechanical detection over the search text (lexicon,
+    # zero LLM), with a structural fallback — policy-corpus records surviving
+    # in the pool imply the economics layer whatever vocabulary was used
+    discipline = detect_discipline([topic, *agent_qs, *(args.policy_queries or [])])
+    if discipline is None and policy_orgs:
+        discipline = {"name": "economics",
+                      "matched": ["policy-corpus records in the pool"]}
+    if discipline:
+        report["discipline"] = discipline
     # Reason-aware PRISMA log. Three distinct fates must not share the label
     # "ranked_below_target": per-family seat quota, dedupe merge, and the
     # target cut are different reviewer decisions.
@@ -515,6 +526,26 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
         encoding="utf-8",
     )
 
+    # discipline layer hint as a machine-readable artifact — the MCP search
+    # view surfaces it so the calling agent receives the domain's core
+    # disciplines even when its client never loaded the skill
+    disc = report.get("discipline")
+    disc_pointer = ""
+    if disc:
+        from citens.disciplines import DISCIPLINES
+
+        disc_pointer = DISCIPLINES[disc["name"]]["pointer"]
+        (run_dir / "discipline.json").write_text(
+            json.dumps({**disc, "pointer": disc_pointer},
+                       ensure_ascii=False, indent=1),
+            encoding="utf-8",
+        )
+    disc_box = (
+        f"## 学科层（{disc['name']}）——检测词命中："
+        f"{'、'.join(disc.get('matched', [])[:3])}\n\n> {disc_pointer}\n"
+        if disc else ""
+    )
+
     fam_rows = "\n".join(
         f"| {k} | {v} |" for k, v in report.get("family_sizes", {}).items()
     ) or "| （无） | 0 |"
@@ -561,6 +592,7 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 - 收工条件未自动判定：请按 SKILL.md 阶段 F 跑锚点核验（`audit` 工具）与
   饱和检查后再声明完成
 
+{disc_box}
 ## 家族 → 入池条数
 
 | 家族 | 入池 |
