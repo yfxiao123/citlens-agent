@@ -147,37 +147,18 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    papers" is weaker than "七家族共入池 49 → 保留 47，其中综述 9，无 DOI 2；
    web 家族因缺 SERPER_API_KEY 全部 failed".
 
-**Policy-side evidence (macro/economics topics).** For policy-adjacent
-topics the journal corpus is half the evidence. The `policy` family pulls
-NBER working papers, Fed Board FEDS Notes (policy notes written for
-decision-makers) plus the FEDS/IFDP working-paper series, and IMF papers —
-mechanically, over Crossref DOI prefixes, no scraping. Every pool record
-carries `doc_type` (journal / preprint / working_paper / policy_note /
-report) and `policy_org`, so read journal evidence and the policy side as
-TWO PERSPECTIVES on one question: which variables the Fed researchers
-watch, which constraints they state, where their framing departs from the
-academic literature. Regional Fed banks, BIS and ECB deposit no Crossref
-DOIs — for those, `web_queries` with site-scoped phrasings
-("site:dallasfed.org working paper ...") is the documented route. Three
-economics-specific disciplines ride on this corpus:
-
-- **Economic vs statistical significance.** A significant coefficient of
-  negligible size is a policy non-event. When evidence reports
-  coefficients, elasticities or impulse responses, give the magnitude
-  against a reference scale and the tradeoff that size implies. Policy
-  notes are written with a how-big-before-we-act yardstick; mirror it.
-- **Policy notes as 找-evidence.** Institutions publish their own limitation
-  sections and stated data gaps. A Fed note saying "we cannot yet measure
-  X" is citable gap evidence — stronger than inferring a gap from silence.
-- **NBER working papers as the frontier.** The working-paper-to-journal lag
-  means this year's NBER WPs ARE the field's leading edge. A one-to-two
-  year-old WP already gathering citations is pioneer work; `expand` forward
-  from it maps where the frontier is moving next.
-
-The target cut would normally drop policy records first (they seat after the
-journal families); 8 policy seats are reserved through the cut, so a default
-`target` search still returns them. For a policy-topic review, still search
-with `target: 0`.
+**Policy corpus mechanics (macro/economics topics).** The `policy` family
+pulls NBER working papers, Fed Board FEDS Notes plus the FEDS/IFDP
+working-paper series, and IMF papers — mechanically, over Crossref DOI
+prefixes, no scraping. Every pool record carries `doc_type` (journal /
+preprint / working_paper / policy_note / report) and `policy_org`, so journal
+evidence and the policy side can be read as two perspectives on one
+question. Regional Fed banks, BIS and ECB deposit no Crossref DOIs — for
+those, `web_queries` with site-scoped phrasings ("site:dallasfed.org working
+paper ...") is the documented route. The target cut would normally drop
+policy records first (they seat after the journal families); 8 policy seats
+are reserved through the cut, so a default `target` search still returns
+them. For a policy-topic review, still search with `target: 0`.
 
 ## Coverage discipline
 
@@ -201,6 +182,31 @@ covered, check the shapes that are cheap to check:
 
 Never present a subset as the whole field. If you filtered the pool (as the
 user asked), say what the filter was and what it removed.
+
+## Discipline layers (学科层)
+
+Some rules are not literature-search mechanics — they belong to a field.
+Economic vs statistical significance is an economics discipline; a medicine
+review has evidence hierarchies; law has doctrinal weight. Those rules live
+in LAYERS, one file per field under `disciplines/`, not in this skill's
+general flow — the general flow stays field-neutral.
+
+Activation is automatic and mechanical. `search` detects the domain from
+your topic and queries (a per-discipline lexicon, zero LLM; policy-corpus
+records surviving in the pool are a second trigger) and stamps a
+`discipline` hint into the result, with a pointer stating that field's core
+rules. When you see it: read the matched layer below and apply it from
+triage through writing.
+
+| layer | applies when |
+|---|---|
+| [`disciplines/economics.md`](disciplines/economics.md) | empirical macro / monetary / policy topics — detected by lexicon or by policy-corpus records in the pool |
+
+If your topic clearly belongs to a field with no layer yet, follow that
+field's native epistemic conventions and say which you used — do not import
+another field's. The registry (`citens/disciplines.py`) and the
+`disciplines/` folder are the extension point: a new layer is one registry
+entry plus one file.
 
 ## Writing a review — opt-in only, and YOU write it
 
@@ -252,21 +258,15 @@ body in four movements:
    which conditions, and WHY they diverge (different benchmarks, scales,
    task definitions, datasets). Put the disagreeing papers side by side
    (`[4]` vs `[9]`) so the reader sees the fault line — two unrelated
-   paragraphs are a listing failure, not an analysis. In quantitative
-   fields, discrimination includes SIZE: two estimates may agree in sign
-   and disagree in magnitude, and the policy meaning lives in the size.
+   paragraphs are a listing failure, not an analysis.
 3. **找 (locate the gap).** State what the searched corpus does NOT
    establish, precisely and relative to what it does: cite what exists
    (`[2][5]`), then name the missing piece — the setting never tested, the
    contradiction never reconciled, the population absent. A gap must be
    EARNED by the preceding 归 and 评; a gap no cited disagreement or stated
-   limitation supports is a guess, not a finding. Policy notes' stated data
-   gaps and unresolved questions count as that support — institutions
-   publish their own limitations.
+   limitation supports is a guess, not a finding.
 4. **定 (position).** Place the user's own work on that gap: what it does
-   differently and which 找-finding it answers. State the stakes — which
-   policy tradeoff or real-world outcome turns on the answer; a positioning
-   that names no consequence reads as an exercise. If the user gave no
+   differently and which 找-finding it answers. If the user gave no
    description of their own work, STOP after 找 and present the gaps —
    never invent their contribution.
 
