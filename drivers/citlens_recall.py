@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""citlens_recall.py — the CiteLens seven-family recall leg, agent-driven.
+"""citlens_recall.py — the CiteLens multi-family recall leg, agent-driven.
 
 This is the retrieval half of CiteLens with the LLM surgically removed. In
 the engine repo the same leg had nine families; three of them (planned,
@@ -30,6 +30,7 @@ Families
     snowball one-hop citation expansion (backward + forward)
     web      web bridge (blogs/forums) over --web-queries (EN + ZH)
     survey   reference harvest from topic surveys found in the pool
+    policy   NBER / Fed Board / IMF via Crossref DOI prefixes (--policy-queries)
 """
 
 from __future__ import annotations
@@ -50,9 +51,10 @@ PER_SOURCE = 20          # per-source cell depth (== the union@20 ceiling)
 AGENT_DEPTH = 40         # agent-query leg per-cell depth; RRF only sums ranks
 # (the engine's PLANNED_DEPTH — same leg, the queries just come from you)
 FAMILY_QUOTA = 30        # each family's guaranteed seats in the fused pool
+POLICY_SEATS = 8         # seats the policy corpus keeps through the target cut
 DEFAULT_SOURCES = ["arxiv", "semantic_scholar", "openalex", "crossref"]
 ALL_FAMILIES = [
-    "agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey",
+    "agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey", "policy",
 ]
 
 
@@ -117,7 +119,10 @@ async def recall(args) -> dict:
     from citens.search.survey_seed import survey_seed_papers
     # imported explicitly: citens/search/__init__.py never imports websearch, so a
     # `"web"` entry in SEARCH_SOURCES is silently dropped by the registry filter.
+    # Same registry isolation for the policy corpus — it is a family, not a
+    # raw-search source; the driver runs it over its own queries.
     from citens.search.websearch import WebSearchSource
+    from citens.search.policy import PolicySearchSource, stamp_doc_types
 
     want = set(args.families)
     topic, sources = args.topic, args.sources
@@ -341,9 +346,39 @@ async def recall(args) -> dict:
                     added_papers.append(p)
                     added += 1
             family_sizes["survey"] = added
-            _log(f"family survey: +{added} (head {len(survey_papers[:FAMILY_QUOTA])})")
+            _log(f"family survey: +{added} (head {len(survey_papers)})")
         except Exception as e:  # noqa: BLE001
             notes.append(f"survey: 失败，跳过（{str(e)[:120]}）")
+
+    # ── family 8: policy corpus (NBER / Fed Board / IMF via Crossref) ────────
+    # The scholarly families speak journal vocabulary; policy-side research
+    # (Fed FEDS Notes, NBER WPs) surfaces only by title accident and arrives
+    # indistinguishable from journal evidence. This family queries the three
+    # DOI-depositing institutions directly and stamps doc_type/policy_org so
+    # the agent can contrast the two perspectives instead of blending them.
+    if "policy" in want:
+        policy_qs = [q for q in (args.policy_queries or []) if q.strip()] \
+            or agent_qs or [topic]
+        report["policy_queries"] = policy_qs
+        try:
+            pol_src = PolicySearchSource()
+            pol_papers = await pol_src.search(policy_qs, 24)
+            for org, b in pol_src.health.items():
+                health[f"policy-{org}"] = list(b)
+            _note("policy", pol_papers[:FAMILY_QUOTA])
+            quota_cut.extend(pol_papers[FAMILY_QUOTA:])
+            from citens.eval.litsearch import _key_of
+            seen = {_key_of(p) for p in pool}
+            added = 0
+            for p in pol_papers[:FAMILY_QUOTA]:
+                if _key_of(p) not in seen:
+                    seen.add(_key_of(p))
+                    pool.append(p)
+                    added += 1
+            family_sizes["policy"] = added
+            _log(f"family policy: +{added} (head {len(pol_papers)})")
+        except Exception as e:  # noqa: BLE001
+            notes.append(f"policy: 失败，跳过（{str(e)[:120]}）")
 
     # ── ordering: RRF/family seat order (NO LLM cascade in this build) ──────
     # Stamp the consensus signal BEFORE dedup so every kept record carries it;
@@ -356,17 +391,53 @@ async def recall(args) -> dict:
         "3plus": sum(1 for v in votes.values() if len(v) >= 3),
     }
 
-    ranked = deduplicate(pool)
+    # doc-kind stamping BEFORE dedup: the merge prefers the published variant,
+    # so an NBER WP folding into its AER version correctly re-tags as journal —
+    # and records the other families surfaced (snowball can pull Fed papers
+    # nobody queried for) get the same tag for the 学术/政策端 contrast
+    stamp_doc_types(pool)
+    stamp_doc_types(quota_cut)
+
     notes.append(
         "排序说明：本构建无 LLM 级联——顺序为 RRF/家族保底席位序，"
         "引用前必须由调用方 agent 自行判断相关性（读标题+摘要逐篇过）；"
         "record.found_by 记录了召回该篇的家族集合，可用 `screen` 工具做三分带分流"
     )
 
-    deduped_ids = {p.id for p in ranked}
+    deduped = deduplicate(pool)
+    deduped_ids = {p.id for p in deduped}
+    ranked = deduped
     if args.target:
         ranked = ranked[: args.target]
+        # Policy seat reservation through the target cut. The policy family
+        # seats AFTER agent/raw, so on any topic where the journal families
+        # already fill the target the policy corpus is systematically cut
+        # first — the exact records this family exists to deliver (measured
+        # on the 2026-10-28 smoke: 30 policy records pooled, 3 survived
+        # target=50). Up to POLICY_SEATS cut policy records swap in for the
+        # weakest non-policy tail, mirroring blend_pool's diversity
+        # reservation. target=0 (review workflows) keeps everything anyway.
+        if "policy" in want:
+            kept_set = {p.id for p in ranked}
+            pol_cut = [p for p in deduped if p.policy_org and p.id not in kept_set]
+            pol_in = sum(1 for p in ranked if p.policy_org)
+            if pol_cut and pol_in < POLICY_SEATS:
+                non_pol_tail = [p for p in reversed(ranked) if not p.policy_org]
+                swap = min(POLICY_SEATS - pol_in, len(pol_cut), len(non_pol_tail))
+                drop = {p.id for p in non_pol_tail[:swap]}
+                ranked = [p for p in ranked if p.id not in drop] + pol_cut[:swap]
     kept_ids = {p.id for p in ranked}
+    # doc-kind / policy-org breakdown of what the run actually KEEPS — the
+    # dashboard for the 学术证据 vs 政策端视角 contrast, and a coverage check:
+    # a macro-policy pool with zero policy_org records means the policy family
+    # never fired (families flag, health buckets)
+    doc_types: dict[str, int] = {}
+    policy_orgs: dict[str, int] = {}
+    for p in ranked:
+        if p.doc_type:
+            doc_types[p.doc_type] = doc_types.get(p.doc_type, 0) + 1
+        if p.policy_org:
+            policy_orgs[p.policy_org] = policy_orgs.get(p.policy_org, 0) + 1
     # Reason-aware PRISMA log. Three distinct fates must not share the label
     # "ranked_below_target": per-family seat quota, dedupe merge, and the
     # target cut are different reviewer decisions.
@@ -386,7 +457,8 @@ async def recall(args) -> dict:
     if args.target and len(deduped_ids) > len(ranked):
         notes.append(
             f"target={args.target} 截掉了 {len(deduped_ids) - len(ranked)} 条已融合候选——"
-            "扩展家族（s2_rec/snowball/web/survey）排在配额头之后，会被优先截掉；"
+            "扩展家族（s2_rec/snowball/web/survey）排在配额头之后，会被优先截掉"
+            "（policy 家族有 8 席保底穿过截断）；"
             "写综述/要广度时用 target: 0"
         )
 
@@ -397,6 +469,8 @@ async def recall(args) -> dict:
         kept=len(ranked),
         health=_health_summary(health),
         notes=notes,
+        doc_types=doc_types,
+        policy_orgs=policy_orgs,
         exclusions={
             reason: sum(1 for r, _p in rejected if r == reason)
             for reason in ("family_quota", "duplicate_or_merged", "ranked_below_target")
@@ -452,6 +526,10 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
     missing_venue = sum(1 for p in papers if not p.venue)
     no_doi = sum(1 for p in papers if not p.doi)
     reviews = sum(1 for p in papers if p.is_review)
+    doc_types = report.get("doc_types", {})
+    policy_orgs = report.get("policy_orgs", {})
+    kind_line = " · ".join(f"{k} {v}" for k, v in sorted(doc_types.items())) or "（无标记）"
+    org_line = " · ".join(f"{k} {v}" for k, v in sorted(policy_orgs.items())) or "无"
     cons = report.get("family_consensus", {})
     excl = report.get("exclusions", {})
     qfb_rows = "\n".join(
@@ -471,6 +549,9 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 
 - 候选池：{report.get('pool_size', 0)} 篇 → 保留 **{len(papers)}** 篇
 - 其中综述 {reviews} 篇 · 无 DOI {no_doi} 篇 · 无 venue {missing_venue} 篇
+- 文献类型：{kind_line}（政策机构：{org_line}）
+  （doc_type/policy_org 已写入每条记录——学术证据与政策端视角分开读，
+  二者的分析框架与关心变量并不相同）
 - 家族共识：≥2 家族同时命中 {cons.get('2plus', 0)} 篇 · ≥3 家族 {cons.get('3plus', 0)} 篇
   （`found_by` 已写入每条 pool 记录；`screen` 工具的 consensus 通道消费它）
 - 排除日志：家族配额 {excl.get('family_quota', 0)} · 合并去重 {excl.get('duplicate_or_merged', 0)}
@@ -515,6 +596,14 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 
 {chr(10).join('- ' + q for q in report.get('survey_seeds', [])) or '- （无）'}
 
+## 政策语料查询（家族 8：NBER / Fed Board / IMF）
+
+{chr(10).join('- ' + q for q in report.get('policy_queries', [])) or '- （未显式提供——复用 agent 查询或主题；政策语料建议用平实的经济学措辞）'}
+
+> 政策机构命中：{org_line}。政策笔记（FEDS Notes 等）是写给决策者的：
+> 读其中的效应量级判断与 stated data gaps——前者是经济显著性的参照系，
+> 后者是「找空白」的直接证据。
+
 ## 备注与降级
 
 {notes}
@@ -541,6 +630,9 @@ def build_args(argv=None):
                          "喂 OpenAlex title.search 家族（最多取前 3 条）")
     ap.add_argument("--web-queries", nargs="+", default=[],
                     help="web 桥接查询：英文逐字跨度 + 中文自然短语")
+    ap.add_argument("--policy-queries", nargs="+", default=[],
+                    help="政策语料查询（NBER/Fed/IMF）：平实的经济学措辞，"
+                         "缺省复用 --queries 或主题")
     ap.add_argument("--target", type=int, default=0, help="保留条数上限（0 = 不截断）")
     ap.add_argument("--sources", default="", help="逗号分隔检索源；默认取 SEARCH_SOURCES")
     ap.add_argument("--families", default=",".join(ALL_FAMILIES),
@@ -572,6 +664,7 @@ def main(argv=None) -> int:
             "agent_queries": args.queries,
             "title_probes": args.title_probes[:3],
             "web_queries": args.web_queries,
+            "policy_queries": args.policy_queries,
             "sources": args.sources,
             "families": args.families,
             "note": "你就是规划器：查询为空时先按 SKILL.md PRESS 纪律拟好再搜",
