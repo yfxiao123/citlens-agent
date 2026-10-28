@@ -229,6 +229,32 @@ spans from both sides, a 找 claim grounds its "what exists" half normally
 while its "what is missing" half must stay inside what the searched corpus
 actually shows.
 
+**Prose style — 去 AI 味.** Four tics mark machine-written prose; write
+against all four, and reread the draft against them before delivery:
+
+1. **Alternate long and short sentences.** A wall of long sentences with no
+   short ones reads generated. After a long analysis sentence, land a short
+   one — "This advantage disappears at scale." Two long sentences in a row
+   is the limit; the third must be short.
+2. **No quotes around concepts.** Introduce a term once in plain text, then
+   use it bare. Wrapping every concept in double quotes when it is neither
+   a quotation nor a coined term is a tell. Reserve quote marks for actual
+   quotations.
+3. **No parenthetical results.** Numbers belong in the sentence: "F1 drops
+   4.1 points when the adapter is removed", not "performance drops (−4.1
+   F1)". Parentheses are for citations and mathematics, not for smuggling
+   results past the sentence.
+4. **No templated layered listing.** If every paragraph opens with the same
+   shape, or a section is a stack of bullets that could have been an
+   argument, restructure into prose. Lists are for content that genuinely
+   IS an enumeration; structure templates are a tell.
+
+Each sentence states its subject clearly — a "this means…" with no
+antecedent, or a sentence whose main claim hides inside a subordinate
+clause, fails this test. The `[n]` citation markers and the verify workflow
+(verdicts, spans, honesty numbers) are exempt: they are grounding machinery,
+not review prose.
+
 **Verify every claim (six-grade verdicts + mechanical check).** For each
 claim, compare it against the cited paper's ground text and record one of the
 engine's six verdicts: `supported` / `partial` / `background` /

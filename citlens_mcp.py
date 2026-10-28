@@ -117,7 +117,10 @@ INSTRUCTIONS = (
     "papers, discriminate the disagreements and why they diverge, locate the "
     "research gap those two movements earn, then position the user's own work "
     "on it (stop at the gaps if the user described no work of their own) — "
-    "integrative analysis, never a paper-by-paper listing."
+    "integrative analysis, never a paper-by-paper listing. Prose style, 去AI味: "
+    "alternate long and short sentences, no double quotes around concepts, "
+    "results stated in the sentence rather than parenthesized, no templated "
+    "layered listing, and every sentence carries a clear subject."
 )
 
 # ── configuration ─────────────────────────────────────────────────────────────
