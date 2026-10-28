@@ -19,7 +19,7 @@ zero LLM keys**. The calling agent IS the model — it crafts the queries
 (`queries`), supplies anchor titles (`title_probes`) and web phrasings
 (`web_queries`), judges the relevance of the returned pool, and writes the
 review under the skill's verification discipline. What the server owns is
-everything mechanical and reproducible: the seven recall families, RRF fusion,
+everything mechanical and reproducible: the eight recall families, RRF fusion,
 citation snowball, survey harvest, full-text fetch, BibTeX/RIS export, the
 honest health buckets and the PRISMA exclusion log.
 
@@ -72,7 +72,7 @@ SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 _REPO_ROOT = Path(__file__).resolve().parent
 
 ALL_FAMILIES = [
-    "agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey",
+    "agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey", "policy",
 ]
 
 # The retrieval discipline each tool result reminds the model about. These are
@@ -93,10 +93,14 @@ INSTRUCTIONS = (
     "Record your verdicts with `notes` (core/uncertain/off + one line each) — "
     "they are the judgment memory, and `expand` from_notes=core seeds straight "
     "from them; `dedup` reports (and optionally merges) the preprint/published "
-    "duplicates accumulating pools pick up. "
-    "optionally `title_probes` (anchor papers you already know) and "
-    "`web_queries` (English verbatim spans + natural Chinese phrasings). The "
-    "tool runs seven recall families fused by RRF; it does NOT rank by relevance "
+    "duplicates accumulating pools pick up. Pass `web_queries` (English "
+    "verbatim spans + natural Chinese phrasings) for the web bridge, and for "
+    "macro/economics/policy topics pass plain-econ `policy_queries`: the "
+    "policy family pulls NBER working papers, Fed Board FEDS Notes and IMF "
+    "papers directly, and pool records carry doc_type/policy_org so journal "
+    "evidence and policy-side framing can be read as two perspectives on one "
+    "question, not blended. The "
+    "tool runs eight recall families fused by RRF; it does NOT rank by relevance "
     "— band the pool with `screen` (core/uncertain/likely_off triage), then read "
     "the core+uncertain records yourself (title+abstract, paper by paper) before "
     "citing; batch-review the likely_off band and log every exclusion "
@@ -117,7 +121,14 @@ INSTRUCTIONS = (
     "papers, discriminate the disagreements and why they diverge, locate the "
     "research gap those two movements earn, then position the user's own work "
     "on it (stop at the gaps if the user described no work of their own) — "
-    "integrative analysis, never a paper-by-paper listing. Prose style, 去AI味: "
+    "integrative analysis, never a paper-by-paper listing. When the evidence "
+    "reports coefficients, elasticities or impulse responses, separate "
+    "statistical from ECONOMIC significance: state the magnitude against a "
+    "reference scale and the policy tradeoff that size implies — policy notes "
+    "are written with a how-big-before-we-act yardstick; mirror it. In 找, "
+    "mine policy notes' stated data gaps and unresolved questions as gap "
+    "evidence; in 定, state the real-world stakes — the policy tradeoffs and "
+    "welfare impact the research carries. Prose style, 去AI味: "
     "alternate long and short sentences, no double quotes around concepts, "
     "results stated in the sentence rather than parenthesized, no templated "
     "layered listing, and every sentence carries a clear subject."
@@ -442,7 +453,7 @@ def wait_job(cfg: dict, job_id: str, wait_seconds: int) -> dict:
 # ── artifact readers ──────────────────────────────────────────────────────────
 
 _POOL_FIELDS = ("title", "authors", "year", "venue", "doi", "citation_count",
-                "is_review", "url", "source")
+                "is_review", "url", "source", "doc_type", "policy_org")
 
 
 def read_pool_records(path: Path) -> list[dict]:
@@ -1003,6 +1014,13 @@ def tool_pool(cfg: dict, args: dict) -> dict:
     for r in matched:
         s = r.get("source") or "?"
         by_source[s] = by_source.get(s, 0) + 1
+    by_doc_type: dict[str, int] = {}
+    by_policy_org: dict[str, int] = {}
+    for r in matched:
+        if r.get("doc_type"):
+            by_doc_type[r["doc_type"]] = by_doc_type.get(r["doc_type"], 0) + 1
+        if r.get("policy_org"):
+            by_policy_org[r["policy_org"]] = by_policy_org.get(r["policy_org"], 0) + 1
     return {
         "ok": True,
         "pool_path": str(path),
@@ -1015,6 +1033,8 @@ def tool_pool(cfg: dict, args: dict) -> dict:
             "reviews": sum(1 for r in matched if r.get("is_review")),
             "with_fulltext_hint": sum(1 for r in matched if r.get("pdf_url")),
             "by_source": by_source,
+            "by_doc_type": by_doc_type,
+            "by_policy_org": by_policy_org,
             "by_year": dict(sorted(by_year.items())),
         },
         "papers": [_compact_paper(r, fields) for r in shown],
@@ -1035,10 +1055,11 @@ TOOL_DEFS = [
             "Find literature with CiteLens — and YOU are the query planner. Craft the "
             "English concept-block queries yourself (4-6 concepts x 2-4 synonyms, "
             "combination queries first; see the skill's PRESS discipline) and pass "
-            "them as `queries`. The tool runs seven recall families (your queries, "
+            "them as `queries`. The tool runs eight recall families (your queries, "
             "raw topic, OpenAlex title match over `title_probes`, Semantic-Scholar "
             "recommendations, citation snowball, web bridge over `web_queries`, "
-            "survey reference harvest) fused by reciprocal-rank fusion under "
+            "survey reference harvest, and the policy corpus — NBER / Fed Board / "
+            "IMF over `policy_queries`) fused by reciprocal-rank fusion under "
             "per-family seat quotas. It does NOT rank by relevance — judge the "
             "returned pool yourself. Writes pool.jsonl + search_report.md + "
             "exclusions.jsonl + queries.json (per-query hit feedback — rephrase "
@@ -1056,9 +1077,11 @@ TOOL_DEFS = [
                                  "description": "HyDE-style hypothetical TITLES of the ideal paper (paper-side vocabulary, 2-3 of them) or anchor titles, for the OpenAlex title-search family (max 3 used)."},
                 "web_queries": {"type": "array", "items": {"type": "string"},
                                 "description": "Web-bridge queries: English verbatim spans of the distinctive wording + natural Chinese phrasings (Zhihu-style)."},
+                "policy_queries": {"type": "array", "items": {"type": "string"},
+                                   "description": "Queries for the policy corpus (NBER working papers, Fed Board FEDS Notes/working papers, IMF): plain economist phrasing, not ML-style concept blocks. Default: reuse `queries` or the topic."},
                 "target": {"type": "integer", "description": "Max kept papers (0 = no truncation). Default from config."},
                 "families": {"type": "array", "items": {"type": "string", "enum": ALL_FAMILIES},
-                             "description": "Subset of the seven families to run (default: all)."},
+                             "description": "Subset of the eight families to run (default: all)."},
                 "sources": {"type": "array", "items": {"type": "string"},
                             "description": "Metadata sources, e.g. arxiv, semantic_scholar, openalex, crossref."},
                 "append_pool": {"type": "boolean", "description": "Merge results into the shared per-topic pool (default true)."},
@@ -1089,7 +1112,7 @@ TOOL_DEFS = [
                 "sort_by": {"type": "string", "enum": ["citations", "year", "none"]},
                 "limit": {"type": "integer", "description": "Records to return (default 30)."},
                 "fields": {"type": "array", "items": {"type": "string"},
-                           "description": "Subset of title,authors,year,venue,doi,citation_count,is_review,url,source,abstract,keywords,pdf_url."},
+                           "description": "Subset of title,authors,year,venue,doi,citation_count,is_review,url,source,doc_type,policy_org,abstract,keywords,pdf_url."},
             },
         },
     },
@@ -1458,6 +1481,8 @@ def _driver_argv(cfg: dict, kind: str, payload: dict) -> list[str]:
             argv += ["--title-probes", *payload["title_probes"]]
         if payload.get("web_queries"):
             argv += ["--web-queries", *payload["web_queries"]]
+        if payload.get("policy_queries"):
+            argv += ["--policy-queries", *payload["policy_queries"]]
         if payload.get("append_pool"):
             argv += ["--append-pool"]
         return argv

@@ -1,6 +1,6 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the seven recall families, RRF fusion, citation snowball, survey harvest, full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
@@ -25,7 +25,7 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | tool | purpose |
 |---|---|
 | `doctor` | health: interpreter, drivers, data home, `.env` key NAMES (never values), pool count, jobs, `screen_embedding_runtime`. No key is required |
-| `search` | seven-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) |
+| `search` | eight-family recall with YOUR queries → RRF fusion → pool + PRISMA exclusions; every record carries `found_by` (family votes) and `doc_type`/`policy_org` (journal vs policy-side) |
 | `screen` | relevance TRIAGE: bands the pool core / uncertain / likely_off (local embeddings + BM25 + family consensus; writes screening.jsonl). Triage, not judgment — nothing is auto-excluded |
 | `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles, or `from_notes: core` to seed from your notes). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
 | `notes` | reading notes: per-paper verdict (core / uncertain / off) + one-line reason, persisted per topic in data/notes/. The judgment memory — record as you read |
@@ -87,6 +87,11 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
        DISTINCTIVE verbatim wording of the question (the 4-8 words a generic
        paper would NOT share), plus 1-2 natural Chinese phrasings
        (Zhihu/CSDN style, not translations).
+     - `policy_queries`: for macro/economics/policy topics, 2-3 PLAIN
+       economist phrasings ("natural rate of interest estimates") feeding the
+       policy corpus family — NBER working papers, Fed Board FEDS Notes and
+       working papers, IMF. Plain wording, not ML-style concept blocks: these
+       queries speak the economics the notes themselves use.
 3. **`search`** with `topic` + `queries`. Start with `wait_seconds` = 45. A
    rich topic takes 2–6 minutes; if you get a `job_id`, poll `status` rather
    than starting a second search. Keep `append_pool` true so the shared pool
@@ -142,6 +147,38 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
    papers" is weaker than "七家族共入池 49 → 保留 47，其中综述 9，无 DOI 2；
    web 家族因缺 SERPER_API_KEY 全部 failed".
 
+**Policy-side evidence (macro/economics topics).** For policy-adjacent
+topics the journal corpus is half the evidence. The `policy` family pulls
+NBER working papers, Fed Board FEDS Notes (policy notes written for
+decision-makers) plus the FEDS/IFDP working-paper series, and IMF papers —
+mechanically, over Crossref DOI prefixes, no scraping. Every pool record
+carries `doc_type` (journal / preprint / working_paper / policy_note /
+report) and `policy_org`, so read journal evidence and the policy side as
+TWO PERSPECTIVES on one question: which variables the Fed researchers
+watch, which constraints they state, where their framing departs from the
+academic literature. Regional Fed banks, BIS and ECB deposit no Crossref
+DOIs — for those, `web_queries` with site-scoped phrasings
+("site:dallasfed.org working paper ...") is the documented route. Three
+economics-specific disciplines ride on this corpus:
+
+- **Economic vs statistical significance.** A significant coefficient of
+  negligible size is a policy non-event. When evidence reports
+  coefficients, elasticities or impulse responses, give the magnitude
+  against a reference scale and the tradeoff that size implies. Policy
+  notes are written with a how-big-before-we-act yardstick; mirror it.
+- **Policy notes as 找-evidence.** Institutions publish their own limitation
+  sections and stated data gaps. A Fed note saying "we cannot yet measure
+  X" is citable gap evidence — stronger than inferring a gap from silence.
+- **NBER working papers as the frontier.** The working-paper-to-journal lag
+  means this year's NBER WPs ARE the field's leading edge. A one-to-two
+  year-old WP already gathering citations is pioneer work; `expand` forward
+  from it maps where the frontier is moving next.
+
+The target cut would normally drop policy records first (they seat after the
+journal families); 8 policy seats are reserved through the cut, so a default
+`target` search still returns them. For a policy-topic review, still search
+with `target: 0`.
+
 ## Coverage discipline
 
 High recall is not "enough results". Before telling a user a field is
@@ -179,6 +216,11 @@ one. Before starting, ask and WAIT for answers:
 6. **Own research to position** — for the 定 step: a description of the
    user's own work/idea. Without it the review ends at 找 (the gaps), and
    that ending is complete — never invent a positioning for them.
+7. **Policy dimension** (macro/econ topics) — whether to bring in the
+   policy-side corpus and its perspective (NBER / Fed Board / IMF). Default
+   yes when the topic is policy-adjacent; a policy-topic pool with zero
+   `policy_org` records means the `policy` family never fired — check
+   `families` and the health table before writing.
 
 Then run the whole chain below. It is the engine's measured pipeline
 translated into your discipline — the numbers it produced (citation
@@ -210,15 +252,21 @@ body in four movements:
    which conditions, and WHY they diverge (different benchmarks, scales,
    task definitions, datasets). Put the disagreeing papers side by side
    (`[4]` vs `[9]`) so the reader sees the fault line — two unrelated
-   paragraphs are a listing failure, not an analysis.
+   paragraphs are a listing failure, not an analysis. In quantitative
+   fields, discrimination includes SIZE: two estimates may agree in sign
+   and disagree in magnitude, and the policy meaning lives in the size.
 3. **找 (locate the gap).** State what the searched corpus does NOT
    establish, precisely and relative to what it does: cite what exists
    (`[2][5]`), then name the missing piece — the setting never tested, the
    contradiction never reconciled, the population absent. A gap must be
    EARNED by the preceding 归 and 评; a gap no cited disagreement or stated
-   limitation supports is a guess, not a finding.
+   limitation supports is a guess, not a finding. Policy notes' stated data
+   gaps and unresolved questions count as that support — institutions
+   publish their own limitations.
 4. **定 (position).** Place the user's own work on that gap: what it does
-   differently and which 找-finding it answers. If the user gave no
+   differently and which 找-finding it answers. State the stakes — which
+   policy tradeoff or real-world outcome turns on the answer; a positioning
+   that names no consequence reads as an exercise. If the user gave no
    description of their own work, STOP after 找 and present the gaps —
    never invent their contribution.
 

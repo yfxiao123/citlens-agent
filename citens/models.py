@@ -63,6 +63,12 @@ class Paper(BaseModel):
     # not proof (filled by the recall driver; [] on legacy records).
     found_by: list[str] = Field(default_factory=list)
     is_review: bool = False  # indexed as a survey/review (OpenAlex type:review)
+    # document-kind tag, stamped over the pool at collection (mechanical, from
+    # DOI prefix + venue; "" = unknown). The 学术-vs-政策端 contrast consumes
+    # it: journal evidence and a Fed policy note answer the same question with
+    # different framings, and a review that cannot tell them apart misreads both.
+    doc_type: str = ""  # journal | preprint | working_paper | policy_note | report
+    policy_org: str = ""  # issuing institution for policy-corpus records (NBER, Federal Reserve Board, IMF)
 
     @field_validator("authors", mode="before")
     @classmethod
