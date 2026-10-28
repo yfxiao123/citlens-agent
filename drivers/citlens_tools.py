@@ -108,7 +108,9 @@ def cmd_fetch(args) -> dict:
             title=(args.title or args.doi or arxiv or "").strip(),
             authors=[], year=None,
             doi=args.doi or (f"10.48550/arXiv.{arxiv}" if arxiv else None),
-            url=f"https://arxiv.org/abs/{arxiv}" if arxiv else None,
+            # url is a required str on Paper — None here raised ValidationError
+            # and killed every title-only fetch (dogfooded 2026-10-28)
+            url=f"https://arxiv.org/abs/{arxiv}" if arxiv else "",
         )
     out: dict = {
         "title": paper.title,
@@ -118,7 +120,9 @@ def cmd_fetch(args) -> dict:
         "abstract": (paper.abstract or "")[:1200] or None,
         "resolved_from_pool": bool(papers) and paper in papers,
     }
-    if not paper.title and not paper.doi and not paper.arxiv:
+    # Paper has no .arxiv attribute (identity is extracted via url/doi);
+    # checking args directly keeps the no-identifier path a clean error
+    if not paper.title and not paper.doi and not (args.arxiv or "").strip():
         return {"ok": False, "error": "pass --doi, --title or --arxiv "
                 "(plus --topic/--run-dir to resolve from a pool)"}
     try:
