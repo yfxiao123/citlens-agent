@@ -36,7 +36,7 @@ python -m venv .venv
 
 | 工具 | 作用 |
 |---|---|
-| `search` | 七家族召回，RRF 融合；接受 agent 拟的检索词、标题探针与 web 查询，返回逐查询命中数，弱查询一目了然 |
+| `search` | 八家族召回，RRF 融合；接受 agent 拟的检索词、标题探针、web 查询与政策语料查询，返回逐查询命中数，弱查询一目了然 |
 | `pool` | 读取并过滤既有文献池，不发起检索 |
 | `screen` | 相关性分带（core / uncertain / likely_off）：本地嵌入、BM25、家族投票三通道打分；只分流，不自动剔除任何记录 |
 | `expand` | 拿你判过的论文当种子，做前向/后向引文链和相似推荐扩展；词汇对不上也能顺着引文找到（漏检金标里 71% 与问题只共享 ≤2 个内容词） |
@@ -51,7 +51,7 @@ python -m venv .venv
 
 ## 检索方法
 
-`search` 移植的是引擎在 LitSearch 基准上表现最好的 adaptive 形态。引擎原版九个家族加两阶段盲级联排序；这里删掉三个用 LLM 造查询的家族（planned/HyDE/pivot）和级联排序，查询规划交还 agent，留下七个：
+`search` 移植的是引擎在 LitSearch 基准上表现最好的 adaptive 形态。引擎原版九个家族加两阶段盲级联排序；这里删掉三个用 LLM 造查询的家族（planned/HyDE/pivot）和级联排序，查询规划交还 agent，留下七个学术家族，再加一个政策语料家族：
 
 1. agent 检索词：调用方按概念块拟定的英文查询，逐源深度检索
 2. 主题原句：题目原文在 arXiv、Semantic Scholar、OpenAlex、Crossref 四源检索
@@ -60,6 +60,9 @@ python -m venv .venv
 5. 引文扩展：对池内锚点文献做被引与引用双向的一跳扩展
 6. web 桥接：Google SERP 检索，结果锚定回论文记录
 7. 综述收割：找到主题综述后收割其参考文献
+8. 政策语料：NBER 工作论文、美联储理事会 FEDS Notes 与工作论文、IMF 论文，走 Crossref DOI 前缀直达，无需抓网页
+
+政策语料家族解决一个具体问题：政策端研究与期刊文献说不同的语言，以前只能靠标题偶然撞进来，进来后也和期刊证据混在一起分不清。三家的 DOI 都注册在 Crossref（NBER 3.6 万篇、Fed 理事会 5 千篇含 789 篇 FEDS Notes、IMF 10.6 万篇），一条机械通道全够。每条池内记录带 `doc_type`（journal / working_paper / policy_note / preprint / report）和 `policy_org`，学术证据与政策端视角可以分开读。地方联储、BIS、ECB 没在 Crossref 注册 DOI，需要时走 web 桥接加 site: 限定。
 
 各家族结果按 Reciprocal Rank Fusion 融合，每家族保底 30 席，常数沿用引擎在 LitSearch 上的测量值（RRF k=60，每源深度 20）。每条记录都带 `found_by`，记下哪些家族召回了它；一篇论文被多个家族独立命中，本身就是很强的切题信号。
 
@@ -81,7 +84,7 @@ screen 用三个通道给每条记录打分：本地嵌入（可选 extra）算�
 
 引擎仓库 [citens](https://github.com/yfxiao123/citens) 是自带 LLM 的完整版本：CLI、Web 控制台、桌面 exe，以及从查询规划到写作验证的完整流水线，适合"给一个题目、自动出综述"的独立用法。citlens-agent 面向已经在用 agent 的用户，只保留检索与证据工具。
 
-两边共享搜索原语和数据格式：per-source cells、RRF、配额、snowball/survey/oa-title、`pool.jsonl` 互认。流水线各自独立，引擎生产路径是 planner→search→LLM filter→rank，这里是七家族召回加 agent 判断。`verify` 实现的是引擎验证链里不依赖 LLM 的那半段，可核验的部分不再靠散文纪律。
+两边共享搜索原语和数据格式：per-source cells、RRF、配额、snowball/survey/oa-title、`pool.jsonl` 互认。流水线各自独立，引擎生产路径是 planner→search→LLM filter→rank，这里是八家族召回加 agent 判断。`verify` 实现的是引擎验证链里不依赖 LLM 的那半段，可核验的部分不再靠散文纪律。
 
 ## Roadmap
 
