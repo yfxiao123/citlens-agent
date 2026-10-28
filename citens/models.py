@@ -1,9 +1,10 @@
 """Pydantic data models for the whole pipeline.
 
-The inheritance chain ``Paper → ScoredPaper → ExtractedPaper`` mirrors the
-pipeline stages (each stage enriches the same object). Grounding models
-(:class:`Chunk`, :class:`Claim`, :class:`Citation`, …) back the
-"verifiable-citations" feature layered on in later phases.
+``ScoredPaper`` enriches ``Paper`` with ranking fields (see citens.ranking).
+Grounding models (:class:`Chunk`, :class:`Claim`, :class:`Citation`, …) back
+the "verifiable-citations" workflow. Models the engine repo's LLM pipeline
+used (ExtractedPaper, themes, synthesis, run metadata) were removed in this
+build — the calling agent produces that structure in prose under the skill.
 """
 
 from __future__ import annotations
@@ -141,34 +142,7 @@ class ScoredPaper(Paper):
         )
 
 
-class ExtractedPaper(ScoredPaper):
-    """A paper enriched with structured, abstract-grounded fields."""
-
-    system_name: str = ""  # named framework/model ("TALLRec", "FactorVAE", ...)
-    research_question: str = ""
-    methodology: str = ""
-    key_findings: list[str] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
-    relevance_to_topic: str = ""
-    quality: dict = Field(default_factory=dict)  # evidence level, method rigor, etc.
-
-
-# --- Theme organization --------------------------------------------------
-
-
-class ThemeInfo(BaseModel):
-    name: str
-    description: str = ""
-    paper_indices: list[int] = Field(default_factory=list)
-    grouping_reason: str = ""
-    logical_relations: str = ""
-
-
-class ThemeStructure(BaseModel):
-    themes: list[ThemeInfo] = Field(default_factory=list)
-
-
-# --- Citation grounding (Phase 2/3) --------------------------------------
+# --- Citation grounding ------------------------------------------------------
 
 
 class ChunkKind(str, Enum):
@@ -204,19 +178,7 @@ class Claim(BaseModel):
     text: str
     citation_indices: list[int] = Field(default_factory=list)
     section: str = ""
-    intent: str = ""  # what this claim is trying to prove (from claim_intent_manifest)
-
-
-class ClaimIntentManifest(BaseModel):
-    """Pre-declared intents that the review aims to prove.
-
-    Inspired by Imbad0202/ARS's claim_intent_manifest. Each intent is mapped
-    to the claims that attempt to support it, enabling intent-claim alignment checks.
-    """
-
-    intents: list[str] = Field(default_factory=list)  # what the review aims to prove
-    intent_to_claims: dict[str, list[int]] = Field(default_factory=dict)  # intent -> claim indices
-    alignment_notes: dict[str, str] = Field(default_factory=dict)  # intent -> alignment status
+    intent: str = ""  # what this claim is trying to prove (the review's declared intent)
 
 
 class Verdict(str, Enum):
@@ -235,41 +197,3 @@ class Verdict(str, Enum):
     CONTRADICTORY = "contradictory"  # source conflicts with / narrows the claim
     UNSUPPORTED = "unsupported"
     UNVERIFIABLE = "unverifiable"  # cited source has no ground text (e.g. no abstract)
-
-
-class RunMode(str, Enum):
-    """Adaptive pipeline modes based on user intent."""
-
-    QUICK_SCAN = "quick_scan"  # Fast overview, 1-2 rounds, summary output
-    DEEP_REVIEW = "deep_review"  # Full methodology, multi-round reflection
-    INTERACTIVE = "interactive"  # User-driven exploration with mid-stream adjustments
-
-
-class VerificationResult(BaseModel):
-    claim_text: str
-    verdict: Verdict
-    citation_indices: list[int] = Field(default_factory=list)
-    note: str = ""
-    defense_result: dict | None = None  # bidirectional verification result
-
-
-class SynthesisResult(BaseModel):
-    """Cross-paper critical analysis produced by the Synth agent."""
-
-    consensus: list[str] = Field(default_factory=list)
-    contradictions: list[str] = Field(default_factory=list)
-    gaps: list[str] = Field(default_factory=list)
-
-
-# --- Run metadata --------------------------------------------------------
-
-
-class RunMeta(BaseModel):
-    topic: str
-    keywords: list[str] = Field(default_factory=list)
-    total_papers: int = 0
-    filtered_papers: int = 0
-    themes: list[str] = Field(default_factory=list)
-    review_path: str = ""
-    run_dir: str = ""
-    citation_precision: float | None = None  # filled by Verifier (Phase 3)
