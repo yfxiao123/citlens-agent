@@ -167,10 +167,14 @@ def test_protocol() -> None:
             for t in tools))
         search_schema = next(t for t in tools if t["name"] == "search")["inputSchema"]
         check("search schema requires topic", search_schema.get("required") == ["topic"])
-        check("search schema enumerates the seven families", len(
-            (search_schema["properties"]["families"]["items"].get("enum") or [])) == 7)
+        check("search schema enumerates the eight families incl. policy", (
+            search_schema["properties"]["families"]["items"].get("enum") or []
+        ) == ["agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey",
+              "policy"])
         check("search schema takes agent-crafted queries",
               "queries" in search_schema["properties"])
+        check("search schema takes policy_queries",
+              "policy_queries" in search_schema["properties"])
 
         # doctor: a real, offline tool call
         doc = c.request("tools/call", {"name": "doctor", "arguments": {}})
