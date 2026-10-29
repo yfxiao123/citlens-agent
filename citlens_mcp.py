@@ -125,7 +125,12 @@ INSTRUCTIONS = (
     "carry a `discipline` hint (e.g. economics), detected mechanically from "
     "your topic and queries: when present, apply that field's disciplines — "
     "the pointer text arriving with the result states their core rules, and "
-    "the skill's discipline layers hold the full versions. Prose style, 去AI味: "
+    "the skill's discipline layers hold the full versions. Before writing the "
+    "找 movement run `gaps`: its coverage matrix exposes concept blocks x "
+    "periods the pool never reached, `mine` returns verbatim limitation/"
+    "future-work sentences you can cite as span-verifiable gap evidence, and "
+    "`check` mechanically rebuts a draft gap statement by finding its "
+    "nearest existing work. Prose style, 去AI味: "
     "alternate long and short sentences, no double quotes around concepts, "
     "results stated in the sentence rather than parenthesized, no templated "
     "layered listing, and every sentence carries a clear subject."
@@ -851,6 +856,32 @@ def tool_screen(cfg: dict, args: dict) -> dict:
     return _run_driver_json(cfg, "tools", argv, timeout=900)
 
 
+def tool_gaps(cfg: dict, args: dict) -> dict:
+    """Mechanical substrate for the 找 movement — all channels zero LLM."""
+    topic = (args.get("topic") or "").strip()
+    run_dir = (args.get("run_dir") or "").strip()
+    if not topic and not run_dir:
+        return {"ok": False, "error": "pass topic or run_dir"}
+    argv = ["gaps"]
+    if run_dir:
+        argv += ["--run-dir", run_dir]
+    if topic:
+        argv += ["--topic", topic]
+    queries = _as_list(args.get("queries"))
+    if queries:
+        argv += ["--queries", *queries]
+    if args.get("check"):
+        argv += ["--check", str(args["check"])]
+    if args.get("mine"):
+        argv += ["--mine"]
+    if args.get("fulltext_dir"):
+        argv += ["--fulltext-dir", str(args["fulltext_dir"])]
+    if args.get("limit") is not None:
+        argv += ["--limit", str(args["limit"])]
+    # embedding model download on first call can be slow; mining is local I/O
+    return _run_driver_json(cfg, "tools", argv, timeout=900)
+
+
 def tool_expand(cfg: dict, args: dict) -> dict:
     """Judgment feedback loop: expand the topic pool around agent-judged seeds."""
     topic = (args.get("topic") or "").strip()
@@ -1207,6 +1238,37 @@ TOOL_DEFS = [
         },
     },
     {
+        "name": "gaps",
+        "description": (
+            "Mechanical substrate for locating research gaps (找), zero LLM. "
+            "Three channels, all opt-in: (1) `queries` → a coverage matrix of "
+            "the pool by concept block x time band — empty/sparse cells a "
+            "block otherwise populates are STRUCTURAL gap candidates "
+            "(evidence-gap-map logic); (2) `mine: true` → verbatim "
+            "limitation/future-work sentences extracted from fetched "
+            "fulltexts, each with paper+section+cue — quote them as gap "
+            "evidence and `verify` checks the span like any other; "
+            "(3) `check: \"<draft gap statement>\"` → nearest existing pool "
+            "records by BM25+embedding — a close neighbour is mechanical "
+            "refutation that the gap may already be done. Run all three "
+            "before writing the 找 movement; cite stated gaps with [n]."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "Topic pool (byte-identical slug)."},
+                "run_dir": {"type": "string", "description": "A specific run directory instead."},
+                "queries": {"type": "array", "items": {"type": "string"},
+                            "description": "Your concept-block queries — build the coverage matrix over them."},
+                "check": {"type": "string", "description": "Draft gap statement: nearest existing work is returned as potential refutation."},
+                "mine": {"type": "boolean", "description": "Mine limitation/future-work sentences from the fulltext dir (fetch core papers first)."},
+                "fulltext_dir": {"type": "string", "description": "Fulltext directory (default 'fulltext')."},
+                "limit": {"type": "integer", "description": "Cap for novelty neighbours and stated-gap hits (default 40)."},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "verify",
         "description": (
             "MECHANICAL verification of a written review — no LLM, no key. Checks "
@@ -1347,6 +1409,8 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
         return tool_audit(cfg, args)
     if name == "screen":
         return tool_screen(cfg, args)
+    if name == "gaps":
+        return tool_gaps(cfg, args)
     if name == "verify":
         return tool_verify(cfg, args)
     if name == "expand":
