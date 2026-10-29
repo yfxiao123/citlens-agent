@@ -257,7 +257,8 @@ def cmd_gaps(args) -> dict:
     if qs:
         out["coverage"] = coverage_matrix(papers, qs)
     if check:
-        out["novelty"] = novelty_check(check, papers, k=args.limit or 8)
+        out["novelty"] = novelty_check(check, papers, k=args.limit or 8,
+                                       model=args.model)
     if args.mine:
         out["stated_gaps"] = mine_stated_gaps(
             Path(args.fulltext_dir), papers, limit=args.limit or 40
@@ -550,6 +551,8 @@ def main(argv=None) -> int:
                         help="从 fetch 全文目录挖掘 limitations/future work 原句")
     p_gaps.add_argument("--fulltext-dir", default="fulltext", help="全文目录（默认 fulltext）")
     p_gaps.add_argument("--limit", type=int, default=40, help="novelty/stated-gaps 返回上限")
+    p_gaps.add_argument("--model", default=None,
+                        help="novelty 嵌入模型覆盖（空串=禁用语义通道，测试/离线必用）")
 
     p_expand = sub.add_parser(
         "expand",
