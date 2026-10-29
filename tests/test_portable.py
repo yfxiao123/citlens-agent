@@ -33,7 +33,7 @@ SERVER = ROOT / "citlens_mcp.py"
 INSTALL = ROOT / "install.py"
 
 TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "verify",
-         "expand", "notes", "dedup", "status", "doctor"}
+         "expand", "notes", "dedup", "gaps", "status", "doctor"}
 
 PASS, FAIL = [], []
 
@@ -161,7 +161,7 @@ def test_protocol() -> None:
 
         tools = (c.request("tools/list").get("result") or {}).get("tools") or []
         names = {t.get("name") for t in tools}
-        check("tools/list exposes all twelve tools", names == TOOLS, str(sorted(names)))
+        check("tools/list exposes all thirteen tools", names == TOOLS, str(sorted(names)))
         check("every tool has a description and an object inputSchema", all(
             t.get("description") and (t.get("inputSchema") or {}).get("type") == "object"
             for t in tools))
