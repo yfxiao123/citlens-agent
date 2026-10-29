@@ -878,6 +878,8 @@ def tool_gaps(cfg: dict, args: dict) -> dict:
         argv += ["--fulltext-dir", str(args["fulltext_dir"])]
     if args.get("limit") is not None:
         argv += ["--limit", str(args["limit"])]
+    if args.get("model") is not None:
+        argv += ["--model", str(args["model"])]
     # embedding model download on first call can be slow; mining is local I/O
     return _run_driver_json(cfg, "tools", argv, timeout=900)
 
@@ -1264,6 +1266,8 @@ TOOL_DEFS = [
                 "mine": {"type": "boolean", "description": "Mine limitation/future-work sentences from the fulltext dir (fetch core papers first)."},
                 "fulltext_dir": {"type": "string", "description": "Fulltext directory (default 'fulltext')."},
                 "limit": {"type": "integer", "description": "Cap for novelty neighbours and stated-gap hits (default 40)."},
+                "model": {"type": "string",
+                          "description": "Novelty-check embedding model override (empty string disables the semantic channel — use for offline runs)."},
             },
             "required": [],
         },

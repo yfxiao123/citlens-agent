@@ -258,14 +258,18 @@ def mine_stated_gaps(
 # ── 3. novelty check ───────────────────────────────────────────────────────
 
 
-def novelty_check(statement: str, papers: Sequence[Paper], k: int = 8) -> dict:
+def novelty_check(statement: str, papers: Sequence[Paper], k: int = 8,
+                  model: str | None = None) -> dict:
     """A draft gap statement scored against the pool — nearest existing work.
 
     BM25 always fires (deterministic); the local embedding channel blends in
     when the extra is installed (0.6 semantic + 0.4 lexical, mirroring
-    screen's weights). A close neighbor is mechanical refutation: the gap may
-    already be done. No close neighbor is WEAK evidence of a gap — pair it
-    with the coverage matrix, never ship it alone.
+    screen's weights). ``model=""`` disables the semantic channel outright —
+    the zero-network test suite and offline runs must be able to force
+    lexical-only, or the embedding stack's hub reachability can hang them.
+    A close neighbor is mechanical refutation: the gap may already be done.
+    No close neighbor is WEAK evidence of a gap — pair it with the coverage
+    matrix, never ship it alone.
     """
     st = (statement or "").strip()
     if not st or not papers:
@@ -275,7 +279,7 @@ def novelty_check(statement: str, papers: Sequence[Paper], k: int = 8) -> dict:
     mx = max(raw) if raw else 0.0
     lex = [r / mx if mx > 0 else 0.0 for r in raw]
 
-    model_name = settings.screen_embedding_model
+    model_name = settings.screen_embedding_model if model is None else model.strip()
     sem: list[float] | None = None
     if model_name:
         sv = embed_local([st], model_name)

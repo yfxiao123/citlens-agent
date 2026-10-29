@@ -152,7 +152,7 @@ with tempfile.TemporaryDirectory() as td:
          "gaps", "--run-dir", str(rd),
          "--queries", "natural rate", "monetary policy",
          "--check", "the natural rate under fiscal dominance",
-         "--limit", "8"],
+         "--limit", "8", "--model", ""],
         capture_output=True, text=True, timeout=180, env=env, check=False,
     )
     out = json.loads(r.stdout)
