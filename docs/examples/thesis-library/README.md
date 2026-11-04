@@ -17,22 +17,24 @@ Nazemi 2026, "Glass box machine learning and corporate bond returns",
 
 ## 拿到了什么
 
+完整产物就在本目录的 [artifacts/](artifacts/) 里，可以逐个打开看：
+
 ```
-library/
-├── pdf/                 364 篇 PDF 全文
-├── text/                362 篇提取正文（可全文检索/精读）
-├── by-direction/D1…D9/  9 个方向的阅读清单（每篇带 PDF/仅题录 标记）
-├── manifest.jsonl       1072 条总账（含来源与状态）
-├── exclusions.jsonl     30 条显式排除（带原因）
-└── coverage_audit.json  覆盖审计：1096 条的池对 131 个锚点文献的覆盖率
+artifacts/
+├── 文献库分类索引与引用建议.docx  主交付物：总账、8 个主题组的引用理由、
+│                                  按方向的引用建议（另有同名 .md）
+├── manifest.jsonl                 1072 条总账（每篇带来源与状态）
+├── exclusions.jsonl               30 条显式排除（带原因）
+├── coverage_audit.json            覆盖审计：1096 条的池对 131 个锚点文献
+├── paid_access_channels.md        没拿到全文的 736 条，逐条给出获取渠道
+├── by-direction/D1…D9/            9 个方向：阅读清单 + papers.jsonl + 说明
+└── run-example/                   一次检索的原始产物（报告 + 池 + 排除日志）
 ```
 
-主交付物是《文献分类与引用建议》：源论文自引的 91 条参考文献逐条经
-Crossref/OpenAlex 核验、分成 8 个主题组并给出每组引用理由；再按 9 个
-方向给出补充引用建议。没拿到全文的 736 条也不含糊，单独列出每条的
-可尝试获取渠道。
+几个数字：**364** 篇 PDF 全文、**362** 篇提取正文（本仓库未收录 PDF）、
+9 个方向、11 次检索子题。
 
-本目录的两个样例：
+本目录的解读样例：
 
 | 文件 | 是什么 |
 |---|---|
