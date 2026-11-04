@@ -6,7 +6,11 @@ import asyncio
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from dataclasses import dataclass
 
+import httpx
+
+from citens.config import settings
 from citens.models import Paper
 
 REGISTRY: dict[str, type[SearchSource]] = {}
@@ -58,19 +62,48 @@ class SearchSource(ABC):
         # read by search_round for the zero-hit calibration loop. Optional
         # for third-party sources (getattr-guarded).
         self.query_stats: dict[str, int] = {}
+        # query -> reason for the queries that FAILED in the last search()
+        # (429 after retries, timeout, ...). A failed query is absent from
+        # query_stats — absent is not zero — and surfaces as "partial" health
+        # when other queries of the same call succeeded.
+        self.failed_queries: dict[str, str] = {}
 
     def set_constraints(self, constraints) -> None:
         self.constraints = constraints
         self.query_stats = {}
+        self.failed_queries = {}
 
     @abstractmethod
     async def search(self, keywords: list[str], max_results: int) -> list[Paper]:
-        """Return up to ``max_results`` papers across all keywords."""
+        """Return up to ``max_results`` papers across all keywords.
+
+        Contract: when EVERY keyword fails, raise (the last error) — the
+        orchestrator turns that into ``failed: <reason>`` health and feeds
+        the circuit breaker. When only some fail, return what succeeded and
+        record the rest in ``failed_queries``. Never swallow a failure into
+        an empty list: a throttled provider must not look like "no hits".
+        """
+
+    def _collect_cells(self, keywords: list[str], results: list) -> list[Paper]:
+        """Merge per-keyword ``gather(..., return_exceptions=True)`` results
+        under the search() contract: successes concatenate, failures go to
+        ``failed_queries`` (absent from query_stats), and when EVERY keyword
+        failed the last error is re-raised so the source reads as failed."""
+        self.failed_queries = {}
+        out: list[Paper] = []
+        last: BaseException | None = None
+        for kw, res in zip(keywords, results, strict=True):
+            if isinstance(res, BaseException):
+                self.failed_queries[kw] = failure_reason(res)
+                last = res
+            else:
+                out.extend(res)
+        if last is not None and len(self.failed_queries) == len(keywords):
+            raise last
+        return out
 
 
 def _enabled_sources(sources: list[str] | None) -> list[str]:
-    from citens.config import settings
-
     if sources:
         return sources
     configured = [s.strip() for s in settings.search_sources.split(",") if s.strip()]
@@ -79,65 +112,154 @@ def _enabled_sources(sources: list[str] | None) -> list[str]:
     return configured
 
 
+# --- circuit breaker ----------------------------------------------------------
+# Per registry name, for the life of the process (one recall job = one
+# process, so "process" == "this run"). Consecutive failed calls open the
+# circuit; one success closes it. 401/403 open it at once — a rejected key
+# will not un-reject itself three queries later. Before this, a throttled
+# arXiv cost every one of 15 sequential queries its full 90 s timeout.
+
+
+@dataclass
+class _Circuit:
+    failures: int = 0
+    open: bool = False
+    reason: str = ""
+
+
+class CircuitOpen(Exception):
+    """Raised inside search_round for a source whose circuit is open."""
+
+
+_CIRCUITS: dict[str, _Circuit] = {}
+
+# the env var to check when a provider rejects its credential
+_KEY_ENV = {
+    "semantic_scholar": "SEMANTIC_SCHOLAR_API_KEY",
+    "openalex": "OPENALEX_API_KEY",
+    "web": "SERPER_API_KEY",
+    "core": "CORE_API_KEY",
+}
+
+
+def reset_circuits() -> None:
+    """Close every circuit (tests; a long-lived process starting a new run)."""
+    _CIRCUITS.clear()
+
+
+def circuit_state() -> dict[str, dict]:
+    """Snapshot for reports: name -> {open, failures, reason} (open ones only)."""
+    return {
+        n: {"open": c.open, "failures": c.failures, "reason": c.reason}
+        for n, c in sorted(_CIRCUITS.items())
+        if c.open
+    }
+
+
+def failure_reason(e: BaseException) -> str:
+    """One line a human can act on: HTTP status (+ attempts the retrying
+    transport made), or the exception class and message."""
+    if isinstance(e, httpx.HTTPStatusError):
+        resp = e.response
+        n = resp.extensions.get("citens_attempts") if resp is not None else None
+        tail = f" after {n} attempts" if isinstance(n, int) and n > 1 else ""
+        return f"HTTP {resp.status_code}{tail}"
+    msg = str(e).strip()
+    text = f"{type(e).__name__}: {msg}" if msg else type(e).__name__
+    # driver stdout is parsed from the first "{" — a brace in an error body
+    # must never masquerade as the JSON document
+    return text.replace("{", "(").replace("}", ")")[:160]
+
+
+def _trip(name: str, circuit: _Circuit, e: BaseException, reason: str) -> str:
+    """Record a failed call; open the circuit when warranted. Returns the
+    reason to report for THIS call (the auth hint beats a bare 401)."""
+    circuit.failures += 1
+    status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+    if status in (401, 403):
+        env = _KEY_ENV.get(name)
+        circuit.open = True
+        circuit.reason = f"auth rejected ({status})" + (f" — check {env}" if env else "")
+        return circuit.reason
+    threshold = settings.source_circuit_failures
+    if threshold > 0 and circuit.failures >= threshold:
+        circuit.open = True
+        circuit.reason = (
+            f"circuit open after {circuit.failures} consecutive failures (last: {reason})"
+        )
+    return reason
+
+
 async def search_round(
     keywords: list[str],
     max_results: int = 60,
     sources: list[str] | None = None,
     constraints=None,
 ) -> tuple[list[Paper], dict[str, str], dict[str, int]]:
-    """One search wave: all enabled sources concurrently, with retries.
+    """One search wave: all enabled sources concurrently.
 
-    Returns (papers, health, query_stats) where query_stats maps each query
-    to its total hit count across sources that responded — the zero-hit
-    queries feed the synonym-swap calibration loop. Constraints (year
-    window from clarification answers) are compiled into each source's
-    native filter syntax.
+    Returns (papers, health, query_stats). ``health`` is keyed by the
+    REGISTRY name the caller passed (``"semantic_scholar"``, not the display
+    name — litsearch's buckets look the registry name up) and reads
+    ``ok`` | ``empty`` | ``failed: <reason>`` |
+    ``partial: k/n queries failed (<reason>)``. ``query_stats`` maps each
+    query to its total hit count across sources that responded — the
+    zero-hit queries feed the synonym-swap calibration loop; a FAILED query
+    is absent, never zero. Constraints (year window from clarification
+    answers) are compiled into each source's native filter syntax.
+
+    Retries live in the transport (citens.net), per request; this layer
+    only decides what a failure means for the source and for the run.
     """
-    names = _enabled_sources(sources)
-    instances = [REGISTRY[n]() for n in names if n in REGISTRY]
+    names = [n for n in _enabled_sources(sources) if n in REGISTRY]
     health: dict[str, str] = {}
-    if not instances:
+    if not names:
         return [], health, {}
 
-    for src in instances:
+    instances: dict[str, SearchSource] = {}
+    for n in names:
+        src = REGISTRY[n]()
         # duck-typed: REGISTRY accepts plain classes too (see the health
         # tests) — constraints are opt-in for sources that understand them
         set_c = getattr(src, "set_constraints", None)
         if callable(set_c):
             set_c(constraints)
+        instances[n] = src
 
     per_source = max(max_results // max(len(instances), 1), 5)
 
-    async def _search_with_retry(src: SearchSource) -> list[Paper]:
-        # S2 without an API key 429s routinely; one backoff retry saves the
-        # whole source instead of silently shrinking the pool.
-        import asyncio
+    async def _run(name: str, src: SearchSource) -> list[Paper]:
+        circuit = _CIRCUITS.setdefault(name, _Circuit())
+        if circuit.open:
+            raise CircuitOpen(circuit.reason)
+        return await src.search(keywords, per_source)
 
-        last_err: BaseException | None = None
-        for attempt in range(3):
-            try:
-                return await src.search(keywords, per_source)
-            except Exception as e:  # noqa: BLE001
-                last_err = e
-                if attempt < 2:
-                    await asyncio.sleep(1.5 * (2**attempt))
-        assert last_err is not None
-        raise last_err
-
-    tasks = [asyncio.create_task(_search_with_retry(src)) for src in instances]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(
+        *(_run(n, s) for n, s in instances.items()), return_exceptions=True
+    )
 
     all_papers: list[Paper] = []
     stats: dict[str, int] = {}
-    for src, res in zip(instances, results, strict=False):
-        if isinstance(res, BaseException):
-            health[src.name] = f"failed: {res}"[:200]
-            print(f"[{src.name}] search failed after retries: {res}")
+    for (name, src), res in zip(instances.items(), results, strict=True):
+        circuit = _CIRCUITS.setdefault(name, _Circuit())
+        if isinstance(res, CircuitOpen):
+            health[name] = f"failed: {res}"
             continue
-        health[src.name] = "ok" if res else "empty"
+        if isinstance(res, BaseException):
+            reason = _trip(name, circuit, res, failure_reason(res))
+            health[name] = f"failed: {reason}"
+            print(f"[{name}] search failed: {reason}")
+            continue
+        circuit.failures = 0  # a success closes the breaker
+        failed_q = getattr(src, "failed_queries", None) or {}
+        if failed_q:
+            first = next(iter(failed_q.values()))
+            health[name] = f"partial: {len(failed_q)}/{len(keywords)} queries failed ({first})"
+        else:
+            health[name] = "ok" if res else "empty"
         all_papers.extend(res)
         # a failed source must not fake zero-hits: only responding sources
-        # contribute counts
+        # contribute counts (and only for the queries that answered)
         for q, n in getattr(src, "query_stats", {}).items():
             stats[q] = stats.get(q, 0) + n
 

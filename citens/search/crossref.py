@@ -13,12 +13,15 @@ import re
 
 import httpx
 
+from citens import net
 from citens.config import settings
 from citens.models import Paper
 from citens.search.base import SearchSource, register
 
 _BASE = "https://api.crossref.org"
 _JATS_RE = re.compile(r"<[^>]+>")
+_LIMITER = "crossref"
+_UA = {"User-Agent": "CiteLens/0.1"}
 
 
 def _polite_params() -> dict:
@@ -45,14 +48,11 @@ class CrossrefSearcher(SearchSource):
             async with sem:
                 return await self._one(client, q, per_keyword)
 
-        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": "CiteLens/0.1"}) as client:
-            tasks = [_guarded(kw) for kw in keywords]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        out: list[Paper] = []
-        for res in results:
-            if isinstance(res, list):
-                out.extend(res)
-        return out
+        async with net.async_client(_LIMITER, timeout=30, headers=_UA) as client:
+            results = await asyncio.gather(
+                *(_guarded(kw) for kw in keywords), return_exceptions=True
+            )
+        return self._collect_cells(keywords, results)
 
     async def _one(self, client: httpx.AsyncClient, query: str, limit: int) -> list[Paper]:
         params: dict[str, str | int] = {
@@ -118,7 +118,7 @@ def fetch_abstract_by_doi(doi: str) -> str:
     if not doi:
         return ""
     try:
-        with httpx.Client(timeout=20, headers={"User-Agent": "CiteLens/0.1"}) as client:
+        with net.sync_client(name=_LIMITER, timeout=20, headers=_UA) as client:
             r = client.get(f"{_BASE}/works/{doi}", params=_polite_params())
             if r.status_code != 200:
                 return ""

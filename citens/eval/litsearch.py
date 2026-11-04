@@ -74,15 +74,17 @@ async def search_one_query(
                 [query], max_results=per_source, sources=[s]
             )
             if health_out is not None:
+                # three EXCLUSIVE buckets. search_round keys health by the
+                # registry name we pass in, so a failed cell is recognised
+                # (it used to key by display name — every failure landed in
+                # "empty" — and an empty cell was counted as ok AND empty).
                 b = health_out.setdefault(s, [0, 0, 0])
-                b[0] += 1
-                if not papers:
-                    h = health.get(s, "")
-                    if h.startswith("failed"):
-                        b[2] += 1
-                        b[0] -= 1
-                    else:
-                        b[1] += 1
+                if health.get(s, "").startswith("failed"):
+                    b[2] += 1
+                elif papers:
+                    b[0] += 1
+                else:
+                    b[1] += 1
             return papers
         except Exception:  # noqa: BLE001 — a dead source must not kill the bench
             if health_out is not None:
@@ -122,21 +124,15 @@ async def oa_title_search(
     Skips entirely when the daily OpenAlex budget is spent — this channel is
     an optional precision add-on, never worth burning core-search quota for.
     """
-    import httpx
-
-    from citens.config import settings
     from citens.search.openalex import budget_exceeded, note_openalex_calls
 
     if budget_exceeded():
         return {}
 
     async def _default_fetch(filt: str) -> list[dict]:
-        headers = {}
-        if settings.openalex_email:
-            headers["User-Agent"] = f"mailto:{settings.openalex_email}"
-        from citens.search.openalex import apply_api_key
+        from citens.search.openalex import apply_api_key, oa_client
 
-        async with httpx.AsyncClient(timeout=25, headers=headers) as hc:
+        async with oa_client(timeout=25) as hc:
             r = await hc.get(
                 "https://api.openalex.org/works",
                 params=apply_api_key(

@@ -11,23 +11,39 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import httpx
 
-from citens import cache
+from citens import cache, net
 from citens.config import settings
 from citens.models import Paper
 from citens.search.base import SearchSource, register
 
 _SOURCES_URL = "https://api.openalex.org/sources"
+_LIMITER = "openalex"
+
+
+def _oa_headers() -> dict[str, str]:
+    headers = {"User-Agent": "CiteLens/0.1"}
+    if settings.openalex_email:
+        headers["User-Agent"] = f"mailto:{settings.openalex_email}"
+    return headers
+
+
+def oa_client(timeout: float = 30) -> httpx.AsyncClient:
+    """An OpenAlex client: polite-pool UA, shared spacing, retrying transport."""
+    return net.async_client(_LIMITER, timeout=timeout, headers=_oa_headers())
 
 
 def resolve_source_ids(venue_names: list[str]) -> list[str]:
     """OpenAlex source IDs (W...) for venue display names, disk-cached.
 
     One lookup per name (first hit wins — venue whitelists use exact journal
-    names, so the top display_name.search hit is the right record)."""
+    names, so the top display_name.search hit is the right record). A failed
+    lookup is NOT cached (cache.put skips empties): the next run asks again
+    instead of remembering a throttled "" as "no such venue"."""
     ids: list[str] = []
     for name in venue_names:
         if not name:
@@ -35,11 +51,11 @@ def resolve_source_ids(venue_names: list[str]) -> list[str]:
         hit = cache.get("oasources", {"name": name})
         if hit is None:
             try:
-                r = httpx.get(
-                    _SOURCES_URL,
-                    params={"filter": f"display_name.search:{name}", "per_page": 1},
-                    timeout=20,
-                )
+                with net.sync_client(name=_LIMITER, timeout=20, headers=_oa_headers()) as hc:
+                    r = hc.get(
+                        _SOURCES_URL,
+                        params={"filter": f"display_name.search:{name}", "per_page": 1},
+                    )
                 note_openalex_calls()
                 r.raise_for_status()
                 results = r.json().get("results") or []
@@ -86,10 +102,10 @@ async def search_venue_restricted(
             note_openalex_calls()
             resp.raise_for_status()
             return [OpenAlexSearcher.to_paper(w) for w in resp.json().get("results", [])]
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — optional precision channel
             return []
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with oa_client() as client:
         results = await asyncio.gather(
             *(_one(client, q) for q in queries[:8]), return_exceptions=True
         )
@@ -175,7 +191,11 @@ def note_openalex_calls(credits: int = FILTER_CREDITS) -> None:
                 data["used"] = int(stored.get("used", 0))
         data["used"] += credits
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data), encoding="utf-8")
+        # atomic replace: concurrent jobs (max_concurrent_jobs) used to leave
+        # a half-written counter behind — an unreadable counter reads as 0
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        os.replace(tmp, path)
     except Exception:  # noqa: BLE001 — telemetry must never break retrieval
         return
     budget = settings.openalex_daily_budget
@@ -223,9 +243,7 @@ class OpenAlexSearcher(SearchSource):
 
     def __init__(self) -> None:
         super().__init__()
-        self.headers = {"User-Agent": "CiteLens/0.1"}
-        if settings.openalex_email:
-            self.headers["User-Agent"] = f"mailto:{settings.openalex_email}"
+        self.headers = _oa_headers()
 
     async def search(self, keywords: list[str], max_results: int) -> list[Paper]:
         per_keyword = max(max_results // max(len(keywords), 1), 5)
@@ -237,14 +255,11 @@ class OpenAlexSearcher(SearchSource):
             async with sem:
                 return await self._one(client, q, per_keyword)
 
-        async with httpx.AsyncClient(timeout=30, headers=self.headers) as client:
-            tasks = [_guarded(kw) for kw in keywords]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        out: list[Paper] = []
-        for res in results:
-            if isinstance(res, list):
-                out.extend(res)
-        return out
+        async with oa_client() as client:
+            results = await asyncio.gather(
+                *(_guarded(kw) for kw in keywords), return_exceptions=True
+            )
+        return self._collect_cells(keywords, results)
 
     async def _one(self, client: httpx.AsyncClient, query: str, limit: int) -> list[Paper]:
         # year window from the clarification answers rides OpenAlex's NATIVE

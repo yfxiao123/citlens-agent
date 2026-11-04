@@ -8,61 +8,62 @@ so we slice client-side.
 Authenticated tier (``SEMANTIC_SCHOLAR_API_KEY``): the key MUST travel as an
 ``x-api-key`` header and is capped at 1 request/second **cumulative across all
 endpoints** — so every S2 request in the process goes through one shared
-throttle that spaces request starts ≥ ``_MIN_INTERVAL`` apart, key or no key
-(the unauthenticated tier is throttled even harder). A 429 is retried once
-after backing off, belt-and-suspenders style.
+limiter (``citens.net.limiter("semantic_scholar")``) that spaces request
+starts, key or no key (the unauthenticated pool is throttled even harder, so
+it gets a wider spacing). 429s, 5xx and connection resets are retried by the
+client's transport (``citens.net.async_client``) with ``Retry-After`` honoured;
+a query that is still failing after that is reported as failed — never as
+"zero hits".
 """
 
 from __future__ import annotations
 
 import asyncio
-import time
 
 import httpx
 
+from citens import net
 from citens.config import settings
 from citens.models import Paper
 from citens.search.base import SearchSource, register
 
-# shared process-wide: S2 counts every endpoint against the same 1 rps bucket
-_lock = asyncio.Lock()
-_last_start = 0.0
-_MIN_INTERVAL = 1.1  # 1 rps + clock-skew margin
+_LIMITER = "semantic_scholar"
+
+
+def _s2_headers() -> dict[str, str]:
+    headers = {"User-Agent": "CiteLens/0.1"}
+    if settings.semantic_scholar_api_key:
+        headers["x-api-key"] = settings.semantic_scholar_api_key
+    return headers
+
+
+def s2_client(timeout: float = 30) -> httpx.AsyncClient:
+    """An S2 client: shared process-wide spacing + retrying transport."""
+    return net.async_client(_LIMITER, timeout=timeout, headers=_s2_headers())
 
 
 async def _throttled_get(
     client: httpx.AsyncClient, url: str, *, params: dict,
     headers: dict | None = None,
 ) -> httpx.Response:
-    global _last_start
-    for attempt in range(2):
-        async with _lock:
-            wait = _MIN_INTERVAL - (time.monotonic() - _last_start)
-            if wait > 0:
-                await asyncio.sleep(wait)
-            _last_start = time.monotonic()
-            resp = await client.get(url, params=params, headers=headers)
-        if resp.status_code != 429:
-            return resp
-        await asyncio.sleep(2.0 * (attempt + 1))  # rejected anyway — back off
-    return resp
+    """One S2 GET behind the shared S2 limiter.
+
+    Kept for the callers that build their own client (expand / snowball /
+    survey_seed): a plain httpx client still gets the spacing here; a client
+    from ``s2_client()`` already waits in its transport and is not spaced
+    twice. Retries are the transport's job either way.
+    """
+    if net.throttled_by(client) != _LIMITER:
+        await net.limiter(_LIMITER).wait()
+    return await client.get(url, params=params, headers=headers)
 
 
 async def _throttled_post(
     client: httpx.AsyncClient, url: str, *, params: dict, json_body: dict
 ) -> httpx.Response:
-    global _last_start
-    for attempt in range(2):
-        async with _lock:
-            wait = _MIN_INTERVAL - (time.monotonic() - _last_start)
-            if wait > 0:
-                await asyncio.sleep(wait)
-            _last_start = time.monotonic()
-            resp = await client.post(url, params=params, json=json_body)
-        if resp.status_code != 429:
-            return resp
-        await asyncio.sleep(2.0 * (attempt + 1))
-    return resp
+    if net.throttled_by(client) != _LIMITER:
+        await net.limiter(_LIMITER).wait()
+    return await client.post(url, params=params, json=json_body)
 
 
 @register("semantic_scholar")
@@ -72,9 +73,7 @@ class SemanticScholarSearcher(SearchSource):
 
     def __init__(self) -> None:
         super().__init__()
-        self.headers = {"User-Agent": "CiteLens/0.1"}
-        if settings.semantic_scholar_api_key:
-            self.headers["x-api-key"] = settings.semantic_scholar_api_key
+        self.headers = _s2_headers()
 
     async def search(self, keywords: list[str], max_results: int) -> list[Paper]:
         per_keyword = max(max_results // max(len(keywords), 1), 5)
@@ -86,14 +85,11 @@ class SemanticScholarSearcher(SearchSource):
             async with sem:
                 return await self._one(client, q, per_keyword)
 
-        async with httpx.AsyncClient(timeout=30, headers=self.headers) as client:
-            tasks = [_guarded(kw) for kw in keywords]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        out: list[Paper] = []
-        for res in results:
-            if isinstance(res, list):
-                out.extend(res)
-        return out
+        async with s2_client() as client:
+            results = await asyncio.gather(
+                *(_guarded(kw) for kw in keywords), return_exceptions=True
+            )
+        return self._collect_cells(keywords, results)
 
     async def _one(self, client: httpx.AsyncClient, query: str, limit: int) -> list[Paper]:
         params: dict[str, str] = {
@@ -112,7 +108,7 @@ class SemanticScholarSearcher(SearchSource):
             yf = self.constraints.year_from or 1900
             yt = self.constraints.year_to or datetime.date.today().year
             params["year"] = f"{yf}-{yt}"
-        resp = await _throttled_get(client, f"{self.BASE_URL}/paper/search/bulk", params=params)
+        resp = await client.get(f"{self.BASE_URL}/paper/search/bulk", params=params)
         resp.raise_for_status()
         data = resp.json().get("data", [])[:limit]
         papers = [self._to_paper(item) for item in data]
@@ -142,15 +138,11 @@ class SemanticScholarSearcher(SearchSource):
 
 async def _batch_arxiv_lookup(ids: list[str]) -> dict[str, tuple[int, str | None]]:
     """One S2 batch call: arXiv id -> (citationCount, DOI), aligned response."""
-    headers = {"User-Agent": "CiteLens/0.1"}
-    if settings.semantic_scholar_api_key:
-        headers["x-api-key"] = settings.semantic_scholar_api_key
-    async with httpx.AsyncClient(timeout=30, headers=headers) as client:
-        resp = await _throttled_post(
-            client,
+    async with s2_client() as client:
+        resp = await client.post(
             "https://api.semanticscholar.org/graph/v1/paper/batch",
             params={"fields": "citationCount,externalIds"},
-            json_body={"ids": [f"ARXIV:{i}" for i in ids]},
+            json={"ids": [f"ARXIV:{i}" for i in ids]},
         )
         resp.raise_for_status()
         data = resp.json()
@@ -177,7 +169,9 @@ async def enrich_citations(
     the true count and gives the published DOI.
 
     Degrades to a no-op on any failure (returns 0): enrichment is an
-    optimization for ranking, never a dependency of the run.
+    optimization for ranking, never a dependency of the run. Transient
+    transport errors (the common failure here) are retried by the client's
+    transport before they ever reach this fallback.
     """
     from citens.search.base import paper_arxiv_id
 
@@ -187,21 +181,14 @@ async def enrich_citations(
     if not targets:
         return 0
     lookup = _lookup or _batch_arxiv_lookup
-    info: dict = {}
-    for attempt in range(2):
-        try:
-            info = await lookup([paper_arxiv_id(p) or "" for p in targets])
-            break
-        except Exception as e:  # noqa: BLE001 — a failed join must not fail the run
-            # transient transport errors (empty-message disconnects) are the
-            # common failure here, not 429s — one retry saves most of them
-            if attempt == 1:
-                print(
-                    "[enrich_citations] S2 batch join failed, "
-                    f"keeping citation_count=0: {e}"
-                )
-                return 0
-            await asyncio.sleep(2.0)
+    try:
+        info = await lookup([paper_arxiv_id(p) or "" for p in targets])
+    except Exception as e:  # noqa: BLE001 — a failed join must not fail the run
+        print(
+            "[enrich_citations] S2 batch join failed, "
+            f"keeping citation_count=0: {e}"
+        )
+        return 0
     updated = 0
     for p in targets:
         hit = info.get(paper_arxiv_id(p) or "")

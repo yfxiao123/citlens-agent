@@ -1,5 +1,78 @@
 # Changelog
 
+## Unreleased — reliability: one retrying transport, honest failures
+
+起因：检索"看起来不稳定"。审计发现它不是容易失败，而是**失败之后伪装成
+空结果**——429/超时被吞成 `[]`，健康表把失败计成 empty；而所谓的整源重试
+是死代码（没有任何源会把异常抛到那一层）。
+
+### 新增
+
+- **TLS 走系统证书库（`truststore`）**：SSL 审查代理（校园/企业网关）会给每个
+  TLS 握手注入自己的 CA——它装在 Windows 系统证书库里，但 Python 的 certifi
+  包里没有，于是被审查的主机全部死于
+  `CERTIFICATE_VERIFY_FAILED: self-signed certificate in chain`（实测：
+  api.semanticscholar.org 全程连不上、其余源正常——典型的本地拦截特征）。
+  客户端工厂在首次建连时 `truststore.inject_into_ssl()`（进程级一次，同时
+  覆盖 httpx 与 arxiv 包装器的 urllib）；`TLS_TRUST_SYSTEM_STORE=false`
+  回到 certifi 行为。依赖加入 pyproject（`truststore>=0.9; py>=3.10`）。
+
+- **统一网络层（`citens/net.py`）**：所有出站请求改经 `net.async_client` /
+  `net.sync_client` 工厂——挂 `RetryTransport`（429 / 408 / 5xx 与连接错误、
+  读写超时、连接重置按 `Retry-After`（秒或 HTTP-date，封顶
+  `HTTP_BACKOFF_CAP_S`）或等抖动指数退避重试；**其余 4xx 含 401/403 一律
+  不重试**，响应带 `extensions["citens_attempts"]`）+ 按名字进程级共享的
+  `RateLimiter`（槽位预约制：S2 有 key 1.1s / 无 key 3.0s、OpenAlex 0.12s、
+  Crossref 0.1s，async 检索腿与 sync 全文腿共用一个桶）。重试日志走
+  stderr，不触碰 driver 的 stdout-JSON 契约。S2 的模块级锁与自带 429 循环
+  移除；`_throttled_get/_post` 保留签名，对工厂 client 不再二次限速。
+- **熔断器（`citens/search/base.py`）**：`SOURCE_CIRCUIT_FAILURES`（默认 3）
+  次连续失败后本进程（= 本次 recall job）跳过该源，health 标
+  `failed: circuit open after N consecutive failures (last: …)`，
+  `search_report.md` 的 notes 写明原因；**401/403 即刻开路**并点名要检查
+  的环境变量（`auth rejected (401) — check SEMANTIC_SCHOLAR_API_KEY`）。
+  arXiv 被限流时不再让 15 个串行查询各自空等 90s。
+- 新设置（`citens/config.py` Reliability 段）：`HTTP_MAX_ATTEMPTS`=4、
+  `HTTP_BACKOFF_BASE_S`=1.0、`HTTP_BACKOFF_CAP_S`=30、`S2_MIN_INTERVAL_S`=0
+  （按有无 key 自动）、`OPENALEX_MIN_INTERVAL_S`=0.12、
+  `CROSSREF_MIN_INTERVAL_S`=0.1、`SOURCE_CIRCUIT_FAILURES`=3、
+  `FULLTEXT_MISS_TTL_DAYS`=1。
+
+### 修复
+
+- **失败不再伪装成空结果**：`SearchSource.search()` 立下契约——全部关键词
+  失败则抛出（health=`failed: HTTP 429 after 4 attempts`），部分失败则
+  health=`partial: k/n queries failed (<原因>)`，失败查询在 `query_stats`
+  中**缺席而非 0**（校准环不会把限流当词汇错配）。四个源（S2 / OpenAlex /
+  Crossref / arXiv）共用 `_collect_cells` 实现；此前 6 处
+  `gather(return_exceptions=True)` 只收 list、36 处 `except → return 空`。
+- **health 键不匹配**：`search_round` 以显示名（"Semantic Scholar"）写
+  health，`search_one_query` 却按注册名（"semantic_scholar"）查——failed
+  桶在真实路径上**永远不可达**。统一按注册名键入。
+- **空 cell 双计**：litsearch 健康桶对空结果同时 +ok 与 +empty，ok 一直
+  虚高；三桶改为互斥。
+- **失败不再被永久缓存**：`cache.put` 默认拒收空值（`allow_empty=True`
+  显式开口，集中化 snowball 里的手写守卫）；fulltext 抓取失败改记
+  `fulltext.miss` 短 TTL 负缓存（旧的 `""` 永久条目——TTL=0 命名空间——
+  现在自动失效重试，报告写"近期抓取失败，N 天内不重试"）；expand 种子
+  解析的传输失败不再缓存 30 天；OpenAlex venue 解析失败不再把 `""` 固化
+  成"不存在"；seeds 全失败的 `[]` 不再入缓存。
+- `base.py` 的整源重试 `_search_with_retry`（固定 1.5s/3s、一词 429 全部
+  重跑、放大请求量）删除——重试下沉到请求级传输层。
+- OpenAlex 日预算计数改临时文件 + `os.replace` 原子写。
+- arXiv 超时改为抛出 `TimeoutError`（failed）而非返回 `[]`（empty）。
+- `collect` 的两处手写 4 次退避循环（与传输层重试叠加会 16 次）改为单次。
+
+### 测试
+
+- 新增 `tests/test_net.py`（46 项，MockTransport 零网络：429→成功、
+  Retry-After 秒/日期/封顶、5xx 等抖动区间、400/401/403/404 不重试、
+  ConnectError/ReadTimeout 重试与耗尽语义、POST 重试、sync 同策略、
+  限流槽位、工厂标记）与 `tests/test_health.py`（44 项：health 三态 +
+  partial、`_collect_cells` 契约、熔断开/合/阈值 0、401 即刻开路、
+  litsearch 桶互斥、`failure_reason` 花括号消毒、arXiv 超时抛出、
+  cache 空值守卫、fulltext 负缓存含旧 `""` 自愈）。全套 11 个文件 398 项绿。
+
 ## Unreleased — library management: dedup, reading notes, export formats
 
 - **去重报告（`dedup` 工具）**：`citens/library.py` 的

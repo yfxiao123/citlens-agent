@@ -72,14 +72,11 @@ def pick_pool_seeds(pool: list[Paper], k: int = 2) -> list[Paper]:
 
 async def _s2_search_surveys(term: str, limit: int = 10) -> list[dict]:
     """S2 search "<term> survey|review", review-shaped titles, raw items."""
-    from citens.search.semantic_scholar import _throttled_get
-    from citens.search.snowball import _s2_headers
-
-    import httpx
+    from citens.search.semantic_scholar import _throttled_get, s2_client
 
     out: list[dict] = []
     try:
-        async with httpx.AsyncClient(timeout=30, headers=_s2_headers()) as client:
+        async with s2_client() as client:
             for suffix in ("survey", "review"):
                 resp = await _throttled_get(
                     client,

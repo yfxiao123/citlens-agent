@@ -31,62 +31,55 @@ from pathlib import Path
 
 import httpx
 
+from citens import net
 from citens.config import settings
 from citens.grounding.fulltext import slugify
 from citens.models import Paper
 from citens.search import search_papers
+from citens.search.openalex import oa_client
 
 _WORKS_URL = "https://api.openalex.org/works"
 _AUTHORS_URL = "https://api.openalex.org/authors"
-_HEADERS = {"User-Agent": "CiteLens/0.1 (open literature-review agent)"}
 
 
 def _oa_get_sync(url: str, params: dict) -> httpx.Response:
-    """OpenAlex GET with polite-pool + exponential backoff.
+    """OpenAlex GET with polite-pool params, through the retrying transport.
 
     A collect session makes dozens of OpenAlex calls in quick succession
     (search passes, DOI backfill batches, author lookups) — without retry,
-    a single 429 silently zeroes an entire enrichment phase.
+    a single 429 silently zeroes an entire enrichment phase. The transport
+    (citens.net) retries 429/5xx with Retry-After; what is still throttled
+    after that is raised, never returned as a hollow 200.
     """
-    import time as _time
-
-    from citens.search.openalex import apply_api_key, note_openalex_calls
+    from citens.search.openalex import _oa_headers, apply_api_key, note_openalex_calls
 
     if settings.openalex_email:
         params = {**params, "mailto": settings.openalex_email}
     # api_key or the request lands in the anonymous pool (1000/day, dead by
     # mid-morning) and the retry loop just hammers a 429 for a minute
     params = apply_api_key(params)
-    last: Exception | None = None
-    for attempt in range(4):
-        resp = httpx.get(url, params=params, timeout=30, headers=_HEADERS)
-        if resp.status_code == 200:
-            note_openalex_calls()
-        if resp.status_code != 429 and resp.status_code < 500:
-            return resp
-        last = RuntimeError(f"OpenAlex {resp.status_code}")
-        _time.sleep(1.5 * (2**attempt))
-    raise last or RuntimeError("OpenAlex unavailable")
+    with net.sync_client(name="openalex", timeout=30, headers=_oa_headers()) as hc:
+        resp = hc.get(url, params=params)
+    if resp.status_code == 200:
+        note_openalex_calls()
+    if resp.status_code != 429 and resp.status_code < 500:
+        return resp
+    raise RuntimeError(f"OpenAlex {resp.status_code}")
 
 
 async def _oa_get_async(client: httpx.AsyncClient, url: str, params: dict) -> httpx.Response:
+    """Async twin of _oa_get_sync; ``client`` comes from oa_client()."""
     from citens.search.openalex import apply_api_key, note_openalex_calls
 
     if settings.openalex_email:
         params = {**params, "mailto": settings.openalex_email}
     params = apply_api_key(params)
-    import asyncio as _aio
-
-    last: Exception | None = None
-    for attempt in range(4):
-        resp = await client.get(url, params=params)
-        if resp.status_code == 200:
-            note_openalex_calls()
-        if resp.status_code != 429 and resp.status_code < 500:
-            return resp
-        last = RuntimeError(f"OpenAlex {resp.status_code}")
-        await _aio.sleep(1.5 * (2**attempt))
-    raise last or RuntimeError("OpenAlex unavailable")
+    resp = await client.get(url, params=params)
+    if resp.status_code == 200:
+        note_openalex_calls()
+    if resp.status_code != 429 and resp.status_code < 500:
+        return resp
+    raise RuntimeError(f"OpenAlex {resp.status_code}")
 
 
 # --- pool persistence --------------------------------------------------------
@@ -306,7 +299,7 @@ async def _field_constrained_pass(
         except Exception:  # noqa: BLE001
             return []
 
-    async with httpx.AsyncClient(timeout=30, headers=_HEADERS) as client:
+    async with oa_client() as client:
         results = await asyncio.gather(
             *(_one(client, q) for q in broad_queries), return_exceptions=True
         )
@@ -343,7 +336,7 @@ async def _review_pass(topic_queries: list[str], per_query: int = 10) -> list[Pa
         except Exception:  # noqa: BLE001
             return []
 
-    async with httpx.AsyncClient(timeout=30, headers=_HEADERS) as client:
+    async with oa_client() as client:
         results = await asyncio.gather(
             *(_one(client, q) for q in topic_queries[:5]), return_exceptions=True
         )

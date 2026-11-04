@@ -389,17 +389,32 @@ def fetch_fulltext(paper: Paper) -> str | None:
         text = cache.get("fulltext_local", local_key)
         if text is None:
             text = _convert_pdf_file(str(local))
-            cache.put("fulltext_local", local_key, text or "")
+            # keyed on the file's mtime, so an empty conversion IS a fact
+            # about that file — cache it rather than re-parse every run
+            cache.put("fulltext_local", local_key, text or "", allow_empty=True)
         if text:
             _FETCH_REPORTS[paper.id] = f"本地PDF {len(text) // 1000}k字"
             return text
 
     cached = cache.get("fulltext", paper.id)
-    if cached is not None:
-        _FETCH_REPORTS[paper.id] = (
-            f"缓存 {len(cached) // 1000}k字" if cached else "缓存未命中"
-        )
-        return cached or None
+    if cached:
+        _FETCH_REPORTS[paper.id] = f"缓存 {len(cached) // 1000}k字"
+        return cached
+    # A failed fetch is remembered briefly (fulltext.miss, short TTL) so a
+    # paywalled paper is not re-crawled on every run — but a proxy/paywall
+    # hiccup is retried after the TTL, not never. It used to be cached as ""
+    # under "fulltext", which never expires: one bad day froze the paper as
+    # abstract-only until someone wiped the cache by hand. A legacy "" entry
+    # is falsy above and simply falls through to a fresh attempt.
+    miss_ttl = settings.fulltext_miss_ttl_days
+    if miss_ttl > 0:
+        miss = cache.get("fulltext.miss", paper.id)
+        if miss is not None:
+            tried = " · ".join(miss.get("outcomes", [])) if isinstance(miss, dict) else ""
+            _FETCH_REPORTS[paper.id] = (
+                f"近期抓取失败，{miss_ttl}天内不重试" + (f"（{tried}）" if tried else "")
+            )
+            return None
 
     candidates: list[tuple[str, str]] = []  # (leg label, url)
     arxiv = _arxiv_pdf_url(paper)
@@ -425,12 +440,16 @@ def fetch_fulltext(paper: Paper) -> str | None:
             break
     if text:
         _FETCH_REPORTS[paper.id] = f"{leg} ✓ {len(text) // 1000}k字"
+        cache.put("fulltext", paper.id, text)
     else:
         # cap at the first 3 tried legs — enough to answer "why" without
         # turning the transcript line into a wall
         _FETCH_REPORTS[paper.id] = " · ".join(outcomes[:3]) or "无OA候选"
-
-    cache.put("fulltext", paper.id, text or "")
+        if settings.fulltext_miss_ttl_days > 0:
+            cache.put(
+                "fulltext.miss", paper.id,
+                {"outcomes": outcomes[:3] or ["no OA candidates"]},
+            )
     return text
 
 

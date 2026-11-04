@@ -11,12 +11,10 @@ from __future__ import annotations
 
 import asyncio
 
-import httpx
-
 from citens import cache
 from citens.config import settings
 from citens.models import Paper
-from citens.search.openalex import apply_api_key
+from citens.search.openalex import apply_api_key, oa_client
 
 _OPENALEX_WORKS = "https://api.openalex.org/works"
 
@@ -52,7 +50,7 @@ async def _resolve_one(title: str) -> Paper | None:
         **_polite_params(),
     }
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with oa_client(timeout=20) as client:
             resp = await client.get(_OPENALEX_WORKS, params=apply_api_key(params))
             from citens.search.openalex import note_openalex_calls
 

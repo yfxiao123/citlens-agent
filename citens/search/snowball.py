@@ -25,12 +25,10 @@ import asyncio
 import re
 from collections.abc import Sequence
 
-import httpx
-
 from citens import cache
 from citens.config import settings
 from citens.models import Paper
-from citens.search.openalex import note_openalex_calls
+from citens.search.openalex import note_openalex_calls, oa_client
 
 _OPENALEX_WORKS = "https://api.openalex.org/works"
 _S2_GRAPH = "https://api.semanticscholar.org/graph/v1/paper"
@@ -78,7 +76,7 @@ async def _openalex_work_id(doi: str) -> str | None:
     if not doi:
         return None
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with oa_client(timeout=20) as client:
             resp = await client.get(
                 f"{_OPENALEX_WORKS}/https://doi.org/{doi}",
                 params=_keyed({"select": "id", **_polite_params()}),
@@ -107,7 +105,7 @@ async def _openalex_cited_by(doi: str, limit: int = 10) -> list[dict]:
         **_polite_params(),
     }
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with oa_client(timeout=20) as client:
             resp = await client.get(_OPENALEX_WORKS, params=_keyed(params))
             note_openalex_calls()
             resp.raise_for_status()
@@ -122,7 +120,7 @@ async def _openalex_references(doi: str, limit: int = 10) -> list[dict]:
         return []
     # OpenAlex: first get the work's referenced_works ids, then batch-fetch
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with oa_client(timeout=20) as client:
             resp = await client.get(
                 f"{_OPENALEX_WORKS}/https://doi.org/{doi}",
                 params=_keyed({"select": "referenced_works", **_polite_params()}),
@@ -162,7 +160,7 @@ async def _openalex_related(doi: str, limit: int = 10) -> list[dict]:
     if not doi:
         return []
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with oa_client(timeout=20) as client:
             resp = await client.get(
                 f"{_OPENALEX_WORKS}/https://doi.org/{doi}",
                 params=_keyed({"select": "related_works", **_polite_params()}),
@@ -216,7 +214,7 @@ def _s2_headers() -> dict:
 async def _s2_neighbors(doi: str, field: str, limit: int) -> list[dict]:
     """references/citations of a DOI (or raw 40-hex S2 paperId) from the S2
     graph (the OpenAlex fallback). Shares the process-wide S2 throttle."""
-    from citens.search.semantic_scholar import _throttled_get
+    from citens.search.semantic_scholar import _throttled_get, s2_client
 
     pid = (
         doi
@@ -224,7 +222,7 @@ async def _s2_neighbors(doi: str, field: str, limit: int) -> list[dict]:
         else _s2_paper_id(doi)
     )
     try:
-        async with httpx.AsyncClient(timeout=30, headers=_s2_headers()) as client:
+        async with s2_client() as client:
             resp = await _throttled_get(
                 client,
                 f"{_S2_GRAPH}/{pid}/{field}",
@@ -241,10 +239,10 @@ async def _s2_neighbors(doi: str, field: str, limit: int) -> list[dict]:
 async def _s2_recommended(dois: list[str], limit: int = 10) -> list[dict]:
     """S2's learned related papers (the related_works fallback). One anchor
     uses the single-paper endpoint; the multi-paper one requires >=2 ids."""
-    from citens.search.semantic_scholar import _throttled_get, _throttled_post
+    from citens.search.semantic_scholar import _throttled_get, _throttled_post, s2_client
 
     try:
-        async with httpx.AsyncClient(timeout=30, headers=_s2_headers()) as client:
+        async with s2_client() as client:
             if len(dois) == 1:
                 resp = await _throttled_get(
                     client,
