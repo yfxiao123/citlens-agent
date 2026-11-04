@@ -13,9 +13,13 @@ citlens-agent 把 CiteLens 的文献检索能力做成一个 MCP 工具服务器
 **分工**：模型负责拆概念块、拟英文检索词、判断切题与否、组织综述论证。多源检索、融合去重、引文扩展、全文抓取、格式导出、核验——这些要稳定可复现的执行，Citlens通过Tools对检索链进行了增强。
 
 ## 安装
-建议，直接把仓库网址发给你的Agent，它会完成所有准备工作。 
 
-如果你想要自己做一些改进，可以Clone它。
+建议直接把仓库网址发给你的 Agent，它会完成所有准备工作。可以直接发这句：
+
+> 请帮我安装 CiteLens：克隆 https://github.com/yfxiao123/citlens-agent ，严格按仓库里的 INSTALL.md 完成安装和注册，装好后运行一次 citlens doctor 验收，并告诉我缺哪些免费 key、去哪注册。
+
+如果你想要自己做一些改进，可以 Clone 它：
+
 ```bash
 git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
 python -m venv .venv
@@ -31,7 +35,7 @@ python -m venv .venv
 3. `OPENALEX_API_KEY` — 日预算 ×10（[openalex.org/premium](https://openalex.org/premium)，个人研究者免费）
 4. `OPENALEX_EMAIL` / `CROSSREF_EMAIL` — 礼貌池待遇，留个邮箱即可，**无需注册**
 
-装好后重启 agent，运行 `doctor`：报告 key 的缺失项、效果和注册地址，自动填入数据目录的 `.env` 。如果缺失，限流降级会如实给出。代理设置、数据目录布局、卸载回滚、故障排查见 [INSTALL.md](INSTALL.md)；`.env` 各键含义见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
+装好后重启 agent，运行 `doctor`：报告 key 的缺失项、效果和注册地址，照着填进数据目录的 `.env`（也可以让 agent 帮你填）。如果有缺失，限流降级会如实给出。代理设置、数据目录布局、卸载回滚、故障排查见 [INSTALL.md](INSTALL.md)；`.env` 各键含义见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
 
 ## 工具
 

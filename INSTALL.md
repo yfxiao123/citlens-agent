@@ -2,6 +2,11 @@
 
 目标：把 CiteLens 装进你的 AI agent。全程不需要任何 LLM API key。
 
+> 这份文档也是给 agent 看的安装说明书——用户一句"帮我装
+> https://github.com/yfxiao123/citlens-agent"就该触发你从上到下按节执行。
+> 走完第 4 节后，把验收结果原样转述给用户：装了哪些客户端、doctor 是否
+> ok、缺哪些免费 key 及其注册地址（转述一次即可，不纠缠）。
+
 ## 前置条件
 
 - Python ≥ 3.10（`python --version` 可执行）
