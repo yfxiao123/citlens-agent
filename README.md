@@ -37,6 +37,10 @@ python -m venv .venv
 
 装好后重启 agent，运行 `doctor`：报告 key 的缺失项、效果和注册地址，照着填进数据目录的 `.env`（也可以让 agent 帮你填）。如果有缺失，限流降级会如实给出。代理设置、数据目录布局、卸载回滚、故障排查见 [INSTALL.md](INSTALL.md)；`.env` 各键含义见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
 
+## 使用示例
+
+一次真实用法：一篇硕士开题的文献基础。把源论文和 9 个检索方向交给 agent，它用 `search` 跑了 11 个子题、`fetch` 抓了 364 篇开放获取全文，最后汇成一份带引用建议的分类文献库——1072 条总账、9 份方向阅读清单、覆盖审计，没拿到全文的条目也逐条给出获取渠道。过程与产物样例见 [docs/examples/thesis-library](docs/examples/thesis-library/README.md)。
+
 ## 工具
 
 | 工具 | 作用 |
