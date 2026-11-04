@@ -23,13 +23,18 @@ grep -rn "citens\.llm\|citens\.agents\|citens\.orchestration\|citens\.harness" c
 .venv/Scripts/python tests/test_portable.py      # MCP 协议 + 安装器 + CLI
 .venv/Scripts/python tests/test_screening.py     # screen 通道 + snowball 准入 + found_by 合并
 .venv/Scripts/python tests/test_verify.py        # 综述机械核验（蜜罐/span/判定/诚实数字）
+.venv/Scripts/python tests/test_net.py           # 重试传输 + 限流器（MockTransport，注入 sleep）
+.venv/Scripts/python tests/test_health.py        # health 三态/partial、熔断、litsearch 桶、缓存守卫、fulltext 负缓存
 ```
 
 覆盖：MCP 协议（握手/协商/九工具/错误路径/stdout 纯度/干净退出）、安装器六方言
 （sandbox HOME 下的 plan/apply/幂等/uninstall/自定义 agents.d/坏 JSON 防护/--all/
 九家族配置迁移）、引擎覆盖与驱动范围化、init 向导、CLI 通道、selftest；screen 的
 BM25/分带/CJK/共识重归一；`verify` 的引用解析（DOI/标题）、编造引用与悬空 marker、
-span 逐字匹配、六类判定、precision/grounding 算术与产物。
+span 逐字匹配、六类判定、precision/grounding 算术与产物；网络层的重试矩阵
+（429/5xx/传输错误重试、Retry-After 两种格式与封顶、4xx 不重试、耗尽语义）与
+限流槽位；失败可见性（failed/partial/empty 互斥、熔断开合、401 即刻开路、
+失败查询不进 query_stats、空值不进缓存、fulltext 失败短 TTL 负缓存）。
 
 > 注意：`test_selftest` 假设本机已经 `install.py apply` 过（`~/.citlens` 存在）。
 > 在全新 HOME 下运行它会报 home 不存在——那是环境问题，不是代码回归。

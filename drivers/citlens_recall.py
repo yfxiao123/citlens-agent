@@ -472,6 +472,14 @@ async def recall(args) -> dict:
             "（policy 家族有 8 席保底穿过截断）；"
             "写综述/要广度时用 target: 0"
         )
+    # Sources the circuit breaker gave up on (consecutive failures, or a
+    # rejected credential) — the health table shows the failed counts, this
+    # says WHY, so the agent reports "S2 熔断：3 次连续 429" instead of
+    # presenting a thin pool as the field's extent.
+    from citens.search.base import circuit_state
+
+    for name, st in circuit_state().items():
+        notes.append(f"{name}: 熔断，本次 run 后续查询已跳过（{st['reason']}）")
 
     report.update(
         family_sizes=family_sizes,

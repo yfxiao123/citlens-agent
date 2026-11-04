@@ -21,6 +21,10 @@ dependencies = [
     "httpx>=0.27",
     "arxiv>=2.0",
     "markitdown[pdf]>=0.0.1",
+    # TLS through the OS certificate store: SSL-inspecting proxies (campus/
+    # corporate) inject their own CA, which certifi does not carry — without
+    # this every inspected host dies with CERTIFICATE_VERIFY_FAILED.
+    "truststore>=0.9; python_version>='3.10'",
 ]
 
 [project.optional-dependencies]

@@ -9,32 +9,35 @@ import asyncio
 import arxiv
 
 from citens.models import Paper
-from citens.search.base import SearchSource, register
+from citens.search.base import SearchSource, failure_reason, register
 
 
 @register("arxiv")
 class ArxivSearcher(SearchSource):
     name = "arXiv"
 
-    # Whole-source budget. arXiv server-side rate-limits shared egress IPs
+    # Whole-call budget. arXiv server-side rate-limits shared egress IPs
     # (measured: 16s-to-respond 429s, then read timeouts) and the arxiv
     # client's urllib layer has NO per-request timeout — an unlucky network
     # crawled 20+ minutes and still returned nothing. Cut the loss instead:
-    # the other sources continue; the run is honest about arXiv's absence.
+    # the other sources continue, and the run is honest about arXiv's
+    # absence — the timeout is RAISED, so it reads as "failed", not "empty",
+    # and feeds the circuit breaker (the recall leg runs its queries one
+    # after another; without the breaker 15 queries meant 15 x 90 s).
     SOURCE_TIMEOUT_S = 90
 
     async def search(self, keywords: list[str], max_results: int) -> list[Paper]:
+        self.failed_queries = {}
         try:
             return await asyncio.wait_for(
                 asyncio.to_thread(self._search_sync, keywords, max_results),
                 timeout=self.SOURCE_TIMEOUT_S,
             )
         except asyncio.TimeoutError:
-            print(
-                f"    [arXiv] no response within {self.SOURCE_TIMEOUT_S}s "
-                "(export.arxiv.org throttles some egress IPs) — skipping source"
-            )
-            return []
+            raise TimeoutError(
+                f"arXiv gave no response within {self.SOURCE_TIMEOUT_S}s "
+                "(export.arxiv.org throttles some egress IPs)"
+            ) from None
 
     def _search_sync(self, keywords: list[str], max_results: int) -> list[Paper]:
         client = arxiv.Client(page_size=100, delay_seconds=3, num_retries=3)
@@ -43,6 +46,7 @@ class ArxivSearcher(SearchSource):
         # fetchable PDF — contributes almost nothing to the pool
         per_kw = max(max_results // max(len(keywords), 1), 5)
         out: list[Paper] = []
+        last_err: BaseException | None = None
         for kw in keywords:
             try:
                 search = arxiv.Search(
@@ -61,8 +65,11 @@ class ArxivSearcher(SearchSource):
                     p.matched_queries.append(kw)  # retrieval provenance
                 self.query_stats[kw] = len(hits)
                 out.extend(hits)
-            except Exception:
-                continue
+            except Exception as e:  # noqa: BLE001 — one dead query ≠ dead source
+                self.failed_queries[kw] = failure_reason(e)
+                last_err = e
+        if last_err is not None and len(self.failed_queries) == len(keywords):
+            raise last_err
         return out
 
     @staticmethod

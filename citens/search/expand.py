@@ -29,12 +29,9 @@ from __future__ import annotations
 import asyncio
 import re
 
-import httpx
-
 from citens import cache
 from citens.models import Paper
 from citens.search.snowball import (
-    _s2_headers,
     _s2_paper_id,
     _s2_recommended,
     _s2_to_paper,
@@ -97,10 +94,10 @@ async def resolve_seed(seed: str, fetch=None) -> tuple[Paper | None, str]:
     hit = cache.get("expand.seed", {"seed": seed})
     if isinstance(hit, dict):
         return (Paper(**hit["paper"]) if hit.get("paper") else None), hit.get("note", "")
-    from citens.search.semantic_scholar import _throttled_get
+    from citens.search.semantic_scholar import _throttled_get, s2_client
 
     async def _default_fetch(url: str, params: dict) -> dict:
-        async with httpx.AsyncClient(timeout=30, headers=_s2_headers()) as client:
+        async with s2_client() as client:
             resp = await _throttled_get(client, url, params=params)
             if resp.status_code != 200:
                 raise RuntimeError(f"s2 {resp.status_code}")
@@ -121,7 +118,9 @@ async def resolve_seed(seed: str, fetch=None) -> tuple[Paper | None, str]:
                 f"{_S2_GRAPH}/{_s2_lookup_id(seed, kind)}", {"fields": _S2_FIELDS}
             )
     except Exception as e:  # noqa: BLE001 — an unresolvable seed must not kill the rest
-        cache.put("expand.seed", {"seed": seed}, {"paper": None, "note": f"resolve failed: {str(e)[:120]}"})
+        # NOT cached: a transport failure (429 after retries, timeout) is
+        # about today's network, not about the seed — caching it made a seed
+        # "unresolvable" for the whole 30-day TTL
         return None, f"resolve failed: {str(e)[:120]}"
 
     if not item or not (item.get("title") or "").strip():

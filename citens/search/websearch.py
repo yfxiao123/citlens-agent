@@ -28,6 +28,7 @@ import re
 
 import httpx
 
+from citens import net
 from citens.config import settings
 from citens.models import Paper
 from citens.search.base import SearchSource, register
@@ -407,8 +408,8 @@ class WebSearchSource(SearchSource):
         # deeper pages are free — they catch golds ranked 6-8 under siblings
         per_query = max(max_results // max(len(keywords), 1), 8)
         out: list[Paper] = []
-        async with httpx.AsyncClient(
-            timeout=20, headers={"User-Agent": _UA}, follow_redirects=True
+        async with net.async_client(
+            "web", timeout=20, headers={"User-Agent": _UA}
         ) as client:
             for kw in keywords:
                 try:

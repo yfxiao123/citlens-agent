@@ -8,6 +8,13 @@ TTL: entries older than ``CACHE_TTL_DAYS`` are treated as misses on read and
 deleted by a throttled sweep on write (once per ``CACHE_SWEEP_INTERVAL_DAYS``).
 Namespaces decay at different rates — search/enrich results go stale as the
 scholarly indexes move; LLM completions keyed on fixed prompts do not.
+
+Empty values are NOT cached unless the caller says so (``allow_empty=True``):
+an empty list/dict/string is far more often a throttled or failed provider
+than a true negative, and caching one poisons every retry for the TTL
+(measured twice: a whole bench rerun served cached zeros; OpenAlex 200-empty
+responses frozen for a day). Legitimate negatives go through a dedicated
+short-TTL namespace instead (``fulltext.miss``).
 """
 
 from __future__ import annotations
@@ -25,8 +32,15 @@ from citens.config import settings
 # "llm" entries are keyed on (model, prompts, params) and "fulltext*" are
 # derived from persisted PDFs (papers/) — hits stay valid, so they never
 # expire by default. A stale fulltext miss self-heals: a PDF dropped into
-# papers/ is checked before the cache.
-_TTL_DAYS_BY_NS: dict[str, int] = {"llm": 0, "fulltext": 0, "fulltext_local": 0}
+# papers/ is checked before the cache. "fulltext.miss" is the negative
+# cache for failed OA fetches — short-lived so a proxy hiccup is retried
+# tomorrow, not never.
+_TTL_DAYS_BY_NS: dict[str, int] = {
+    "llm": 0,
+    "fulltext": 0,
+    "fulltext_local": 0,
+    "fulltext.miss": settings.fulltext_miss_ttl_days,
+}
 
 _SWEEP_MARKER = "last_sweep"
 
@@ -101,8 +115,20 @@ def _sweep(force: bool = False) -> None:
                 os.remove(p)
 
 
-def put(namespace: str, payload: Any, value: Any) -> None:
+def is_empty_value(value: Any) -> bool:
+    """None or a zero-length str/list/dict/tuple/set. Numbers (0, False)
+    are values, not absences."""
+    if value is None:
+        return True
+    return isinstance(value, (str, list, dict, tuple, set)) and len(value) == 0
+
+
+def put(namespace: str, payload: Any, value: Any, *, allow_empty: bool = False) -> None:
+    """Store ``value``; empties are skipped unless ``allow_empty`` (see module
+    docstring — an empty result is usually a failed provider, not a fact)."""
     if not settings.cache_enabled:
+        return
+    if not allow_empty and is_empty_value(value):
         return
     p = _path(_key(namespace, payload))
     try:
