@@ -14,10 +14,10 @@
 
 ## 拿到了什么
 
-完整产物就在本目录的 [artifacts/](artifacts/) 里，可以逐个打开看：
+完整真实产物放在独立仓库 **[citlens-agent-examples](https://github.com/yfxiao123/citlens-agent-examples)**（与本仓库分开，让主仓库 clone 保持轻量），`thesis-library/` 下可逐个打开：
 
 ```
-artifacts/
+thesis-library/artifacts/
 ├── 文献库分类索引与引用建议.docx  主交付物：总账、8 个主题组的引用理由、
 │                                  按方向的引用建议（另有同名 .md）
 ├── manifest.jsonl                 1072 条总账（每篇带来源与状态）
@@ -28,7 +28,7 @@ artifacts/
 └── run-example/                   一次检索的原始产物（报告 + 池 + 排除日志）
 ```
 
-几个数字：**364** 篇 PDF 全文、**362** 篇提取正文（本仓库未收录 PDF）、
+几个数字：**364** 篇 PDF 全文、**362** 篇提取正文（仓库未收录 PDF）、
 9 个方向、11 次检索子题。
 
 本目录的解读样例：
