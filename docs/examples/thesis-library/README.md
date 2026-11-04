@@ -1,13 +1,10 @@
 # 使用示例：一篇硕士开题的文献基础
 
-这是一次真实的完整用法。目标：为一篇源论文（Bell, Kakhbod, Lettau &
-Nazemi 2026, "Glass box machine learning and corporate bond returns",
-*JFE*）的复现研究准备开题文献。
+这是一次真实的完整用法。目标：为玻璃盒机器学习方向的内容准备开题文献。
 
 ## 用户做了什么
 
-把源论文和 9 个检索方向交给 agent（比如"方向1：查新 EBM/玻璃盒 × A股
-收益预测""方向4：中国市场制度约束"）。剩下的活是 agent 和 citlens 干的：
+把一些参考论文交给Deepseek Harness，让它按照citlens中的规则完成该研究领域的文献综述：
 
 1. agent 把每个方向拆成概念块、拟好英文检索词，调 `search`——共跑了
    **11 个子题**；
