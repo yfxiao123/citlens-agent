@@ -537,10 +537,14 @@ def tool_doctor(cfg: dict) -> dict:
             pass
     # No LLM keys are required in this build — the calling agent is the model.
     # Search keys only raise quotas/breadth when absent; nothing hard-fails.
-    missing: list[str] = []
-    recommended = [k for k in ("SERPER_API_KEY", "SEMANTIC_SCHOLAR_API_KEY",
-                               "OPENALEX_API_KEY", "OPENALEX_EMAIL",
-                               "CROSSREF_EMAIL") if k not in env_keys]
+    missing: list[str] = []  # nothing is required; kept for older consumers
+    # The guide table (citens.keyguide) is the single source of truth for
+    # which free key un-degrades what, in measured-impact order.
+    sys.path.insert(0, str(_REPO_ROOT))
+    from citens.keyguide import absent as keys_absent, guide as keys_guide
+
+    key_guide = keys_guide(env_keys)
+    recommended = [e["key"] for e in keys_absent(env_keys)]
     core_version = None
     screen_emb = None
     if py and py.is_file():
@@ -590,6 +594,9 @@ def tool_doctor(cfg: dict) -> dict:
         "env_keys_present": sorted(env_keys),
         "env_required_missing": missing,
         "api_keys_recommended_absent": recommended,
+        # per-key {key, present, what, effect, register, cost} — the agent
+        # relays one line per absent key to the user (see the skill)
+        "key_guide": key_guide,
         "litdb_dir": str(home / "data" / "litdb") if home else None,
         "pool_count": len(list((home / "data" / "litdb").glob("*.jsonl"))) if home and (home / "data" / "litdb").is_dir() else 0,
         "jobs_dir": str(jobs_root(cfg)),
@@ -626,7 +633,16 @@ def tool_doctor(cfg: dict) -> dict:
         notes.append(
             "optional breadth keys absent: " + ", ".join(recommended)
             + " (web-bridge / S2 recommendations / OpenAlex polite pool stay degraded "
-              "but the other families still run; NO key is required)")
+              "but the other families still run; NO key is required)"
+        )
+        # one actionable line per absent key — what improves, where to get it
+        for e in keys_absent(env_keys):
+            how = (
+                f"register free: {e['register']} ({e['cost']})"
+                if e["register"] else f"{e['cost']} — no registration"
+            )
+            notes.append(f"  {e['key']} — {e['effect']} {how}."
+                         + (f" Set it in {env_file}." if env_file else ""))
     report["notes"] = notes
     return report
 

@@ -314,6 +314,22 @@ ft.fetch_fulltext(p)
 check("miss TTL 0 -> nothing recorded, retried every run", cache.get("fulltext.miss", p.id) is None)
 settings.fulltext_miss_ttl_days = 1
 
+# ── keyguide: the doctor's single source of key guidance ─────────────────────
+
+from citens.keyguide import absent as keys_absent, guide as keys_guide  # noqa: E402
+
+check("guide covers every recommended key with presence flags",
+      len(keys_guide([])) == 5 and all(e["present"] is False for e in keys_guide([])))
+check("absent() keeps impact order (S2 first, emails last)",
+      [e["key"] for e in keys_absent(set())][0] == "SEMANTIC_SCHOLAR_API_KEY"
+      and [e["key"] for e in keys_absent(set())][-2:] == ["OPENALEX_EMAIL", "CROSSREF_EMAIL"])
+check("every key carries an effect and either a register URL or no-registration",
+      all(e.get("effect") and (e.get("register") or e.get("no_registration"))
+          for e in keys_guide(set())))
+check("present keys are excluded from absent()",
+      keys_absent({"SEMANTIC_SCHOLAR_API_KEY", "SERPER_API_KEY"})[0]["key"]
+      == "OPENALEX_API_KEY")
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")

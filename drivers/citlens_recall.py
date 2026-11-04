@@ -326,6 +326,18 @@ async def recall(args) -> dict:
                 notes.append(f"web: 失败，跳过（{str(e)[:120]}）")
         else:
             notes.append("web: 未提供 --web-queries（英文逐字跨度 + 中文自然短语），已跳过")
+        # the bridge's PRIMARY engine is keyed: without it the family runs on
+        # keyless DDG/Bing scraping that throttles hard (smoke runs show whole
+        # web legs failed). Say so where the agent is looking — right here.
+        from citens.config import settings as _settings
+
+        if "web" in want and not _settings.serper_api_key:
+            notes.append(
+                "web: SERPER_API_KEY 未配置——主引擎（Google SERP）缺位，"
+                "本次退回无 key 的 DuckDuckGo/Bing 抓取，限流更狠、失败率高。"
+                "免费注册 https://serper.dev（2,500 次），写入数据目录 .env 的 "
+                "SERPER_API_KEY= 即可恢复"
+            )
 
     # ── family 7: survey reference harvest (human-curated canon) ────────────
     if "survey" in want and pool:
