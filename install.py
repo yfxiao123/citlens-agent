@@ -793,13 +793,19 @@ def print_snippet(name: str, entry: dict, cfg: dict) -> int:
 
 # NOTHING here is required: this build has no LLM and every source runs
 # unauthenticated (rate-limited). Keys only raise quotas and un-degrade
-# families, so the wizard is all-recommended, never blocking.
+# families, so the wizard is all-recommended, never blocking. Ordered by
+# measured impact (same story as citens.keyguide — the doctor's key_guide).
 INIT_KEYS: list[tuple[str, str, bool]] = [
-    ("SERPER_API_KEY", "web recall family (Google SERP, free 2500 searches) — the web bridge stays degraded without it", False),
-    ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar higher rate limits (free)", False),
-    ("OPENALEX_API_KEY", "OpenAlex keyed pool (free 10k credits/day) + snowball family throughput", False),
-    ("OPENALEX_EMAIL", "OpenAlex polite-pool email (alternative to the key)", False),
-    ("CROSSREF_EMAIL", "Crossref polite pool (free, no key)", False),
+    ("SEMANTIC_SCHOLAR_API_KEY",
+     "S2 reliability: guaranteed 1 req/s instead of the shared pool's 3 s spacing + frequent 429s — free key at https://www.semanticscholar.org/product/api", False),
+    ("SERPER_API_KEY",
+     "web bridge primary engine (Google SERP), free 2,500 credits at https://serper.dev — without it the bridge falls back to keyless DuckDuckGo/Bing scraping that throttles hard", False),
+    ("OPENALEX_API_KEY",
+     "OpenAlex keyed pool: 10,000 credits/day instead of the anonymous 1,000 req/day that dies by mid-morning — request at https://openalex.org/premium", False),
+    ("OPENALEX_EMAIL",
+     "OpenAlex polite pool — any email you own, no registration", False),
+    ("CROSSREF_EMAIL",
+     "Crossref polite pool — any email you own, no registration", False),
 ]
 
 

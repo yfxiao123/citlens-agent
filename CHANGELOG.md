@@ -8,6 +8,15 @@
 
 ### 新增
 
+- **免费 key 引导（`citens/keyguide.py`）**：单一事实源——每个可选 key 的
+  作用（缺了具体降级什么，含实测数字）、注册地址（全部免费）、成本、按
+  实测影响力排序（S2 key 保可靠性 → Serper 撑起 web 家族 → OpenAlex key
+  十倍日预算 → 两个 polite-pool 邮箱免注册）。三个出口共用：
+  `doctor` 返回结构化 `key_guide` + 逐 key 可行动 notes（效果 + URL +
+  写到哪个 .env）；`install.py init` 向导描述同步增强；skill（两个安装
+  副本）指示 agent 在 key 缺失时**一次性**向用户转述引导，不纠缠不阻塞。
+  recall driver 的 web 家族在 SERPER_API_KEY 缺位时就地写明退路与注册地址。
+
 - **TLS 走系统证书库（`truststore`）**：SSL 审查代理（校园/企业网关）会给每个
   TLS 握手注入自己的 CA——它装在 Windows 系统证书库里，但 Python 的 certifi
   包里没有，于是被审查的主机全部死于
