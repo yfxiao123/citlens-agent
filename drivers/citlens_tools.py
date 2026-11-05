@@ -544,7 +544,7 @@ def main(argv=None) -> int:
                           help="agent 概念块英文查询（强烈建议传；缺省退回 matched_queries）")
     p_screen.add_argument("--model", default=None,
                           help="本地嵌入模型（默认取 SCREEN_EMBEDDING_MODEL；空串禁用语义通道）")
-    p_screen.add_argument("--core", type=float, default=None, help="core 带阈值（默认 0.5）")
+    p_screen.add_argument("--core", type=float, default=None, help="core 带阈值（默认 0.65，LitSearch 试点校准）")
     p_screen.add_argument("--off", type=float, default=None, help="likely_off 带阈值（默认 0.32）")
     p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
     p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")

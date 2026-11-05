@@ -104,8 +104,7 @@ def band_distribution(
                 band = _OPTION_BAND.get(token)
                 if band:
                     p = math.exp(cand.get("logprob", -9999.0))
-                    if p > best[band]:
-                        best[band] = p
+                    best[band] = max(best[band], p)
     mass = sum(best.values())
     if mass <= 0.0:
         return {b: 0.0 for b in BANDS}, 0.0

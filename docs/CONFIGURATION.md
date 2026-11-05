@@ -60,7 +60,7 @@
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `SCREEN_EMBEDDING_MODEL` | `BAAI/bge-base-en-v1.5` | 语义通道的**本地** sentence-transformers 模型（经 HF 缓存，进程内运行，永不触碰 LLM key）。置空串禁用语义通道（lexical+consensus 仍在）。中文主题可换 `paraphrase-multilingual-MiniLM-L12-v2` 或 `BAAI/bge-m3` |
-| `SCREEN_CORE_THRESHOLD` | `0.5` | score ≥ 此值入 `core` 带（bge cosine 尺度上的启发式默认，未校准） |
+| `SCREEN_CORE_THRESHOLD` | `0.65` | score ≥ 此值入 `core` 带（LitSearch ranklab 金标池试点校准 2026-11-05：0.5 会把 ~77% 池子标进 core；0.65 保持全部金标在 core∪uncertain 的同时 core 缩 5 倍。复跑校准：`tools/calibrate_screen.py`） |
 | `SCREEN_OFF_THRESHOLD` | `0.32` | score < 此值入 `likely_off` 带；两值之间为 `uncertain` |
 
 语义通道需要可选依赖：`pip install "citlens-agent[embedding]"`（CPU torch +

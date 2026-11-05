@@ -31,7 +31,6 @@ from collections import Counter
 
 from citens.config import settings
 
-
 # ── saturation: capture–recapture over found_by ──────────────────────────────
 
 def chao_coverage(found_by_lists) -> dict:
@@ -108,8 +107,8 @@ def saturation(
             **signals,
             "verdict": "unknown",
             "reasons": [
-                f"记录过少或无跨家族重捕（S={chao['observed']}, f2={chao['f2']}）"
-                "——无法估计覆盖"
+                (f"记录过少或无跨家族重捕（S={chao['observed']}, f2={chao['f2']}）"
+                 "——无法估计覆盖")
             ],
         }
     if cov < settings.sat_coverage_stop:

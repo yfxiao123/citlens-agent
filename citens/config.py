@@ -164,10 +164,14 @@ class Settings(BaseSettings):
     # bge-*-en-v1.5 needs no retrieval instruction prefix (model card).
     screen_embedding_model: str = "BAAI/bge-base-en-v1.5"
     # Band cutoffs on the composite score: >= core -> "core"; < off ->
-    # "likely_off"; between -> "uncertain". Heuristic defaults on the bge
-    # cosine scale — provisional until calibrated on the LitSearch labels;
-    # every call can override them.
-    screen_core_threshold: float = 0.5
+    # "likely_off"; between -> "uncertain". Pilot-calibrated 2026-11-05 on the
+    # LitSearch ranklab gold pools (tools/calibrate_screen.py): 0.5 put ~77%
+    # of a pool in core (no triage information); 0.65-0.70 kept every gold in
+    # core∪uncertain with a 5x smaller core. 0.65 chosen (n=5 pilot, not the
+    # frontier edge); raising core_t alone is asymmetric-safe — a gold can
+    # only slide core->uncertain, both careful-read bands. off_t unchanged.
+    # Full multi-family calibration pending; every call can override.
+    screen_core_threshold: float = 0.65
     screen_off_threshold: float = 0.32
 
     # --- Defaults for a run (overridable via CLI / RunOptions) ---------------

@@ -8,6 +8,18 @@
 
 ### 新增
 
+- **screen 阈值首次金标校准（`tools/calibrate_screen.py` + 默认值上调）**：
+  离线 harness 对 LitSearch ranklab 金标池（15 题、每题 ~137 候选、带 gold
+  标注）用**生产同款通道代码**（BM25 + 本地 bge，同权重同归一化）做
+  (core_t, off_t) 网格扫描。15 题中 10 题的 gold 不在池内——那是当年检索腿
+  自己的漏召（gold_rank_pool=None，如实跳过），不是分带问题；有效 5 题 7
+  gold。发现：**默认 0.5 把 ~77% 的池子标进 core**（分带失去分流意义；当日
+  真实 60 篇池同样 72% core 印证），而 core_t=0.65–0.70 在**零金标漏失**下
+  core 缩 5 倍（105→21/137）。默认上调 0.5→0.65：试点 n=5 故取中不取边界；
+  单抬 core_t 是不对称安全的（gold 只会从 core 滑进同需精读的 uncertain，
+  绝不会掉进 likely_off——那是 off_t 管的）；off_t 维持 0.32。多家族池的
+  全面校准（consensus 通道会移分布）待更多池子，harness 已入库可随时复跑。
+
 - **池级信号（`citens/signals.py`，零 LLM）——「搜多广/何时停」的机械回答**：
   - **饱和信号（`search` 报告新块 + MCP `saturation` 字段）**：召回家族当独立
     捕捉场，对 `found_by` 做 capture–recapture（Chao1：N̂ = S + f1²/2f2），

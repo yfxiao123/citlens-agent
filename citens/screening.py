@@ -27,9 +27,11 @@ the channels that record actually has — mirroring ranking.py):
 Composite (semantic available): 0.6*semantic + 0.2*lexical + 0.2*consensus
 Composite (no model / extra):    0.7*lexical + 0.3*consensus
 
-Band cutoffs default to 0.5 / 0.32 on the bge cosine scale — heuristic and
-provisional (uncalibrated against the LitSearch gold labels); every call
-can override them, and the report says which channels fired.
+Band cutoffs default to 0.65 / 0.32 — pilot-calibrated 2026-11-05 on the
+LitSearch ranklab gold pools (tools/calibrate_screen.py; 0.5 put ~77% of a
+pool in core, 0.65-0.70 kept every gold safe with a 5x smaller core; n=5
+pilot, multi-family calibration pending); every call can override them,
+and the report says which channels fired.
 """
 
 from __future__ import annotations
@@ -288,7 +290,8 @@ def screen_papers(
         ],
         "note": (
             "三分带是分流不是判决：core+uncertain 值得精读，likely_off 批量复核后"
-            "按 PRISMA 记入 exclusions（绝不因 band 自动剔除）。阈值是启发式默认值，"
-            "尚未在 LitSearch 金标上校准——报告 bands 时请同时报告阈值与通道。"
+            "按 PRISMA 记入 exclusions（绝不因 band 自动剔除）。core 阈值经 LitSearch "
+            "ranklab 金标池试点校准（2026-11-05，n=5，tools/calibrate_screen.py 可复跑）；"
+            "报告 bands 时请同时报告阈值与通道。"
         ),
     }

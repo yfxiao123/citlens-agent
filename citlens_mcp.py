@@ -1261,7 +1261,7 @@ TOOL_DEFS = [
                             "description": "Your English concept-block queries — same ones you gave `search`."},
                 "model": {"type": "string",
                           "description": "Local sentence-transformers model override (empty string disables the semantic channel)."},
-                "core_threshold": {"type": "number", "description": "core band cutoff (default 0.5)."},
+                "core_threshold": {"type": "number", "description": "core band cutoff (default 0.65, LitSearch pilot-calibrated)."},
                 "off_threshold": {"type": "number", "description": "likely_off band cutoff (default 0.32)."},
                 "limit": {"type": "integer", "description": "Records to return (default 30)."},
                 "decide": {"type": "boolean",

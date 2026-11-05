@@ -1,0 +1,749 @@
+{
+ "n_questions": 5,
+ "skipped": 10,
+ "model": "BAAI/bge-base-en-v1.5",
+ "frontier": [
+  {
+   "core_t": 0.7,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 108.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 113.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 114.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  }
+ ],
+ "current_defaults": {
+  "core_t": 0.5,
+  "off_t": 0.32,
+  "gold_missed": 0,
+  "gold_total": 7,
+  "gold_in_core": 7,
+  "core_size_avg": 104.8,
+  "uncertain_size_avg": 31.2,
+  "pool_size_avg": 137.0
+ },
+ "all": [
+  {
+   "core_t": 0.3,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 136.8,
+   "uncertain_size_avg": 0.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.3,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 136.8,
+   "uncertain_size_avg": 0.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.3,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 136.8,
+   "uncertain_size_avg": 0.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.3,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 136.8,
+   "uncertain_size_avg": 0.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.35,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 135.2,
+   "uncertain_size_avg": 1.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.35,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 135.2,
+   "uncertain_size_avg": 1.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.35,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 135.2,
+   "uncertain_size_avg": 1.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.35,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 135.2,
+   "uncertain_size_avg": 1.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.35,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 135.2,
+   "uncertain_size_avg": 1.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.35,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 135.2,
+   "uncertain_size_avg": 0.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 7.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 7.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 7.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 7.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 7.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 6.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.4,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 129.8,
+   "uncertain_size_avg": 5.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 17.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 17.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 17.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 17.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 16.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 16.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 15.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.45,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 120.0,
+   "uncertain_size_avg": 9.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 32.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 32.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 32.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 32.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 32.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 31.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 30.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.5,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 104.8,
+   "uncertain_size_avg": 25.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 51.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 51.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 51.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 51.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 51.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 50.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 49.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.55,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 85.8,
+   "uncertain_size_avg": 44.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 73.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 73.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 73.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 73.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 73.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 72.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 71.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.6,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 63.6,
+   "uncertain_size_avg": 66.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 96.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 96.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 96.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 96.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 96.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 95.2,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 94.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.65,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 7,
+   "core_size_avg": 40.8,
+   "uncertain_size_avg": 89.0,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.1,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.15,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.2,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.25,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.3,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 115.4,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.32,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 114.6,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.35,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 113.8,
+   "pool_size_avg": 137.0
+  },
+  {
+   "core_t": 0.7,
+   "off_t": 0.4,
+   "gold_missed": 0,
+   "gold_total": 7,
+   "gold_in_core": 6,
+   "core_size_avg": 21.4,
+   "uncertain_size_avg": 108.4,
+   "pool_size_avg": 137.0
+  }
+ ]
+}
