@@ -246,11 +246,20 @@ def _scansci_fetch(paper) -> tuple[str | None, str]:
     """
     import shutil
     import subprocess
+    import sys
     import tempfile
-    import time as _time
 
-    exe = shutil.which("scansci-pdf")
-    if not exe:
+    # PATH first, then the venv the interpreter itself lives in — citlens and
+    # scansci-pdf install into the SAME venv, but production jobs (MCP runner,
+    # cwd=data home) inherit a PATH that never includes that venv's Scripts
+    # dir, so `which` alone reports cli-absent and the channel silently drops
+    # out (measured 2026-11-05: live CLI worked by full path, wiring said
+    # cli-absent).
+    exe = shutil.which("scansci-pdf") or str(
+        Path(sys.executable).parent
+        / ("scansci-pdf.exe" if os.name == "nt" else "scansci-pdf")
+    )
+    if not Path(exe).is_file():
         return None, "cli-absent"
     if not paper.doi:
         return None, "no-doi"
@@ -261,7 +270,7 @@ def _scansci_fetch(paper) -> tuple[str | None, str]:
         proc = subprocess.run(
             [exe, "get", paper.doi, "--output", str(out_dir),
              "--strategy", settings.scansci_strategy, "--no-bibtex"],
-            capture_output=True, text=True, timeout=240,
+            capture_output=True, text=True, timeout=240, check=False,  # rc handled below
             env={**os.environ, "PYTHONUTF8": "1"},
         )
     except Exception as e:  # noqa: BLE001
@@ -283,7 +292,7 @@ def _scansci_fetch(paper) -> tuple[str | None, str]:
             idx = __import__("json").loads((out_dir / ".doi_index.json").read_text(encoding="utf-8"))
             entry = idx.get(newest.name) or next((v for v in idx.values() if v.get("file") == newest.name), {})
             src = str(entry.get("source") or "")[:20]
-        except Exception:  # noqa: BLE001 — provenance is nice-to-have
+        except Exception:  # noqa: BLE001, S110 — provenance is nice-to-have
             pass
         return (text, f"{src or 'ok'} {len(text) // 1000}k字") if text else (None, "empty-pdf")
     except Exception as e:  # noqa: BLE001

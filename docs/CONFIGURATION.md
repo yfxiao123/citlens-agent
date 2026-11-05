@@ -96,6 +96,13 @@ Sci-Hub 兜底（**经用户授权启用**，2026-11-05）。
 （梯子开着的时候）。知网 CAJ-only 的论文诚实返回 `caj-only`（需 CAJViewer，
 不伪装成 PDF）。
 
+实测状态（2026-11-06，代理 + patchright chromium 装好后逐档验证）：出版商直连档
+（Nature 2024 新文章 8.6MB PDF→83k 字全文）、Unpaywall 绿色 OA 档、Sci-Hub 浏览器
+档（1976 年无任何 OA 的 Jensen & Meckling JFE 论文）三路全部打通。Sci-Hub 档的
+镜像都有 Cloudflare/ALTCHA 盾，裸 HTTP 全被挡——**必须** `pip install
+"scansci-pdf[patchright]"` 且 `patchright install chromium`（直连慢/断流时带
+`HTTPS_PROXY` 环境变量重跑），没有浏览器引擎时该档自动缺席，不影响其它档。
+
 ### 决策层端点（可选，仅 `screen --decide` 用）
 
 | 键 | 作用 | 不配的后果 |
