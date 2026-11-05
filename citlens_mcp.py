@@ -149,7 +149,13 @@ DEFAULT_CONFIG = {
     "sources": ["arxiv", "semantic_scholar", "openalex", "crossref"],
     "families": ALL_FAMILIES,
     "target": 60,
-    "wait_seconds": 45,
+    # 20, not 45: several MCP clients (zcode observed 2026-11-05) hard-kill a
+    # tool call at 30s — and the kill takes the freshly spawned runner down
+    # with it (measured: a queued search's runner died before its first log
+    # line, state stuck "lost"). Returning the job_id at ~20s leaves the poll
+    # pattern (`status`) as the only contract; raising this per-call via
+    # wait_seconds is still allowed for clients without the 30s wall.
+    "wait_seconds": 20,
     "max_concurrent_jobs": 3,
 }
 
@@ -728,6 +734,18 @@ def tool_fetch(cfg: dict, args: dict) -> dict:
                       ("--topic", "topic"), ("--run-dir", "run_dir")):
         if args.get(key):
             argv += [flag, str(args[key])]
+    if args.get("background"):
+        # A fulltext download + PDF conversion can outlive MCP clients that
+        # hard-kill calls at ~30s (zcode, measured 2026-11-05). background
+        # runs the same driver as a detached job; poll `status` — for tools
+        # jobs the log_tail IS the result JSON.
+        started = start_job(cfg, "fetch", {"argv": argv})
+        if started.get("ok"):
+            started["hint"] = (
+                "poll `status` with this job_id; the fetch result JSON "
+                "arrives in log_tail when state=done"
+            )
+        return started
     out = _run_driver_json(cfg, "tools", argv, timeout=300)
     out.setdefault("note", "")
     out["note"] = (
@@ -1017,6 +1035,17 @@ def tool_status(cfg: dict, args: dict) -> dict:
     st = job_state(cfg, job_id)
     if st.get("state") == "unknown":
         return st
+    if st.get("kind") != "search":
+        # tools jobs (fetch/screen/verify via background:true) print their
+        # result JSON to the job log — the tail IS the deliverable; the
+        # search-view's run-dir scavenging does not apply to them.
+        st = dict(st)
+        st["log_tail"] = _tail_text(
+            Path(st["log_path"]), _clamp(args.get("log_lines", 200), 0, 2000, 200)
+        )
+        if st.get("state") == "done":
+            st["note"] = "job done — the result JSON is in log_tail (raise log_lines if truncated)"
+        return st
     view = _search_view(cfg, st)
     view["log_tail"] = _tail_text(Path(st["log_path"]), _clamp(args.get("log_lines", 15), 0, 200, 15))
     return view
@@ -1202,6 +1231,8 @@ TOOL_DEFS = [
                 "arxiv": {"type": "string", "description": "arXiv id, e.g. 2401.12345"},
                 "topic": {"type": "string", "description": "Resolve the record from this topic's pool first."},
                 "run_dir": {"type": "string", "description": "Resolve the record from this run's pool.jsonl."},
+                "background": {"type": "boolean",
+                               "description": "Run as a detached job and return a job_id immediately (for clients that kill calls at ~30s; a fulltext download can take minutes). Poll `status` — for tools jobs log_tail IS the result JSON."},
             },
             "description": "Pass doi / title / arxiv (one is enough; with topic or run_dir the record is resolved from the pool).",
         },

@@ -8,6 +8,18 @@
 
 ### 新增
 
+- **Agent 长程失败诊断模板（`docs/agent-loop-failure-template.md`）**：把
+  当天的漏召事件（10 金标 → 四类病因 → 五修复 → 六臂消融）提炼成可复用
+  模板——核心问题模型（开环表征三重缺陷 + 因果距离）、五步诊断流程
+  （oracle 上界 → 表征接地 → 通道隔离 → 病因分类 → 修复匹配）、4+2 类
+  病因表（每类带判别试验与实测）、闭环四律。文献锚点（MAST/DeFA/
+  LongRCA/Reflexion/Self-RAG/QPP）来自新建的 60 篇主题池。
+- **MCP 客户端 30s 超时的三层修复**（当天两次实测超时，其一连后台任务
+  一起被杀成 lost）：`wait_seconds` 默认 45→20（在客户端击杀前返回
+  job_id，轮询成为唯一契约）；`fetch` 增加 `background: true`（全文下载
+  走 jobs 框架，立即返回 job_id）；`status` 对 tools 类任务返回完整
+  log_tail（结果 JSON 即在日志尾部）。
+
 - **screen 阈值首次金标校准（`tools/calibrate_screen.py` + 默认值上调）**：
   离线 harness 对 LitSearch ranklab 金标池（15 题、每题 ~137 候选、带 gold
   标注）用**生产同款通道代码**（BM25 + 本地 bge，同权重同归一化）做
