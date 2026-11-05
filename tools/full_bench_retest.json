@@ -1,0 +1,209 @@
+{
+ "0": {
+  "done": true,
+  "query": "Are there any studies on incorporating external commonsense knowledge ",
+  "gold": "MISC: A Mixed Strategy-Aware Model integrating COMET for Emotional Sup",
+  "queries": 1,
+  "pool": 60,
+  "rank_A": null,
+  "rank_B": 49,
+  "pivot": [
+   "mental focus existing response enhanced address",
+   "emotional dialogue novel conversation conversational support"
+  ],
+  "seeds": 20
+ },
+ "1": {
+  "done": true,
+  "query": "Are there any papers that study whether you can identify if a LLM has ",
+  "gold": "How to Catch an AI Liar: Lie Detection in Black-Box LLMs by Asking Unr",
+  "queries": 4,
+  "pool": 214,
+  "rank_A": null,
+  "rank_B": null,
+  "pivot": [
+   "safety output llms human"
+  ],
+  "seeds": 78
+ },
+ "2": {
+  "done": true,
+  "query": "Is there a paper that shows that language models' error distribution i",
+  "gold": "Factual or Contextual? Disentangling Error Types in Entity Description",
+  "queries": 4,
+  "pool": 235,
+  "rank_A": null,
+  "rank_B": null,
+  "pivot": [
+   "different used large factual language entity",
+   "llms knowledge benchmark recognition named"
+  ],
+  "seeds": 78
+ },
+ "3": {
+  "done": true,
+  "query": "Could you recommend a study that investigates graph-based modeling of ",
+  "gold": "MTAG: Modal-Temporal Attention Graph for Unaligned Human Multimodal La",
+  "queries": 4,
+  "pool": 226,
+  "rank_A": 4,
+  "rank_B": 2,
+  "pivot": [
+   "graph unaligned sequences language attention interactions",
+   "temporal modal modalities modality systems modeling"
+  ],
+  "seeds": 77
+ },
+ "4": {
+  "done": true,
+  "query": "Could you recommend research that investigates applying conventional d",
+  "gold": "Bootstrapped Unsupervised Sentence Representation Learning",
+  "queries": 4,
+  "pool": 205,
+  "rank_A": null,
+  "rank_B": null,
+  "pivot": [
+   "simcse pairs dropout unsupervised information sentence",
+   "positive embeddings augmentation embedding representation contrastive"
+  ],
+  "seeds": 79
+ },
+ "5": {
+  "done": true,
+  "query": "Could you recommend research that evaluates the performance decline in",
+  "gold": "GLM: General Language Model Pretraining with Autoregressive Blank Infi",
+  "queries": 4,
+  "pool": 141,
+  "rank_A": null,
+  "rank_B": null,
+  "pivot": [
+   "precision llms computational high only post",
+   "deployment weight memory"
+  ],
+  "seeds": 39
+ },
+ "6": {
+  "done": true,
+  "query": "Could you recommend research that examines how syntactic configuration",
+  "gold": "Does syntax matter? A strong baseline for Aspect-based Sentiment Analy",
+  "queries": 1,
+  "pool": 57,
+  "rank_A": null,
+  "rank_B": null,
+  "pivot": [
+   "fine language research study natural large",
+   "various aspect"
+  ],
+  "seeds": 20
+ },
+ "7": {
+  "done": true,
+  "query": "What research first proposed a new kind of cascaded diffusion of a Mar",
+  "gold": "Relay Diffusion: Unifying diffusion process across resolutions for ima",
+  "queries": 4,
+  "pool": 247,
+  "rank_A": 21,
+  "rank_B": 25,
+  "pivot": [
+   "image"
+  ],
+  "seeds": 78
+ },
+ "8": {
+  "done": true,
+  "query": "Which work discusses an analysis of source and target contributions to",
+  "gold": "Local Interpretation of Transformer Based on Linear Decomposition",
+  "queries": 4,
+  "pool": 205,
+  "rank_A": 2,
+  "rank_B": 3,
+  "pivot": [
+   "natural abstract neural output language large",
+   "source"
+  ],
+  "seeds": 70
+ },
+ "9": {
+  "done": true,
+  "query": "Where can I find a detailed discussion on automating the assessment of",
+  "gold": "SemEval-2022 Task 7: Identifying Plausible Clarifications of Implicit ",
+  "queries": 1,
+  "pool": 26,
+  "rank_A": 8,
+  "rank_B": 54,
+  "pivot": [
+   "large language framework decision benchmark systems",
+   "real knowledge through test structured scenarios"
+  ],
+  "seeds": 6
+ },
+ "10": {
+  "done": true,
+  "query": "Which paper studies the concept of enhancing the coverage of a selecti",
+  "gold": "Post-Abstention: Towards Reliably Re-Attempting the Abstained Instance",
+  "queries": 4,
+  "pool": 223,
+  "rank_A": 24,
+  "rank_B": 35,
+  "pivot": [
+   "error confidence classification prediction correct selective",
+   "systems reliability predictions high language"
+  ],
+  "seeds": 74
+ },
+ "11": {
+  "done": true,
+  "query": "Is there a paper that uses evolutionary algorithms and neural MT metri",
+  "gold": "Breeding Machine Translations: Evolutionary approach to survive and th",
+  "queries": 1,
+  "pool": 57,
+  "rank_A": 5,
+  "rank_B": 14,
+  "pivot": [
+   "translation machine language metric algorithm system",
+   "other evaluation produced processing neural"
+  ],
+  "seeds": 20
+ },
+ "12": {
+  "done": true,
+  "query": "Are there any papers that use a world model for planning to ensure tha",
+  "gold": "SafeDreamer: Safe Reinforcement Learning with World Models",
+  "queries": 4,
+  "pool": 232,
+  "rank_A": 51,
+  "rank_B": 83,
+  "pivot": [
+   "requires world action planning latent policies",
+   "existing framework constrained reinforcement safety"
+  ],
+  "seeds": 79
+ },
+ "13": {
+  "done": true,
+  "query": "Is there a study that investigates if large language models can assist",
+  "gold": "Sparks: Inspiration for Science Writing using Language Models",
+  "queries": 4,
+  "pool": 234,
+  "rank_A": null,
+  "rank_B": null,
+  "pivot": [
+   "literature generation research analysis idea evaluation",
+   "existing framework llms ideas discovery"
+  ],
+  "seeds": 74
+ },
+ "14": {
+  "done": true,
+  "query": "Can you point to studies or tasks focused on detecting patronizing and",
+  "gold": "SemEval-2022 Task 4: Patronizing and Condescending Language Detection",
+  "queries": 1,
+  "pool": 60,
+  "rank_A": 32,
+  "rank_B": 67,
+  "pivot": [
+   "llms other large"
+  ],
+  "seeds": 20
+ }
+}
