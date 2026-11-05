@@ -1,0 +1,102 @@
+{
+ "summary": {
+  "raw": {
+   "found": 0,
+   "of": 10
+  },
+  "planned": {
+   "found": 2,
+   "of": 10
+  },
+  "hyde_old": {
+   "found": 0,
+   "of": 10
+  },
+  "hyde_new": {
+   "found": 0,
+   "of": 10
+  },
+  "ladder": {
+   "found": 1,
+   "of": 10
+  },
+  "ladder_pivot": {
+   "found": 3,
+   "of": 10
+  }
+ },
+ "ranks": {
+  "raw": {
+   "1": null,
+   "2": null,
+   "3": null,
+   "4": null,
+   "5": null,
+   "7": null,
+   "8": null,
+   "10": null,
+   "12": null,
+   "13": null
+  },
+  "planned": {
+   "1": null,
+   "2": 33,
+   "3": null,
+   "4": null,
+   "5": null,
+   "7": null,
+   "8": null,
+   "10": 23,
+   "12": null,
+   "13": null
+  },
+  "hyde_old": {
+   "1": null,
+   "2": null,
+   "3": null,
+   "4": null,
+   "5": null,
+   "7": null,
+   "8": null,
+   "10": null,
+   "12": null,
+   "13": null
+  },
+  "hyde_new": {
+   "1": null,
+   "2": null,
+   "3": null,
+   "4": null,
+   "5": null,
+   "7": null,
+   "8": null,
+   "10": null,
+   "12": null,
+   "13": null
+  },
+  "ladder": {
+   "1": null,
+   "2": null,
+   "3": 2,
+   "4": null,
+   "5": null,
+   "7": null,
+   "8": null,
+   "10": null,
+   "12": null,
+   "13": null
+  },
+  "ladder_pivot": {
+   "1": null,
+   "2": null,
+   "3": 16,
+   "4": 15,
+   "5": null,
+   "7": null,
+   "8": null,
+   "10": 27,
+   "12": null,
+   "13": null
+  }
+ }
+}

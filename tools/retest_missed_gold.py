@@ -25,7 +25,8 @@ POOLS = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\rankla
 SOURCES = ["arxiv", "semantic_scholar", "openalex", "crossref"]
 DEPTH = 20
 
-STOP = set("the a an of for in on with and or to is are was were be been by from as that this it its".split())
+STOP = {
+    "the", "a", "an", "of", "for", "in", "on", "with", "and", "or", "to", "is", "are", "was", "were", "be", "been", "by", "from", "as", "that", "this", "it", "its"}
 
 
 def title_key(t: str) -> str:

@@ -62,7 +62,7 @@ import subprocess
 import sys
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 SERVER_NAME = "citlens"
@@ -541,7 +541,8 @@ def tool_doctor(cfg: dict) -> dict:
     # The guide table (citens.keyguide) is the single source of truth for
     # which free key un-degrades what, in measured-impact order.
     sys.path.insert(0, str(_REPO_ROOT))
-    from citens.keyguide import absent as keys_absent, guide as keys_guide
+    from citens.keyguide import absent as keys_absent
+    from citens.keyguide import guide as keys_guide
 
     key_guide = keys_guide(env_keys)
     recommended = [e["key"] for e in keys_absent(env_keys)]
@@ -697,6 +698,7 @@ def tool_search(cfg: dict, args: dict) -> dict:
         "queries": _as_list(args.get("queries")),
         "title_probes": _as_list(args.get("title_probes")),
         "web_queries": _as_list(args.get("web_queries")),
+        "pivot": int(args.get("pivot") or 0),
     }
     if args.get("sources"):
         payload["sources"] = _as_list(args.get("sources"))
@@ -1150,6 +1152,8 @@ TOOL_DEFS = [
                 "sources": {"type": "array", "items": {"type": "string"},
                             "description": "Metadata sources, e.g. arxiv, semantic_scholar, openalex, crossref."},
                 "append_pool": {"type": "boolean", "description": "Merge results into the shared per-topic pool (default true)."},
+                "pivot": {"type": "integer",
+                          "description": "Mechanical pivot expansion (0 = off, default): after the first wave, build up to N queries from the corroborated head records' discriminative terms (LLM-free PRF local analysis; skips when fewer than 3 cross-family-corroborated seeds exist). Use 2 when the topic vocabulary is uncertain."},
                 "wait_seconds": {"type": "integer", "description": "Block up to this long before returning with a job id (0-300)."},
             },
             "required": ["topic"],
@@ -1589,6 +1593,8 @@ def _driver_argv(cfg: dict, kind: str, payload: dict) -> list[str]:
             argv += ["--policy-queries", *payload["policy_queries"]]
         if payload.get("append_pool"):
             argv += ["--append-pool"]
+        if payload.get("pivot"):
+            argv += ["--pivot", str(payload["pivot"])]
         return argv
     return list(payload.get("argv") or [])
 

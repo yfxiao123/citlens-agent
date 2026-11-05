@@ -1,0 +1,52 @@
+{
+ "1": [
+  "Detect concealed instructions in LLM system prompts via probing",
+  "activation probing for hidden objective detection in instruction-tuned language models",
+  "deceptive alignment auditing: identifying models trained to conceal information"
+ ],
+ "2": [
+  "How do long-tail and unseen entity mentions shift the conditional distribution of model errors compared to head entity mentions in language model evaluation?",
+  "Entity-level stratified error analysis of factual recall and hallucination rates for rare versus frequent named entities in knowledge probing benchmarks",
+  "Out-of-distribution generalization of LLM factuality to emerging and low-resource entities: benchmark construction and per-entity accuracy variance analysis"
+ ],
+ "3": [
+  "Temporal graph modeling of cross-modal interactions in unaligned multimodal sequences",
+  "Dynamic graph neural networks for asynchronous multimodal fusion in online videos",
+  "Graph-based multimodal learning on non-aligned sequential data with temporal interaction modeling"
+ ],
+ "4": [
+  "contrastive learning text augmentation word deletion truncation",
+  "SimCSE unsupervised sentence embedding dropout augmentation",
+  "contrastive NLP augmentation strategies token masking span deletion"
+ ],
+ "5": [
+  "4-bit weight-only quantization accuracy degradation large language models",
+  "INT4 columnar weight quantization BLOOM perplexity evaluation",
+  "low-bit post-training quantization benchmark LLM performance drop"
+ ],
+ "7": [
+  "cascaded diffusion probabilistic model first proposed",
+  "hierarchical Markov chain diffusion generative model introduction",
+  "cascaded diffusion models super-resolution progressive generation origin"
+ ],
+ "8": [
+  "What work analyzes source-side and target-side contributions to token generation via local interpretation in hallucinating machine translation models?",
+  "attention attribution analysis of source versus target contributions to neural machine translation hallucination token generation",
+  "local interpretability of hallucinated translations: source-target contribution decomposition in encoder-decoder MT"
+ ],
+ "10": [
+  "Selective prediction coverage improvement via confidence-based question re-attempting",
+  "Abstention deferral learning-to-defer re-attempt mechanism selective classification",
+  "Coverage-risk tradeoff selective question answering retry uncertain instances"
+ ],
+ "12": [
+  "Constrained model-based reinforcement learning with learned latent dynamics for safe planning",
+  "Safe planning in learned world models under hard safety constraints",
+  "Constrained policy optimization in latent space imagination rollouts"
+ ],
+ "13": [
+  "LLM scientific ideation hypothesis generation novelty",
+  "large language models research idea generation scientific writing assistance",
+  "automated scientific discovery idea generation benchmark evaluation"
+ ]
+}

@@ -98,6 +98,15 @@ async def search_one_query(
 # --- OpenAlex title index -----------------------------------------------------
 
 
+_PROBE_STOP = {
+    "how", "why", "what", "when", "where", "which", "who", "whom", "whose",
+    "does", "did", "can", "could", "should", "would", "will", "may", "might",
+    "the", "and", "for", "with", "without", "from", "into", "onto", "about",
+    "using", "via", "based", "novel", "new", "study", "studies", "research",
+    "papers", "paper", "work", "works", "towards", "toward",
+}
+
+
 def oa_title_filter(title: str) -> str:
     """OpenAlex ``filter=title.search:`` payload for one candidate title.
 
@@ -109,8 +118,17 @@ def oa_title_filter(title: str) -> str:
     SYNTHETIC title returns count=0 (bench 153205: the whole channel came
     back empty on 14/15 questions); the same gold probed at 4-5 words
     returns the gold itself at rank 1. The front-loaded words of a
-    descriptive title is its concept core."""
-    words = [w for w in re.findall(r"[A-Za-z0-9]+", title) if len(w) > 2]
+    descriptive title is its concept core.
+
+    Informative means stopword-free: title.search ANDs every term, so one
+    junk word zeroes the cell — measured 2026-11-05, 'How to Catch an AI
+    Liar…' probed as 'How Catch Liar Lie Detection' (count=0) and
+    '…with World Models' truncated BEFORE 'World' by 'with'.
+    """
+    words = [
+        w for w in re.findall(r"[A-Za-z0-9]+", title)
+        if len(w) > 2 and w.lower() not in _PROBE_STOP
+    ]
     return " ".join(words[:5])
 
 

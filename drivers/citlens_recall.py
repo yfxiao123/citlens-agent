@@ -113,17 +113,18 @@ def _health_summary(health: dict) -> dict:
 
 
 async def recall(args) -> dict:
+    from citens.disciplines import detect_discipline
     from citens.eval.litsearch import fuse_multi_query, oa_title_search
     from citens.search.base import deduplicate
+    from citens.search.policy import PolicySearchSource, stamp_doc_types
     from citens.search.snowball import _s2_recommended, _s2_to_paper, is_article_doi, snowball
     from citens.search.survey_seed import survey_seed_papers
+
     # imported explicitly: citens/search/__init__.py never imports websearch, so a
     # `"web"` entry in SEARCH_SOURCES is silently dropped by the registry filter.
     # Same registry isolation for the policy corpus — it is a family, not a
     # raw-search source; the driver runs it over its own queries.
     from citens.search.websearch import WebSearchSource
-    from citens.search.policy import PolicySearchSource, stamp_doc_types
-    from citens.disciplines import detect_discipline
 
     want = set(args.families)
     topic, sources = args.topic, args.sources
@@ -186,13 +187,35 @@ async def recall(args) -> dict:
     # in hand; a source that FAILED its cell counts as 0 here but its failures
     # are reported separately in the health table (never conflated).
     query_feedback: list[dict] = []
+    qf_keys: dict[str, set] = {}
     for q, cells in [*agent_cells.items(), (topic, raw_cells.get(topic, {}))]:
         by_src = {s: len(cells.get(s) or []) for s in sources}
         total = sum(by_src.values())
         verdict = "empty" if total == 0 else ("thin" if total < 12 else "ok")
+        qf_keys[q] = set()
+        for s, ps in (cells or {}).items():
+            for p in ps or []:
+                qf_keys[q].add(_fuse_key(p))
         query_feedback.append(
             {"query": q, "total": total, "verdict": verdict, "by_source": by_src}
         )
+    # variant corroboration (the cheap mechanical QPP signal): a query whose
+    # result set overlaps NO other query is either a genuinely unique concept
+    # block or blind vocabulary guessing — the agent decides which, but it
+    # must SEE the flag (measured: the blind queries that missed 10 LitSearch
+    # golds all returned plausible-looking pools nobody else agreed with).
+    for entry in query_feedback:
+        mine = qf_keys.get(entry["query"]) or set()
+        best = 0.0
+        for other, keys in qf_keys.items():
+            if other == entry["query"] or not keys or not mine:
+                continue
+            inter = len(mine & keys)
+            jac = inter / len(mine | keys) if (mine | keys) else 0.0
+            best = max(best, jac)
+        entry["corroboration"] = round(best, 3)
+        if entry["verdict"] == "ok" and best == 0.0 and len(query_feedback) > 1:
+            entry["verdict"] = "isolated"
     report["query_feedback"] = query_feedback
     weak = [q["query"] for q in query_feedback if q["verdict"] != "ok"]
     if weak:
@@ -201,6 +224,45 @@ async def recall(args) -> dict:
             "这些概念块换论文侧词汇（方法名/数据集名/任务名/术语缩写）重拟后补一轮 search；"
             "命中过低通常意味着词汇错配，不是池子太小"
         )
+
+    # ── mechanical pivot expansion (opt-in: --pivot N, default 0 = off) ──────
+    # The vocabulary-mismatch escape hatch that needs no LLM: corroborated
+    # head records (surfaced by ≥2 families) carry the vocabulary the
+    # sources actually answer to; their discriminative terms become the
+    # second wave. Drift guards: corroborated seeds only, term caps, normal
+    # family seats (citens/search/pivot.py for the full rationale).
+    pivot_n = int(getattr(args, "pivot", 0) or 0)
+    if pivot_n and agent_raw:
+        try:
+            from citens.search.pivot import build_pivot_queries
+
+            corroborated = {
+                k for k, v in votes.items() if len(v) >= 2
+            }
+            seeds = [p for p in agent_raw if _fuse_key(p) in corroborated]
+            if len(seeds) < 3:
+                notes.append(
+                    f"pivot: 佐证种子不足（found_by≥2 仅 {len(seeds)} 篇）——跳过，"
+                    "不拿单家族记录冒险（防 query drift）"
+                )
+            else:
+                p_queries = build_pivot_queries(seeds, agent_raw, n_queries=pivot_n)
+                if p_queries:
+                    _log(f"pivot queries: {p_queries}")
+                    pivot_cells = await _cells(p_queries, sources, health, PER_SOURCE)
+                    pfam = fuse_multi_query(pivot_cells, sources)
+                    if pfam:
+                        families.append(pfam)
+                        _note("pivot", pfam[:FAMILY_QUOTA])
+                        family_sizes["pivot"] = len(pfam)
+                        _log(f"family pivot: {len(pfam)} (queries: {p_queries})")
+                        notes.append(f"pivot: 机械扩展查询 {p_queries} → {len(pfam)} 条")
+                    else:
+                        notes.append("pivot: 扩展查询 0 命中，已跳过")
+                else:
+                    notes.append("pivot: 种子词汇无判别力，未能构造查询——跳过")
+        except Exception as e:  # noqa: BLE001
+            notes.append(f"pivot: 失败，跳过（{str(e)[:120]}）")
 
     # ── family 3: OpenAlex title index over agent-supplied probe titles ──────
     probes = [t for t in (args.title_probes or []) if t.strip()]
@@ -750,6 +812,8 @@ def build_args(argv=None):
     ap.add_argument("--out", default=_default_out, help="报告输出根目录")
     ap.add_argument("--append-pool", action="store_true",
                     help="把结果并入 CiteLens 文献池 data/litdb/<topic>.jsonl")
+    ap.add_argument("--pivot", type=int, default=0,
+                    help="机械 pivot 扩展的查询数（0 = 关，推荐 2）：用跨家族佐证头部的判别词构造第二波（LLM-free PRF）")
     ap.add_argument("--dry-run", action="store_true", help="只打印将执行的查询与家族，不发检索请求")
     return ap.parse_args(argv)
 
