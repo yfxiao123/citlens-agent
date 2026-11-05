@@ -47,7 +47,7 @@ python -m venv .venv
 |---|---|
 | `search` | 多路召回，RRF 融合；接受 agent 拟的检索词、标题检索、web 查询，返回逐查询命中数 |
 | `pool` | 读取并过滤既有文献池，不发起检索 |
-| `screen` | 相关性分带（core / uncertain / likely_off）：本地嵌入、BM25、家族投票打分；负责分流|
+| `screen` | 相关性分带（core / uncertain / likely_off）：本地嵌入、BM25、家族投票打分；可选决策层（`decide: true`，需自配 LLM 端点）用校准概率自动定带，低置信自动升级人工终审；负责分流|
 | `gaps` | 「找空白」的机械基底：概念块×年代覆盖矩阵、挖掘原文中提及的局限性内容、novelty check |
 | `expand` | 用已有论文，做前向/后向引文链和相似推荐扩展 |
 | `notes` | 阅读笔记：逐篇判定（core / uncertain / off），存入记录，`expand` 可直接取 core 笔记中的论文进行扩展检索 |
@@ -76,6 +76,8 @@ python -m venv .venv
 单独判断切题性。 默认数字设定为 60，即需要60篇文献用于你的综述。如果需要广泛检索，设定 `target: 0`，或者先 `search` 再对累积池跑 `screen`。
 
 screen 用三个通道给每条记录打分：本地嵌入（可选 extra）算语义相似度，BM25 算词面重叠，`found_by` 算各池投票，然后给每篇论文标记 core / uncertain / likely_off 写入 `screening.jsonl`。agent 逐篇读 core 和 uncertain 的标题摘要做终审，likely_off 批量审核，最终排除连同原因记入 `exclusions.jsonl`（PRISMA）。
+
+`screen` 还有一个可选的**决策层**（`decide: true`，默认关）：你在数据家 `.env` 里配好任意 OpenAI 兼容端点（`LLM_API_BASE` / `LLM_API_KEY` / `LLM_MODEL`，DeepSeek 实测可用）后，它把每条记录的三分带读成校准过的概率分布——高置信自动定带，低置信强制升入 uncertain 等你终审，端点失败就退回机械分带并如实说明。不配端点，行为与从前完全一样。
 
 ## 支持的客户端
 

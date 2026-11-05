@@ -868,6 +868,10 @@ def tool_screen(cfg: dict, args: dict) -> dict:
                       ("--limit", "limit")):
         if args.get(key) is not None:
             argv += [flag, str(args[key])]
+    if args.get("decide"):
+        argv += ["--decide"]
+        if args.get("decide_limit") is not None:
+            argv += ["--decide-limit", str(args["decide_limit"])]
     # first call may download the local model; give it room
     return _run_driver_json(cfg, "tools", argv, timeout=900)
 
@@ -1251,6 +1255,10 @@ TOOL_DEFS = [
                 "core_threshold": {"type": "number", "description": "core band cutoff (default 0.5)."},
                 "off_threshold": {"type": "number", "description": "likely_off band cutoff (default 0.32)."},
                 "limit": {"type": "integer", "description": "Records to return (default 30)."},
+                "decide": {"type": "boolean",
+                           "description": "Decision layer (opt-in): an LLM logit readout re-bands records with calibrated 3-way probabilities; high-confidence auto-banded, the rest escalate to uncertain for your own review. Needs LLM_API_BASE/LLM_API_KEY/LLM_MODEL in the data home .env; without them the report says so and mechanical bands stand."},
+                "decide_limit": {"type": "integer",
+                                 "description": "Max records the decision layer processes (0 = all; default 0)."},
             },
             "required": [],
         },

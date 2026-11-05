@@ -11,7 +11,23 @@ import json
 import os
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_home() -> str:
+    """The data home without touching the process CWD: ``CITLENS_HOME``
+    wins, else ~/.citlens/config.json's ``home``, else "" (unconfigured)."""
+    home = os.environ.get("CITLENS_HOME", "")
+    if home:
+        return home
+    try:
+        data = json.loads(
+            (Path.home() / ".citlens" / "config.json").read_text(encoding="utf-8")
+        )
+        return str(data.get("home") or "")
+    except (OSError, ValueError):
+        return ""
 
 
 def _resolve_env_file() -> str:
@@ -28,20 +44,22 @@ def _resolve_env_file() -> str:
     """
     if Path(".env").is_file():
         return ".env"
-    home = os.environ.get("CITLENS_HOME", "")
-    if not home:
-        try:
-            data = json.loads(
-                (Path.home() / ".citlens" / "config.json").read_text(encoding="utf-8")
-            )
-            home = str(data.get("home") or "")
-        except (OSError, ValueError):
-            home = ""
+    home = _resolve_home()
     if home:
         cand = Path(home).expanduser() / ".env"
         if cand.is_file():
             return str(cand)
     return ".env"
+
+
+def _resolve_litdb_dir() -> str:
+    """Anchor the literature pools to the data home, not the CWD — the same
+    trap as the env file: an out-of-home launch used to fork a private
+    ``data/litdb`` under the repo, silently splitting the shared pool."""
+    home = _resolve_home()
+    if home:
+        return str(Path(home).expanduser() / "data" / "litdb")
+    return "data/litdb"
 
 
 class Settings(BaseSettings):
@@ -70,6 +88,27 @@ class Settings(BaseSettings):
     # Serper.dev web-search key (Google SERP; free tier 2500 queries) —
     # the primary engine of the web bridge channel
     serper_api_key: str = ""
+
+    # --- Decision layer (optional; `screen --decide`) ------------------------
+    # An OpenAI-compatible chat endpoint used ONLY by the opt-in decision
+    # layer: relevance triage is read as a categorical distribution over
+    # three bracketed options via next-token logprobs (training-free, no
+    # fine-tune). The retrieval core stays LLM-free — without these the
+    # tools run exactly as before on the mechanical channels.
+    llm_api_base: str = ""  # e.g. https://api.deepseek.com
+    llm_api_key: str = ""
+    llm_model: str = ""
+    # Selective prediction: records whose top band probability reaches
+    # decide_auto_band are auto-banded; below it they escalate to the agent's
+    # own review (forced uncertain). A record also auto-bands at
+    # decide_agree_band when the decision model and the mechanical channels
+    # independently agree — agreement is evidence.
+    decide_auto_band: float = 0.8
+    decide_agree_band: float = 0.6
+    # Below this total probability mass on the three option tokens the
+    # readout is off-script (the model ignored the format) -> escalate.
+    decide_matched_mass_min: float = 0.2
+    decide_min_interval_s: float = 0.2
 
     # --- Access layer (declare what YOU can reach; empty = public web only) ---
     # HTTP(S) proxy used when fetching paywalled PDFs / landing pages (e.g. a
@@ -124,7 +163,9 @@ class Settings(BaseSettings):
     enrich_abstracts: bool = True  # cross-source DOI enrichment for missing abstracts
     output_dir: str = "runs"
     # Persistent literature pools built by `citens collect` (JSONL per topic).
-    litdb_dir: str = "data/litdb"
+    # Default anchored to the data home (see _resolve_litdb_dir) so pools
+    # stay shared regardless of where the process was launched from.
+    litdb_dir: str = Field(default_factory=_resolve_litdb_dir)
     # Domain profile for collect/run (see citens profiles for the list).
     # "" = generic. Example: "finance".
     profile: str = ""

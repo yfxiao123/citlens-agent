@@ -375,6 +375,25 @@ finally:
     if _prev_citlens_home is not None:
         _os.environ["CITLENS_HOME"] = _prev_citlens_home
 
+# ── config: litdb anchored to the data home, not the CWD ─────────────────────
+
+from citens.collect import pool_path  # noqa: E402
+from citens.config import _resolve_litdb_dir  # noqa: E402
+
+_prev_litdb = settings.litdb_dir
+try:
+    _home_tmp = Path(tempfile.mkdtemp())
+    _os.environ["CITLENS_HOME"] = str(_home_tmp)
+    check("litdb: CITLENS_HOME anchors the pool dir",
+          _resolve_litdb_dir() == str(_home_tmp / "data" / "litdb"))
+    settings.litdb_dir = str(_home_tmp / "data" / "litdb")
+    check("litdb: pool_path slugs the topic under litdb_dir",
+          pool_path("My Topic!").name == "my-topic.jsonl"
+          and pool_path("My Topic!").parent == _home_tmp / "data" / "litdb")
+finally:
+    _os.environ.pop("CITLENS_HOME", None)
+    settings.litdb_dir = _prev_litdb
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")

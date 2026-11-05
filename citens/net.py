@@ -403,17 +403,19 @@ def async_client(
     min_interval: float | None = None,
     url: str | None = None,
     max_attempts: int | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
     **kwargs,
 ) -> httpx.AsyncClient:
     """An async client with throttle + retry mounted, per `name`.
 
     `name` selects the process-wide rate limiter ("" = no throttling);
-    `url` picks the proxy exactly like sync_client() does.
+    `url` picks the proxy exactly like sync_client() does. `transport`
+    replaces the inner transport entirely (test rig / exotic dial-in).
     """
     kwargs.setdefault("follow_redirects", True)
     _ensure_system_trust()
     proxy = proxy_url_for(url)
-    inner = httpx.AsyncHTTPTransport(**_proxy_kw(proxy))
+    inner = transport if transport is not None else httpx.AsyncHTTPTransport(**_proxy_kw(proxy))
     rate = limiter(name, min_interval) if name else None
     transport = AsyncRetryTransport(
         inner, name=name or "http", rate=rate, max_attempts=max_attempts

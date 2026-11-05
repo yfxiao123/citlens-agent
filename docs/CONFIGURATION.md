@@ -68,8 +68,23 @@ sentence-transformers，约 1 GB 磁盘）。首次调用会下载所选模型�
 0.4 GB）；`doctor` 的 `screen_embedding_runtime` 字段报告运行时可用性。bge-*-en-v1.5
 按模型卡说明无需检索指令前缀。
 
-不存在的键：`LLM_API_KEY` / `LLM_MODEL` / 强弱档位——本构建无 LLM，`doctor` 也不会检查它们。
-若你的 `.env` 里有（从引擎时代沿用），会被 `extra="ignore"` 安静忽略，无需清理。
+不存在的键：强弱档位——检索核心无 LLM，`doctor` 不检查它们。
+
+### 决策层端点（可选，仅 `screen --decide` 用）
+
+| 键 | 作用 | 不配的后果 |
+|---|---|---|
+| `LLM_API_BASE` | OpenAI 兼容 chat 端点（需支持 `logprobs`；实测 DeepSeek 可用） | `--decide` 不发起任何请求，报告写明"端点未配置"，机械分带原样保留 |
+| `LLM_API_KEY` | 该端点的 key | 同上 |
+| `LLM_MODEL` | 模型名（如 `deepseek-chat`） | 同上 |
+
+决策层（`citens/decide.py`）把相关性三分带读成"三个带括号选项上的下一个
+token 概率分布"（LLM-as-Jev 的免训练 readout）：高置信（`decide_auto_band=0.8`）
+自动定带；与机械通道独立一致时阈值放宽到 `decide_agree_band=0.6`；低置信
+强制升入 `uncertain` 等 agent 终审；格式偏离（选项概率质量 <
+`decide_matched_mass_min=0.2`）不猜、照旧升级。逐条记录 `decided_by` /
+`decision_probs` / `agrees_mechanical` 溯源。阈值是保守默认，尚未在
+LitSearch 金标上校准。
 
 ## 数据家布局
 

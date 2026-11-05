@@ -8,6 +8,24 @@
 
 ### 新增
 
+- **screen 决策层（`citens/decide.py`，`screen --decide` 可选）**：相关性三分带
+  读成三个带括号选项上的 next-token 概率分布（LLM-as-Jev 免训练 readout，
+  arXiv:2610.02076）——高置信（0.8）自动定带，与机械通道独立一致时放宽到
+  0.6，低置信强制升入 uncertain 等 agent 终审，格式偏离不猜；端点失败保留
+  机械分带并如实记因。逐条 `decided_by`/`decision_probs`/`agrees_mechanical`
+  溯源。检索核心依旧零 LLM：不配 `LLM_API_*` 端点，行为与从前逐字节相同。
+  实测（60 篇真实池，DeepSeek）：60/60 决策、0 失败、47.6s；38 篇手标
+  spot-check 一致或保守偏移，字面撞词（核武器项目报告、Z39.50 标准、肺炎
+  分诊）全部落入 likely_off。依赖证据：System One 模型分类强校准好但
+  relevance gating 打平（arXiv:2610.02267）——所以特征带主题与概念块上下文、
+  阈值保守、升级优先；LitSearch 校准待做，阈值全部是显式 setting。
+- **CWD 陷阱修复（config）**：`.env` 与文献池此前都按进程 CWD 相对解析——
+  任何不从数据家启动的进程会**静默丢掉全部 key**（实测：OpenAlex 全程匿名
+  撞进耗尽的匿名池 → 429 风暴；web 家族谎报"SERPER 未配置"而 key 就躺在
+  `<home>/.env`），并在仓库里 fork 出私有 `data/litdb` 分裂共享池。现在
+  `.env` 按 CWD → `CITLENS_HOME` → config.json home 解析，`litdb_dir` 默认
+  锚定数据家。test_health +6 检查。
+
 - **免费 key 引导（`citens/keyguide.py`）**：单一事实源——每个可选 key 的
   作用（缺了具体降级什么，含实测数字）、注册地址（全部免费）、成本、按
   实测影响力排序（S2 key 保可靠性 → Serper 撑起 web 家族 → OpenAlex key

@@ -230,6 +230,16 @@ def cmd_screen(args) -> dict:
     )
     if fallback_note:
         out["fallback_note"] = fallback_note
+    if args.decide:
+        from citens.decide import refine_screen_report
+
+        out = refine_screen_report(
+            papers,
+            out,
+            topic=" ".join(queries[:3]) or (args.topic or ""),
+            out_path=None if args.no_write else out_path,
+            limit=args.decide_limit,
+        )
     out["ok"] = True
     return out
 
@@ -538,6 +548,10 @@ def main(argv=None) -> int:
     p_screen.add_argument("--off", type=float, default=None, help="likely_off 带阈值（默认 0.32）")
     p_screen.add_argument("--limit", type=int, default=30, help="返回条数上限")
     p_screen.add_argument("--no-write", action="store_true", help="不写 screening.jsonl")
+    p_screen.add_argument("--decide", action="store_true",
+                          help="决策层：LLM logit readout 三分带 + selective prediction（需 .env 的 LLM_API_*）")
+    p_screen.add_argument("--decide-limit", type=int, default=0,
+                          help="决策层最多处理多少条（0 = 全部）")
 
     p_gaps = sub.add_parser(
         "gaps", help="「找」的机械基底：覆盖矩阵（结构 gap 候选）/ 自陈空白挖掘 / novelty check"
