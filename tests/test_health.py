@@ -330,6 +330,51 @@ check("present keys are excluded from absent()",
       keys_absent({"SEMANTIC_SCHOLAR_API_KEY", "SERPER_API_KEY"})[0]["key"]
       == "OPENALEX_API_KEY")
 
+# ── config: .env resolution must not depend on the process CWD ───────────────
+
+import json as _json  # noqa: E402
+import os as _os  # noqa: E402
+
+from citens.config import _resolve_env_file  # noqa: E402
+
+_prev_cwd = Path.cwd()
+_prev_citlens_home = _os.environ.pop("CITLENS_HOME", None)
+try:
+    _with_env = Path(tempfile.mkdtemp())
+    (_with_env / ".env").write_text("SERPER_API_KEY=probe\n", encoding="utf-8")
+    _empty = Path(tempfile.mkdtemp())
+    _cfg_home = ""
+    try:
+        _cfg_home = str(_json.loads(
+            (Path.home() / ".citlens" / "config.json").read_text(encoding="utf-8")
+        ).get("home") or "")
+    except (OSError, ValueError):
+        pass
+    _expected_home_env = str(Path(_cfg_home).expanduser() / ".env") if _cfg_home else ""
+
+    _os.chdir(_empty)
+    _os.environ["CITLENS_HOME"] = str(_with_env)
+    check("env file: CITLENS_HOME wins when CWD has no .env",
+          _resolve_env_file() == str(_with_env / ".env"))
+
+    _os.chdir(_with_env)
+    check("env file: CWD .env wins when present (explicit override)",
+          _resolve_env_file() == ".env")
+
+    _os.environ.pop("CITLENS_HOME", None)
+    _os.chdir(_empty)
+    _resolved = _resolve_env_file()
+    if _expected_home_env and Path(_expected_home_env).is_file():
+        check("env file: falls back to config.json home's .env",
+              _resolved == _expected_home_env)
+    else:
+        check("env file: no home .env anywhere -> stays '.env' (defaults)",
+              _resolved == ".env")
+finally:
+    _os.chdir(_prev_cwd)
+    if _prev_citlens_home is not None:
+        _os.environ["CITLENS_HOME"] = _prev_citlens_home
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")

@@ -7,14 +7,48 @@ the :class:`RunOptions` dataclass, not here.
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_env_file() -> str:
+    """First existing of CWD ``.env`` and the data home ``.env``.
+
+    pydantic resolves a relative ``env_file`` against the process CWD, so a
+    driver launched from anywhere but the data home silently ran keyless —
+    every source degraded to anonymous pools (measured 2026-11-05: an
+    out-of-home launch produced an OpenAlex 429 storm and a false
+    "SERPER_API_KEY 未配置" note while the keys sat in ``<home>/.env``).
+    The MCP runner sets ``cwd=<home>`` for its jobs (contract,
+    citlens_mcp.py), but nothing else has to honor it. An explicit
+    ``CITLENS_HOME`` wins over config.json, matching the MCP layer.
+    """
+    if Path(".env").is_file():
+        return ".env"
+    home = os.environ.get("CITLENS_HOME", "")
+    if not home:
+        try:
+            data = json.loads(
+                (Path.home() / ".citlens" / "config.json").read_text(encoding="utf-8")
+            )
+            home = str(data.get("home") or "")
+        except (OSError, ValueError):
+            home = ""
+    if home:
+        cand = Path(home).expanduser() / ".env"
+        if cand.is_file():
+            return str(cand)
+    return ".env"
 
 
 class Settings(BaseSettings):
     """Global settings. Stable defaults let the app run with a minimal ``.env``."""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=_resolve_env_file(), env_file_encoding="utf-8", extra="ignore"
     )
 
     # NOTE: this build has NO LLM backend by design. The agent (Claude, Codex,
