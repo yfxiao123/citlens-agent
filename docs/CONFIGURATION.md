@@ -70,6 +70,32 @@ sentence-transformers，约 1 GB 磁盘）。首次调用会下载所选模型�
 
 不存在的键：强弱档位——检索核心无 LLM，`doctor` 不检查它们。
 
+### 检索源说明（默认五源）
+
+| 源 | 机制 | 备注 |
+|---|---|---|
+| `arxiv` / `semantic_scholar` / `crossref` | 各自的关键词 API | — |
+| `openalex` | `filter=default.search`（题录+摘要+全文关键词的 AND 匹配） | 1 credit/查询 |
+| `openalex_relevance` | 同一语料走 `search=` 相关性排序 | 10 credits/查询。机制多元的实测依据：同一批阶梯变体，default.search 全部漏掉的 4 个 LitSearch 金标里它把 3 个排到 top-5；代价是 10 倍 credits |
+
+### scansci-pdf 全文兜底通道（可选 CLI）
+
+`fetch` 的 OA 链（arXiv→S2→OpenAlex→Unpaywall→CORE）失败后，最后一棒交给
+可选的 [scansci-pdf](https://github.com/Rimagination/scansci-pdf) CLI
+（`pip install scansci-pdf`）：出版商 API、机构通道（WebVPN/CARSI/EZProxy，
+需装它的浏览器 extras）、中文库（知网/万方/维普/NCPSSD）、绿色 OA 仓储，以及
+Sci-Hub 兜底（**经用户授权启用**，2026-11-05）。
+
+| 环境键 | 默认 | 含义 |
+|---|---|---|
+| `SCANSCI_ENABLED` | `true` | 通道开关（CLI 不在 PATH 时自动静默跳过） |
+| `SCANSCI_STRATEGY` | `oa_first` | 直传 CLI 的 `--strategy`：`oa_first`（OA 优先、Sci-Hub 兜底）/ `fastest` / `legal_only` |
+
+注意事项：工具**有意忽略**系统 `HTTP(S)_PROXY`——本机需要代理才能到 Sci-Hub
+时，给它自己的配置设 `scansci-pdf config-cmd network_proxy http://127.0.0.1:7897`
+（梯子开着的时候）。知网 CAJ-only 的论文诚实返回 `caj-only`（需 CAJViewer，
+不伪装成 PDF）。
+
 ### 决策层端点（可选，仅 `screen --decide` 用）
 
 | 键 | 作用 | 不配的后果 |

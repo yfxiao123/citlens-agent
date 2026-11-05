@@ -351,3 +351,48 @@ class OpenAlexSearcher(SearchSource):
             for pos in positions:
                 words[pos] = word
         return " ".join(words.get(i, "") for i in range(len(words)))
+
+
+@register("openalex_relevance")
+class OpenAlexRelevanceSearcher(OpenAlexSearcher):
+    """The SAME corpus through OpenAlex's relevance endpoint (`search=`).
+
+    Mechanism diversity, not source diversity: `default.search` (the filter
+    the parent class uses) ANDs the query terms over title+abstract+keywords
+    and can rank an on-topic paper far down when the phrasing differs; the
+    relevance `search=` param is a different matching AND ranking shape.
+    Measured 2026-11-05 on the 7 LitSearch golds the keyword wave missed:
+    the same ladder variants ranked q7/q8/q10 at #5 and q12 at #12 through
+    `search=` while `default.search` never surfaced them — 4/7 rescued by
+    switching endpoint shape alone. Costs 10 credits/query (vs 1 for the
+    filter); worth its own health cell rather than hiding a fallback inside
+    the parent source.
+    """
+
+    name = "OpenAlex (relevance)"
+
+    async def _one(self, client: httpx.AsyncClient, query: str, limit: int) -> list[Paper]:
+        params: dict[str, str | int] = {
+            "search": query,
+            "per_page": min(limit, 50),
+            "sort": "relevance_score:desc",
+            "select": (
+                "id,title,authorships,publication_year,abstract_inverted_index,"
+                "cited_by_count,doi,primary_location,open_access,relevance_score,"
+                "topics,keywords,biblio"
+            ),
+        }
+        if self.constraints and self.constraints.year_from:
+            params["filter"] = f"from_publication_date:{self.constraints.year_from}-01-01"
+        if self.constraints and self.constraints.year_to:
+            filt = params.get("filter", "")
+            extra = f"to_publication_date:{self.constraints.year_to}-12-31"
+            params["filter"] = f"{filt},{extra}" if filt else extra
+        resp = await client.get(self.BASE_URL, params=apply_api_key(params))
+        note_openalex_calls()
+        resp.raise_for_status()
+        papers = [self.to_paper(w) for w in resp.json().get("results", [])]
+        for p in papers:
+            p.matched_queries.append(query)
+        self.query_stats[query] = len(papers)
+        return papers

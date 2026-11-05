@@ -8,6 +8,23 @@
 
 ### 新增
 
+- **`openalex_relevance` 第五检索源（机制多元）**：同一 OpenAlex 语料走
+  `search=` 相关性排序（vs 原源的 `default.search` 词面 AND）。实测
+  （2026-11-05，7 个漏召金标）：同一批阶梯变体，default.search 漏掉的题里
+  它把 q7/q8/q10 排到 top-5、q12 排到 12；进入生产融合波后 **q7/q8/q10
+  三题复活**（rank 5-20，穿过席位与 target 截断）。q12 词汇层已通（记录
+  进入候选流）但卡在家族席位（RRF>30）——病因从 A 类（词汇）降级为 B 类
+  （排名），可由配额/排序调整收尾。代价 10 credits/查询（default.search
+  的 10 倍），预算护栏不变。
+- **标题探针的 S2 覆盖备胎**：OpenAlex 标题索引空 cell 时回落 S2 标题
+  搜索（救 OpenAlex 未收录的记录——实测 'How to Catch an AI Liar' 在
+  OpenAlex by-DOI 为空）。S2 全天配额打穿，代码就绪待复测。
+- **scansci-pdf 全文兜底通道**：OA 链末端新增可选 CLI 通道（出版商 API/
+  机构通道/中文库/绿色 OA/Sci-Hub 兜底——用户授权启用，`oa_first` 策略，
+  `SCANSCI_ENABLED`/`SCANSCI_STRATEGY` 可调）。今日实测：通道与诚实降级
+  全链路工作（记录 `scansci:` 原因码），Sci-Hub 下载被本机网络阻断
+  （DNS 断 + 代理未开）——梯子开启后设其 `network_proxy` 即通。
+
 - **Agent 长程失败诊断模板（`docs/agent-loop-failure-template.md`）**：把
   当天的漏召事件（10 金标 → 四类病因 → 五修复 → 六臂消融）提炼成可复用
   模板——核心问题模型（开环表征三重缺陷 + 因果距离）、五步诊断流程

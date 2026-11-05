@@ -75,7 +75,11 @@ class Settings(BaseSettings):
 
     # --- Search sources ------------------------------------------------------
     # Comma-separated subset, or "all". Order does not imply priority.
-    search_sources: str = "arxiv,semantic_scholar,openalex,crossref"
+    # openalex_relevance: the same corpus through the relevance `search=`
+    # endpoint — a different matching/ranking shape that rescued 4/7 missed
+    # LitSearch golds the default.search filter never surfaced (measured
+    # 2026-11-05; 10 credits/query vs 1 for the filter).
+    search_sources: str = "arxiv,semantic_scholar,openalex,openalex_relevance,crossref"
     semantic_scholar_api_key: str = ""  # optional, raises rate limits
     openalex_email: str = ""  # optional, polite-pool
     openalex_api_key: str = ""  # premium key: 100k/day + higher rps (api_key param)
@@ -85,6 +89,14 @@ class Settings(BaseSettings):
     # credit, single-record view free; the free plan includes $1/day =
     # 10000 credits. Default 9000 leaves headroom.
     openalex_daily_budget: int = 9000
+    # scansci-pdf as the fulltext chain's last resort (optional CLI,
+    # pip install scansci-pdf). Strategy passes straight through to the
+    # CLI's --strategy: oa_first (default — open access first, Sci-Hub as
+    # the paywall fallback, USER-AUTHORIZED 2026-11-05), fastest, or
+    # legal_only to keep grey sources off. Institutional channels
+    # (WebVPN/CARSI/EZProxy) need the CLI's browser extras installed.
+    scansci_enabled: bool = True
+    scansci_strategy: str = "oa_first"
     # Serper.dev web-search key (Google SERP; free tier 2500 queries) —
     # the primary engine of the web bridge channel
     serper_api_key: str = ""

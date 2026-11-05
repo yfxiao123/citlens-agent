@@ -231,6 +231,65 @@ def _core_pdf_url(doi: str) -> str | None:
     return None
 
 
+def _scansci_fetch(paper) -> tuple[str | None, str]:
+    """One paper via the optional `scansci-pdf` CLI; returns extracted text.
+
+    Last resort after the OA chain: publisher APIs, institutional channels
+    (WebVPN/CARSI/EZProxy — when the CLI's browser extras are installed),
+    Chinese databases, green-OA repositories, and — per the user's explicit
+    authorization, via ``scansci_strategy`` (default oa_first) — Sci-Hub as
+    the paywall fallback. The CLI writes into a stable output dir; we pick
+    up the freshest PDF it delivered, then run the SAME PDF→text conversion
+    the arXiv leg uses so caching/grounding behave identically. Honest
+    degradation: CLI absent, no DOI, .caj-only, or failed download all
+    return (None, reason) — never an invented text.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+    import time as _time
+
+    exe = shutil.which("scansci-pdf")
+    if not exe:
+        return None, "cli-absent"
+    if not paper.doi:
+        return None, "no-doi"
+    out_dir = Path(tempfile.gettempdir()) / "citlens-scansci"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    before = {p for p in out_dir.glob("*.pdf")}
+    try:
+        proc = subprocess.run(
+            [exe, "get", paper.doi, "--output", str(out_dir),
+             "--strategy", settings.scansci_strategy, "--no-bibtex"],
+            capture_output=True, text=True, timeout=240,
+            env={**os.environ, "PYTHONUTF8": "1"},
+        )
+    except Exception as e:  # noqa: BLE001
+        return None, f"error:{type(e).__name__}"
+    if proc.returncode != 0:
+        return None, f"rc={proc.returncode}:{(proc.stderr or '').strip()[:60]}"
+    fresh = [p for p in out_dir.glob("*.pdf") if p not in before]
+    if not fresh:
+        caj = [p for p in out_dir.glob("*.caj") if p not in before]
+        if caj:
+            return None, "caj-only"  # CNKI .caj needs CAJViewer — honest stop
+        return None, "no-file"
+    newest = max(fresh, key=lambda p: p.stat().st_mtime)
+    try:
+        data = newest.read_bytes()
+        text = _pdf_bytes_to_text(data, paper)
+        src = ""
+        try:  # the CLI's own provenance index says which channel delivered
+            idx = __import__("json").loads((out_dir / ".doi_index.json").read_text(encoding="utf-8"))
+            entry = idx.get(newest.name) or next((v for v in idx.values() if v.get("file") == newest.name), {})
+            src = str(entry.get("source") or "")[:20]
+        except Exception:  # noqa: BLE001 — provenance is nice-to-have
+            pass
+        return (text, f"{src or 'ok'} {len(text) // 1000}k字") if text else (None, "empty-pdf")
+    except Exception as e:  # noqa: BLE001
+        return None, f"convert:{type(e).__name__}"
+
+
 def _unpaywall_pdf_url(doi: str) -> list[str]:
     """ALL OA pdf urls Unpaywall knows for this DOI (repository copies incl.).
 
@@ -438,6 +497,11 @@ def fetch_fulltext(paper: Paper) -> str | None:
         outcomes.append(f"{leg}:{outcome}")
         if text:
             break
+    # Last legal resort: scansci-pdf (optional CLI) — publisher APIs +
+    # institutional channels + Chinese databases + green-OA repositories.
+    if not text and settings.scansci_enabled and paper.doi:
+        text, outcome = _scansci_fetch(paper)
+        outcomes.append(f"scansci:{outcome}")
     if text:
         _FETCH_REPORTS[paper.id] = f"{leg} ✓ {len(text) // 1000}k字"
         cache.put("fulltext", paper.id, text)

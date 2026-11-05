@@ -132,6 +132,40 @@ def oa_title_filter(title: str) -> str:
     return " ".join(words[:5])
 
 
+async def _s2_title_fallback(title: str) -> list[dict]:
+    """Semantic Scholar paper search when OpenAlex's title index has nothing.
+
+    Coverage only — for records OpenAlex simply does not hold. Reuses the
+    process-wide S2 throttle; the caller only invokes this on EMPTY OpenAlex
+    cells, so the added load is proportional to coverage gaps, not traffic.
+    """
+    from citens import net
+
+    client = net.async_client(
+        "semantic_scholar", timeout=25, headers={"User-Agent": "citlens-probe"}
+    )
+    try:
+        r = await client.get(
+            "https://api.semanticscholar.org/graph/v1/paper/search",
+            params={"query": title, "limit": 10, "fields": "title,year,citationCount,externalIds"},
+        )
+        r.raise_for_status()
+        out = []
+        for w in r.json().get("data", []):
+            ext = w.get("externalIds") or {}
+            doi = ext.get("DOI") or ""
+            out.append({
+                "title": w.get("title") or "",
+                "doi": doi.replace("https://doi.org/", ""),
+                "year": w.get("year"),
+                "cited": w.get("citationCount") or 0,
+                "abstract": "",
+            })
+        return out
+    finally:
+        await client.aclose()
+
+
 async def oa_title_search(
     titles: list[str], per_page: int = 20, fetch=None
 ) -> dict[str, list[Paper]]:
@@ -173,8 +207,7 @@ async def oa_title_search(
                 works = await fetch(oa_title_filter(t))
             except Exception as e:  # noqa: BLE001 — a dead OA stays dead
                 print(f"[oa-title] {t[:40]}… failed: {e}", flush=True)
-                out[t] = []
-                continue
+                works = []
             cached = [
                 {
                     "title": w.get("display_name") or "",
@@ -185,6 +218,20 @@ async def oa_title_search(
                 }
                 for w in works
             ]
+            if not any(c["title"] for c in cached):
+                # OpenAlex coverage fallback: records absent from OpenAlex
+                # (measured 2026-11-05: 'How to Catch an AI Liar' — on S2 and
+                # arXiv, by-DOI lookup empty in OpenAlex) must not kill the
+                # probe. S2's paper search over the title fills the cell;
+                # errors degrade to the honest empty cell as before.
+                if fetch is _default_fetch:
+                    try:
+                        cached = await _s2_title_fallback(t)
+                    except Exception as e:  # noqa: BLE001
+                        print(f"[oa-title] s2 fallback for {t[:40]}… failed: {e}", flush=True)
+                        cached = []
+                else:
+                    cached = []
             if any(c["title"] for c in cached):
                 cache.put(cache_ns, cache_key, cached)
         out[t] = [
