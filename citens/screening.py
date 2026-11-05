@@ -243,6 +243,10 @@ def screen_papers(
     for r in rows:
         bands[r["band"]] += 1
 
+    from citens.signals import expand_advice
+
+    advice = expand_advice(rows)
+
     written = None
     if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -256,6 +260,7 @@ def screen_papers(
             "thresholds": {"core": core_t, "off": off_t},
             "n": len(rows),
             "bands": bands,
+            "expand_advice": advice,
             "papers": rows,
         }
         out_path.write_text(
@@ -274,6 +279,7 @@ def screen_papers(
         },
         "thresholds": {"core": core_t, "off": off_t},
         "bands": bands,
+        "expand_advice": advice,
         "screening_path": written,
         "papers": [
             {k: r[k] for k in ("rank", "title", "doi", "year", "band", "score",

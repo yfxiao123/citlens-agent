@@ -8,6 +8,21 @@
 
 ### 新增
 
+- **池级信号（`citens/signals.py`，零 LLM）——「搜多广/何时停」的机械回答**：
+  - **饱和信号（`search` 报告新块 + MCP `saturation` 字段）**：召回家族当独立
+    捕捉场，对 `found_by` 做 capture–recapture（Chao1：N̂ = S + f1²/2f2），
+    估计池覆盖与未召回量；叠加本轮对主题池的新增占比与弱查询占比，输出
+    近饱和 / 建议继续 / 无法判定 + 逐条理由。实测（同主题换措辞复搜）：
+    f2=0 覆盖不可估但新增 87%——增长信号独立发声判"继续"，不因估计缺席而
+    装聋；判定永远带"agent/raw 同源查询会高估覆盖"的警示，收工仍需 audit。
+  - **扩搜建议（`screen` 输出 `expand_advice`，decide 后自动重算）**：
+    uncertain 带占比 / 单家族命中占比（召回未经佐证，词汇错配的典型信号）/
+    core 太薄，任一越线即建议 `expand --from-notes core`（判定回流为种子的
+    反馈环入口）。实测：60 篇池单家族命中 98% → 正确触发并给出确切命令。
+  - 修复第三个 CWD 陷阱：`--out` 默认 `citlens-runs` 也是 CWD 相对——手动
+    启动会在仓库下 fork 私有 run 目录；现锚定数据家（与前两个陷阱同族：
+    .env、litdb）。
+
 - **screen 决策层（`citens/decide.py`，`screen --decide` 可选）**：相关性三分带
   读成三个带括号选项上的 next-token 概率分布（LLM-as-Jev 免训练 readout，
   arXiv:2610.02076）——高置信（0.8）自动定带，与机械通道独立一致时放宽到

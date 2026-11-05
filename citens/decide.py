@@ -354,11 +354,17 @@ def refine_screen_report(
     for r in rows:
         bands[r["band"]] = bands.get(r["band"], 0) + 1
     report["bands"] = bands
+    from citens.signals import expand_advice
+
+    report["expand_advice"] = expand_advice(rows)
 
     if out_path is not None and out_path.exists():
         payload["papers"] = rows
         payload["bands"] = bands
         payload["decide"] = summary
+        from citens.signals import expand_advice
+
+        payload["expand_advice"] = expand_advice(rows)
         out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
     report["decide"] = {

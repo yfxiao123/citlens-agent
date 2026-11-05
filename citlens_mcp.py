@@ -796,7 +796,16 @@ def _search_view(cfg: dict, st: dict) -> dict:
         # query-level feedback (see queries.json writer in the recall driver):
         # which concept blocks the sources actually answered. Weak blocks are
         # the agent's rephrase list — vocabulary mismatch, not pool size.
-        qj = _read_json(rd / "queries.json").get("query_feedback") or []
+        signals = _read_json(rd / "queries.json")
+        qj = signals.get("query_feedback") or []
+        sat = signals.get("saturation") or {}
+        if sat.get("verdict"):
+            out["saturation"] = {
+                "verdict": sat.get("verdict"),
+                "reasons": sat.get("reasons", []),
+                "chao_coverage": (sat.get("chao") or {}).get("coverage"),
+                "new_share": sat.get("new_share"),
+            }
         if qj:
             out["query_feedback"] = [
                 {"query": q.get("query", "")[:60], "total": q.get("total", 0),

@@ -86,6 +86,22 @@ token 概率分布"（LLM-as-Jev 的免训练 readout）：高置信（`decide_a
 `decision_probs` / `agrees_mechanical` 溯源。阈值是保守默认，尚未在
 LitSearch 金标上校准。
 
+### 池级信号阈值（`screen` 扩搜建议 / `search` 饱和信号）
+
+| 环境键（`CITLENS_` 前缀或 .env） | 默认 | 含义 |
+|---|---|---|
+| `EXPAND_UNCERTAIN_SHARE` | `0.4` | uncertain 带占比 ≥ 此值 → 建议 expand |
+| `EXPAND_SINGLE_FAMILY_SHARE` | `0.7` | 单家族命中占比 ≥ 此值 → 建议 expand（召回未经佐证） |
+| `EXPAND_MIN_CORE` | `10` | core 少于此值 → 建议 expand（太薄） |
+| `SAT_MIN_RECORDS` | `20` | 少于此值且无增长信号时饱和判定为 unknown |
+| `SAT_COVERAGE_STOP` | `0.8` | Chao1 估计覆盖 ≥ 此值（且其余信号安静）才算接近饱和 |
+| `SAT_NEW_SHARE_STOP` | `0.3` | 本轮新增占比 > 此值 → 池仍在生长，建议继续 |
+| `SAT_WEAK_QUERY_STOP` | `0.5` | empty/thin 查询占比 ≥ 此值 → 词汇错配未消，先重拟 |
+
+信号全部机械（`citens/signals.py`，零 LLM）：饱和用 found_by 做
+capture–recapture（Chao1），扩搜建议读分带结果与跨家族佐证率。判定永远带
+Chao1 假定家族独立的高估警示，且不是结论——收工仍需 `audit`。
+
 ## 数据家布局
 
 见 [INSTALL.md](../INSTALL.md#数据家布局)。机器级配置（家路径、解释器、驱动路径、任务目录）

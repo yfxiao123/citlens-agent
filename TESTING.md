@@ -26,6 +26,7 @@ grep -rn "citens\.llm\|citens\.agents\|citens\.orchestration\|citens\.harness" c
 .venv/Scripts/python tests/test_net.py           # 重试传输 + 限流器（MockTransport，注入 sleep）
 .venv/Scripts/python tests/test_health.py        # health 三态/partial、熔断、litsearch 桶、缓存守卫、fulltext 负缓存
 .venv/Scripts/python tests/test_decide.py        # 决策层：logit readout、selective prediction、Mock 端点全链路（零网络）
+.venv/Scripts/python tests/test_signals.py       # 池级信号：Chao1 手算对照、饱和判定、扩搜建议（纯函数）
 ```
 
 覆盖：MCP 协议（握手/协商/九工具/错误路径/stdout 纯度/干净退出）、安装器六方言

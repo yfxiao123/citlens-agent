@@ -493,6 +493,31 @@ async def recall(args) -> dict:
     for name, st in circuit_state().items():
         notes.append(f"{name}: 熔断，本次 run 后续查询已跳过（{st['reason']}）")
 
+    # ── saturation: capture–recapture over found_by + growth vs the pool ────
+    # The families are the trapping occasions; a record surfacing in ≥2 is a
+    # recapture. Chao1 converts singleton counts into an estimated population
+    # and S/N̂ into estimated coverage — the mechanical half of stage F's
+    # saturation check. new_records counts this run's kept papers that were
+    # NOT already in the topic's accumulated pool (the litdb is read BEFORE
+    # the append, which happens in main() after write_run).
+    from citens.collect import read_pool
+    from citens.signals import saturation, saturation_note
+
+    try:
+        prior_keys = {_fuse_key(p) for p in read_pool(topic)}
+        new_records = sum(1 for p in ranked if _fuse_key(p) not in prior_keys)
+    except Exception:  # noqa: BLE001 — the litdb may not exist yet; signal only
+        new_records = None
+    qfb = report.get("query_feedback", [])
+    report["saturation"] = saturation(
+        [p.found_by for p in deduped],
+        new_records=new_records,
+        kept=len(ranked),
+        weak_queries=sum(1 for q in qfb if q["verdict"] != "ok"),
+        total_queries=len(qfb),
+    )
+    report["saturation_note"] = saturation_note(report["saturation"])
+
     report.update(
         family_sizes=family_sizes,
         family_consensus=consensus,
@@ -539,16 +564,36 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 
     # query-level feedback as a machine-readable artifact (the MCP search view
     # surfaces it so the agent can rephrase weak concept blocks without
-    # parsing the markdown report)
+    # parsing the markdown report); the saturation verdict rides along —
+    # same artifact, same "machine-readable signals" contract
     (run_dir / "queries.json").write_text(
-        json.dumps({"query_feedback": report.get("query_feedback", [])},
-                   ensure_ascii=False, indent=1),
+        json.dumps({
+            "query_feedback": report.get("query_feedback", []),
+            "saturation": report.get("saturation"),
+            "saturation_note": report.get("saturation_note"),
+        }, ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
 
+    # saturation block precompute (defensive: synthetic/legacy results may
+    # lack the key — the markdown still renders, just without the block)
+    sat = report.get("saturation") or {}
+    sat_chao = sat.get("chao") or {}
+    sat_cov = sat_chao.get("coverage")
+    sat_new = sat.get("new_share")
+    sat_line = ""
+    if sat:
+        sat_line = (
+            f"- Chao1：S={sat_chao.get('observed', '—')} · "
+            f"单家族 f1={sat_chao.get('f1', '—')} · 双家族 f2={sat_chao.get('f2', '—')}\n"
+            f"  → N̂≈{sat_chao.get('n_hat') if sat_chao.get('n_hat') is not None else '—'} · "
+            f"估计覆盖 {('%d%%' % (sat_cov * 100)) if sat_cov is not None else '—'}\n"
+            f"- 本轮对主题池的新增占比：{('%d%%' % (sat_new * 100)) if sat_new is not None else '—'}"
+        )
+
     # discipline layer hint as a machine-readable artifact — the MCP search
     # view surfaces it so the calling agent receives the domain's core
-    # disciplines even when its client never loaded the skill
+    # disciplines even when their client never loaded the skill
     disc = report.get("discipline")
     disc_pointer = ""
     if disc:
@@ -609,8 +654,8 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
   · 目标截断 {excl.get('ranked_below_target', 0)}（`exclusions.jsonl` 逐条带原因码）
 - 顺序为 RRF/家族席位序（无 LLM 级联）：引用前由 agent 逐篇判断相关性，
   可先跑 `screen` 做三分带（core / uncertain / likely_off）分流精读
-- 收工条件未自动判定：请按 SKILL.md 阶段 F 跑锚点核验（`audit` 工具）与
-  饱和检查后再声明完成
+- 收工信号见「饱和与停止信号」块（机械估计，信号不是结论）；锚点核验
+  （`audit` 工具）仍需单独跑——覆盖率高不等于锚点齐全
 
 {disc_box}
 ## 家族 → 入池条数
@@ -626,6 +671,12 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 {health_rows}
 
 > failed > 0 时必须显式报告：源失败绝不能写成"零命中"。
+
+## 饱和与停止信号（capture–recapture，机械估计）
+
+{report.get('saturation_note', '') or '（本次未计算）'}
+
+{sat_line}
 
 ## 查询反馈（每条查询的实际命中——造词迭代的仪表盘）
 
@@ -690,7 +741,13 @@ def build_args(argv=None):
     ap.add_argument("--families", default=",".join(ALL_FAMILIES),
                     help="逗号分隔家族；可选 " + ",".join(ALL_FAMILIES)
                     + "（agent/raw 是主干：始终执行，不受此开关限制）")
-    ap.add_argument("--out", default="citlens-runs", help="报告输出根目录")
+    # The CWD-anchored default was the third trap of its family (env file,
+    # litdb, now this): a launch outside the data home forked a private
+    # citlens-runs under the repo. Anchor to the home; explicit --out wins.
+    from citens.config import _resolve_home
+
+    _default_out = str(Path(_resolve_home() or ".") / "citlens-runs")
+    ap.add_argument("--out", default=_default_out, help="报告输出根目录")
     ap.add_argument("--append-pool", action="store_true",
                     help="把结果并入 CiteLens 文献池 data/litdb/<topic>.jsonl")
     ap.add_argument("--dry-run", action="store_true", help="只打印将执行的查询与家族，不发检索请求")

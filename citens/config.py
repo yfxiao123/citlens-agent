@@ -110,6 +110,24 @@ class Settings(BaseSettings):
     decide_matched_mass_min: float = 0.2
     decide_min_interval_s: float = 0.2
 
+    # --- Pool-level signals (expand advice & saturation) ---------------------
+    # Mechanical, LLM-free. `screen`'s expand advice fires when any of:
+    # uncertain share >= expand_uncertain_share, single-family share >=
+    # expand_single_family_share (recall uncorroborated), or core count <
+    # expand_min_core (too thin to ground a review).
+    expand_uncertain_share: float = 0.4
+    expand_single_family_share: float = 0.7
+    expand_min_core: int = 10
+    # Saturation (capture–recapture over found_by). Verdict "near_saturation"
+    # needs: Chao1 coverage >= sat_coverage_stop AND this run's new-record
+    # share <= sat_new_share_stop AND weak-query (empty/thin) share <
+    # sat_weak_query_stop. Below sat_min_records the estimate is too thin
+    # to say anything (verdict "unknown").
+    sat_min_records: int = 20
+    sat_coverage_stop: float = 0.8
+    sat_new_share_stop: float = 0.3
+    sat_weak_query_stop: float = 0.5
+
     # --- Access layer (declare what YOU can reach; empty = public web only) ---
     # HTTP(S) proxy used when fetching paywalled PDFs / landing pages (e.g. a
     # campus EZproxy or local SOCKS/HTTP proxy). Lets you reach content the
