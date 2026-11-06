@@ -9,7 +9,7 @@ harness**：每个对应一次具体诊断，结论都写进了对应提交信�
 码、参数解析）、CLI 同步语义、MCP 默认后台、产物契约（真 JSONL）、
 作业生命周期与死任务回收、并发护栏、共享数据家一致性、stdout 压缩
 视图、断网下的 embedding 回退、以及 pipeline 修复在产物上的证据。
-改动 citlens_mcp.py / drivers / screening 后跑它：
+改动 citlens_cli.py / drivers / screening 后跑它：
 
 ```
 .venv/Scripts/python.exe tools/verify_harness.py

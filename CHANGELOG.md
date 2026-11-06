@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased — 2.0: the MCP server is removed; the CLI is the interface
+
+全面拥抱 harness：`citlens_mcp.py` 更名 **`citlens_cli.py`** 并删除整个 MCP
+协议层（JSON-RPC stdio server、协议协商、isError 包装）。CLI 一直是主接口，
+协议层只是它的转发——第三方实测里 7 个 P1 有 5 个断在"参数翻译"适配层，
+正是双路径的维护税。
+
+- **入口**：`citlens.cmd <tool> ...`（裸工具名直接分发；`cli <tool>` 旧形式
+  兼容）。`tools` 打印目录 + 检索纪律（原 MCP initialize instructions，
+  改名 `DISCIPLINE`）。退出码即契约：0 跑通 / 1 工具报失败 / 2 用法错误。
+  `serve` 命令保留一个应答：告知已移除、去跑 `install.py apply` 清理。
+- **任务语义不变**：search 与 `fetch --background true` 仍是脱离任务
+  （job_id + status 轮询）；screen/gaps/expand 在 CLI 下同步执行。
+- **install.py 大裁剪**（1195 → ~910 行）：删除全部 MCP 注册机制
+  （json-map/json-opencode/toml-block 写入、DSH bundle、`snippet` 方言）。
+  apply 现在写 shim + 共享配置 + skill，并**自动清理 1.x 留下的 MCP 注册**
+  （旧条目指向已删除的 server 文件，留着只会是死条目）。`agents.json`
+  登记表保留，服务于 skill 目录分发与旧注册清理。
+- **测试迁移**：test_portable 的 MCP 协议段重写为 CLI 分发段（100 项全绿，
+  新增"清理而非写入"断言）；test_disciplines 检查 `DISCIPLINE`；
+  test_report_fixes/test_pid/verify_harness/verify_online 引用更名。
+- **文档**：README/INSTALL/SKILL.md 全部改为单接口叙事；shim 不再前置
+  `cli`；pyproject 入口点 `citlens-agent = citlens_cli:console_main`。
+
 ## Unreleased — third-party test report: 7 P1 / 12 P2 fixed
 
 第三方对 `main @ 473864b` 的完整试运行（`citlens/test-report/`）暴露的

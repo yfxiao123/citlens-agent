@@ -99,7 +99,7 @@ check("run-together fulltext falls back to the abstract floor",
 
 # ── P1-5 / P2-3: CLI/MCP argument wiring ────────────────────────────────────
 print("\n== MCP tool argument wiring ==")
-import citlens_mcp as m  # noqa: E402
+import citlens_cli as m  # noqa: E402
 
 captured: dict = {}
 

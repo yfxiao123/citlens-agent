@@ -20,7 +20,7 @@ grep -rn "citens\.llm\|citens\.agents\|citens\.orchestration\|citens\.harness" c
 ## 2. 测试套（全部零网络、零 LLM）
 
 ```bash
-.venv/Scripts/python tests/test_portable.py      # MCP 协议 + 安装器 + CLI
+.venv/Scripts/python tests/test_portable.py      # CLI 分发 + 安装器
 .venv/Scripts/python tests/test_screening.py     # screen 通道 + snowball 准入 + found_by 合并
 .venv/Scripts/python tests/test_verify.py        # 综述机械核验（蜜罐/span/判定/诚实数字）
 .venv/Scripts/python tests/test_net.py           # 重试传输 + 限流器（MockTransport，注入 sleep）
@@ -30,7 +30,7 @@ grep -rn "citens\.llm\|citens\.agents\|citens\.orchestration\|citens\.harness" c
 .venv/Scripts/python tests/test_report_fixes.py  # 第三方报告回归：参数接线/fail-closed/scansci/PyMuPDF 等 26 项
 ```
 
-覆盖：MCP 协议（握手/协商/十三工具/错误路径/stdout 纯度/干净退出）、安装器六方言
+覆盖：CLI 分发（目录/十三工具/错误路径/退出码契约）、安装器（shim/配置/skill/旧注册清理）
 （sandbox HOME 下的 plan/apply/幂等/uninstall/自定义 agents.d/坏 JSON 防护/--all/
 九家族配置迁移）、引擎覆盖与驱动范围化、init 向导、CLI 通道、selftest；screen 的
 BM25/分带/CJK/共识重归一；`verify` 的引用解析（DOI/标题）、编造引用与悬空 marker、
@@ -46,7 +46,7 @@ span 逐字匹配、六类判定、precision/grounding 算术与产物；网络�
 
 ```bash
 .venv/Scripts/python install.py plan                      # 不写用户目录
-.venv/Scripts/python citlens_mcp.py selftest              # 工具列表 + doctor
+.venv/Scripts/python citlens_cli.py selftest              # 工具列表 + doctor
 .venv/Scripts/python drivers/citlens_recall.py --topic "x" --dry-run
 .venv/Scripts/python drivers/citlens_tools.py verify --review <review.md> --topic "x"  # 只做引用解析
 ```

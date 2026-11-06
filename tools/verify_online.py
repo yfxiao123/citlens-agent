@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT))
 os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7897"
 os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
 
-import citlens_mcp as m  # noqa: E402
+import citlens_cli as m  # noqa: E402
 
 PASS: list[str] = []
 FAIL: list[str] = []

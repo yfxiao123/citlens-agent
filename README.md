@@ -1,6 +1,6 @@
 # CiteLens for agents（citlens-agent）
 
-> **English** — CiteLens as an MCP tool server for AI agents (Claude Code, Codex CLI, zcode, Cursor, …): high-recall multi-source literature search, relevance triage, open-access full-text fetching (with an optional scansci-pdf last-resort channel), reading notes, BibTeX/RIS export, coverage audits and mechanical review verification — one shared literature pool across all your agents. The agent plans the queries and writes; this repo provides the reproducible retrieval machinery. Adding the free keys of the open scholarly indexes (Semantic Scholar / OpenAlex / Crossref / Serper) is recommended; it lifts rate limits and recall.
+> **English** — CiteLens as a CLI tool for AI agents (Claude Code, Codex CLI, zcode, Cursor, …): high-recall multi-source literature search, relevance triage, open-access full-text fetching (with an optional scansci-pdf last-resort channel), reading notes, BibTeX/RIS export, coverage audits and mechanical review verification — one shared literature pool across all your agents. The agent plans the queries and writes; this repo provides the reproducible retrieval machinery. Adding the free keys of the open scholarly indexes (Semantic Scholar / OpenAlex / Crossref / Serper) is recommended; it lifts rate limits and recall.
 >
 > ```bash
 > git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
@@ -8,7 +8,7 @@
 > .venv/Scripts/python install.py apply
 > ```
 
-citlens-agent 把 CiteLens 的文献检索能力做成一个 MCP 工具服务器，装进各类 AI agent 客户端。装好之后给出指令，agent 找文献、写综述时会直接调这套工具。
+citlens-agent 把 CiteLens 的文献检索能力做成一个 CLI 工具链（`citlens.cmd <tool> ...`，每次调用一份 JSON），装进各类 AI agent。装好之后给出指令，agent 找文献、写综述时会直接调这套工具。（2.0 起不再提供 MCP 服务器——CLI 一直是主接口，协议层只是它的转发。）
 
 **分工**：模型负责拆概念块、拟英文检索词、判断切题与否、组织综述论证——查询纪律（复述自检 → 寄存器阶梯 → 侦察先行）见随仓库分发的 skill。多源检索、融合去重、引文扩展、全文抓取、格式导出、核验——这些要稳定可复现的执行，由本仓库的工具链承担。
 
@@ -45,12 +45,14 @@ citlens-agent 把 CiteLens 的文献检索能力做成一个 MCP 工具服务器
 
 **无 key vs 有 key 的真实差别**（第三方满血测试实测）：S2 匿名池在连续取数时更容易 429——如实进 failed 桶、该查询跳过，`expand` 的种子解析与 `survey` 收割会明显缩水。配 key 后 S2 健康桶 `failed=0`，但**仍可能出现 429 burst**：区别是重试后能过，而不是"没有 429"。`web` 家族即使有 Serper，单查询能解析成文献记录的 URL 也很少——瓶颈在 URL→文献解析，不在搜索本身。
 
-## 两种调用面，同一引擎（harness 优先）
+## 一个调用面——CLI（2.0 起）
 
-同一 13 个工具、同一份共享数据家、同样的 JSON：
+13 个工具、一份共享数据家、一个 JSON 契约、一条进入路径：`citlens.cmd <tool> ...`。每次调用一个子进程、结果单 JSON 打印、全量记录始终落盘在池旁文件里。
 
-1. **Harness CLI（有 shell 的 agent 首选）**：`citlens.cmd <tool> ...`，每次调用一个子进程、结果单 JSON 打印、全量记录始终落盘在池旁文件里。长操作（search 2-6 分钟、screen/expand 1-2 分钟）用你 shell 自己的后台机制包裹——CLI 永远同步执行（实测：从短命 shell 命令派生的脱离任务会随 shell 进程树一起被清理，所以 harness 不做 detach）。
-2. **MCP（无 shell 客户端的适配层）**：同名工具。长工具（screen/gaps/expand）**默认以脱离任务运行**、立即返回 job_id，轮询 `status` 取结果——MCP 客户端会在 ~30s 强杀调用（实测三次），长命 server 才能保住脱离进程。
+命令分两类：
+
+- **`search`（以及 `fetch --background true`）按脱离任务跑**：~20 秒先拿到 job_id（检索真要几分钟，runner 必须活得比你的 shell 长），轮询 `status` 取结果。
+- **其余命令同步执行**（screen/expand 1-2 分钟）：要后台就用你 shell 自己的后台机制包裹（实测：从短命 shell 命令派生的脱离任务会随 shell 进程树一起被清理，所以这些不做 detach）。
 
 死任务自愈：任何状态读取都会回收"runner 进程已死或静默超 45 分钟"的任务并落盘 `lost` 与原因——任务永远不会永远挂在 running。
 
@@ -77,7 +79,7 @@ git clone https://github.com/yfxiao123/citlens-agent && cd citlens-agent
 python -m venv .venv
 .venv/Scripts/python -m pip install -e .        # macOS/Linux: .venv/bin/python
 .venv/Scripts/python install.py init            # 可选：录入免费 key 提升效果
-.venv/Scripts/python install.py apply           # 检测本机已装的 agent 并注册
+.venv/Scripts/python install.py apply           # 装 CLI shim + 共享配置 + skill（并清理 1.x 的 MCP 注册）
 ```
 
 **一些开源学术网站的 key**。用于增强检索功能：
@@ -87,7 +89,7 @@ python -m venv .venv
 3. `OPENALEX_API_KEY` — 日预算 ×10（[openalex.org/premium](https://openalex.org/premium)，个人研究者免费）
 4. `OPENALEX_EMAIL` / `CROSSREF_EMAIL` — 礼貌池待遇，留个邮箱即可，**无需注册**
 
-装好后重启 agent，运行 `doctor`：报告 key 的缺失项、效果和注册地址，照着填进数据目录的 `.env`（也可以让 agent 帮你填）。如果有缺失，限流降级会如实给出。代理设置、数据目录布局、卸载回滚、故障排查见 [INSTALL.md](INSTALL.md)；`.env` 各键含义见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
+装好后运行 `doctor`：报告 key 的缺失项、效果和注册地址，照着填进数据目录的 `.env`（也可以让 agent 帮你填）。如果有缺失，限流降级会如实给出。代理设置、数据目录布局、卸载回滚、故障排查见 [INSTALL.md](INSTALL.md)；`.env` 各键含义见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
 
 ## 工具
 
@@ -113,9 +115,9 @@ python -m venv .venv
 
 ## 支持的客户端
 
-安装器通过声明式注册表（`agents.json`）支持 21 个客户端，对每个 Agent，只增改 `citlens` 一项。
+CLI 对任何能跑命令的 agent 都直接可用。安装器另通过声明式注册表（`agents.json`）认识 21 个客户端——把 skill 装进它们各自的 skill 目录，并在发现 1.x 时代的 MCP 注册时自动清理（指向的 server 文件已不存在，留着只会是死条目）。
 
-> 本安装器用固定命名空间（server 名 `citlens`、`~/.citlens/config.json`、shim、`~/.agents/skills/citlens`、DSH bundle 名），多个实现会互相覆盖。
+> 本安装器用固定命名空间（`~/.citlens/config.json`、shim、`~/.agents/skills/citlens`），多个实现会互相覆盖。
 
 ## 数据与共享
 

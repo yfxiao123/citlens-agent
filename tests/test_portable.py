@@ -4,11 +4,12 @@
 Two things are checked, both without network and without touching the user's
 real agent configs:
 
-1. the MCP server speaks the protocol correctly (handshake, tool list, tool
-   calls, error paths, stdout purity, clean exit) — driven by a tiny stdio
-   client in this file;
+1. the CLI front end dispatches correctly (tool catalogue, real tool calls,
+   error paths, exit-code contract, stdout purity) — every call is a real
+   subprocess, exactly how an agent invokes it;
 2. `install.py` discovers the repo and plans/applies idempotently against a
-   throwaway HOME, so the four config dialects are exercised for real.
+   throwaway HOME: shim + config + skill are written and LEGACY 1.x MCP
+   registrations are cleaned up, never created.
 
 Run:  python test_portable.py            (plain, no pytest needed)
       python -m pytest test_portable.py  (if pytest is available)
@@ -18,18 +19,15 @@ from __future__ import annotations
 
 import json
 import os
-import queue
 import shutil
 import subprocess
 import sys
 import tempfile
-import threading
-import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent                  # the citlens-agent repo root
-SERVER = ROOT / "citlens_mcp.py"
+SERVER = ROOT / "citlens_cli.py"
 INSTALL = ROOT / "install.py"
 
 TOOLS = {"search", "pool", "fetch", "export", "audit", "screen", "verify",
@@ -48,65 +46,16 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     (PASS if ok else FAIL).append(name)
     print(("  PASS  " if ok else "  FAIL  ") + name + (f"   [{detail}]" if detail and not ok else ""))
 
-# ── a minimal MCP stdio client ────────────────────────────────────────────────
 
-
-class MCPClient:
-    """Speaks newline-delimited JSON-RPC exactly like a real client would."""
-
-    def __init__(self, config: Path):
-        env = dict(os.environ)
-        env["PYTHONUTF8"] = "1"
-        env["PYTHONIOENCODING"] = "utf-8"
-        self.proc = subprocess.Popen(
-            [sys.executable, str(SERVER), "serve", "--config", str(config)],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, encoding="utf-8", errors="replace", bufsize=1, env=env,
-        )
-        self.lines: "queue.Queue[str]" = queue.Queue()
-        self.raw_stdout: list[str] = []
-        self._next = 0
-        threading.Thread(target=self._pump, daemon=True).start()
-
-    def _pump(self) -> None:
-        assert self.proc.stdout is not None
-        for line in self.proc.stdout:
-            self.raw_stdout.append(line)
-            self.lines.put(line)
-
-    def send(self, msg: dict) -> None:
-        assert self.proc.stdin is not None
-        self.proc.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
-        self.proc.stdin.flush()
-
-    def notify(self, method: str, params: dict | None = None) -> None:
-        self.send({"jsonrpc": "2.0", "method": method, "params": params or {}})
-
-    def request(self, method: str, params: dict | None = None, timeout: float = 120.0) -> dict:
-        self._next += 1
-        msg_id = self._next
-        self.send({"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params or {}})
-        deadline = time.time() + timeout
-        while True:
-            left = deadline - time.time()
-            if left <= 0:
-                raise TimeoutError(f"no response to {method}")
-            try:
-                line = self.lines.get(timeout=left)
-            except queue.Empty:
-                raise TimeoutError(f"no response to {method}") from None
-            msg = json.loads(line)
-            if msg.get("id") == msg_id:
-                return msg
-
-    def close(self) -> int:
-        assert self.proc.stdin is not None
-        self.proc.stdin.close()
-        try:
-            return self.proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            return -1
+def _cli(config: Path, *args: str, timeout: float = 180.0) -> tuple[int, dict]:
+    """Run the CLI exactly like an agent would; return (exit_code, payload)."""
+    r = subprocess.run([sys.executable, str(SERVER), "--config", str(config), *args],
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=timeout)
+    try:
+        return r.returncode, json.loads(r.stdout)
+    except Exception:  # noqa: BLE001
+        return r.returncode, {"_stdout": r.stdout[:400]}
 
 
 def _temp_config() -> tuple[Path, Path]:
@@ -123,49 +72,25 @@ def _temp_config() -> tuple[Path, Path]:
     return cfg_path, tmp
 
 
-# ── protocol tests ───────────────────────────────────────────────────────────
+# ── CLI dispatch tests ───────────────────────────────────────────────────────
 
 
 def test_protocol() -> None:
-    print("\n== MCP protocol ==")
+    print("\n== CLI dispatch ==")
     cfg_path, tmp = _temp_config()
-    c = MCPClient(cfg_path)
     try:
-        init = c.request("initialize", {
-            "protocolVersion": "2025-06-18",
-            "capabilities": {},
-            "clientInfo": {"name": "test", "version": "1"},
-        })
-        res = init.get("result") or {}
-        check("initialize returns protocolVersion", res.get("protocolVersion") == "2025-06-18",
-              str(res.get("protocolVersion")))
-        check("initialize advertises tools", bool((res.get("capabilities") or {}).get("tools") is not None))
-        check("serverInfo name is citlens", (res.get("serverInfo") or {}).get("name") == "citlens")
-        check("initialize carries instructions",
-              "literature" in (res.get("instructions") or "").lower())
-        check("instructions name the agent as planner",
-              "planner" in (res.get("instructions") or "").lower())
-
-        # old clients negotiate down; unknown versions get our newest supported one
-        init_old = c.request("initialize", {"protocolVersion": "2024-11-05"})
-        check("protocol negotiation honours 2024-11-05",
-              (init_old.get("result") or {}).get("protocolVersion") == "2024-11-05")
-        init_bogus = c.request("initialize", {"protocolVersion": "1999-01-01"})
-        check("unknown protocol version falls back",
-              (init_bogus.get("result") or {}).get("protocolVersion") == "2025-06-18")
-
-        c.notify("notifications/initialized")
-
-        ping = c.request("ping")
-        check("ping returns an empty result", ping.get("result") == {})
-
-        tools = (c.request("tools/list").get("result") or {}).get("tools") or []
-        names = {t.get("name") for t in tools}
-        check("tools/list exposes all thirteen tools", names == TOOLS, str(sorted(names)))
+        # catalogue
+        code, cat = _cli(cfg_path, "tools")
+        names = {t.get("name") for t in (cat.get("tools") or [])}
+        check("tools exposes all thirteen tools", code == 0 and names == TOOLS,
+              str(sorted(names)))
         check("every tool has a description and an object inputSchema", all(
             t.get("description") and (t.get("inputSchema") or {}).get("type") == "object"
-            for t in tools))
-        search_schema = next(t for t in tools if t["name"] == "search")["inputSchema"]
+            for t in cat.get("tools") or []))
+        check("tools carries the discipline text",
+              "literature" in (cat.get("discipline") or "").lower()
+              and "planner" in (cat.get("discipline") or "").lower())
+        search_schema = next(t for t in cat["tools"] if t["name"] == "search")["inputSchema"]
         check("search schema requires topic", search_schema.get("required") == ["topic"])
         check("search schema enumerates the eight families incl. policy", (
             search_schema["properties"]["families"]["items"].get("enum") or []
@@ -175,122 +100,70 @@ def test_protocol() -> None:
               "queries" in search_schema["properties"])
         check("search schema takes policy_queries",
               "policy_queries" in search_schema["properties"])
-
-        # doctor: a real, offline tool call
-        doc = c.request("tools/call", {"name": "doctor", "arguments": {}})
-        payload = _payload(doc)
-        check("doctor call is not an error", not (doc.get("result") or {}).get("isError"))
-        check("doctor reports ok", payload.get("ok") is True, str(payload.get("notes")))
-        check("doctor never leaks key values", "sk-" not in json.dumps(payload))
-        check("doctor lists env key names", "env_keys_present" in payload)
-        check("doctor requires no LLM keys", payload.get("llm_keys_required") == [])
-
-        # structured tool errors, not protocol errors
-        nofetch = c.request("tools/call", {"name": "fetch", "arguments": {}})
-        fp = _payload(nofetch)
-        check("fetch without doi/title/arxiv is a clean error",
-              fp.get("ok") is False and (nofetch.get("result") or {}).get("isError") is True)
-
-        bad = c.request("tools/call", {"name": "search",
-                                       "arguments": {"topic": "x", "families": ["nope"]}})
-        bp = _payload(bad)
-        check("unknown family is rejected without spawning a job",
-              bp.get("ok") is False and "unknown families" in str(bp.get("error")))
-
-        missing = c.request("tools/call", {"name": "pool", "arguments": {}})
-        check("pool without topic is a clean error",
-              _payload(missing).get("ok") is False)
-
-        noaudit = c.request("tools/call", {"name": "audit", "arguments": {}})
-        check("audit without topic is a clean error",
-              _payload(noaudit).get("ok") is False)
-
-        noscreen = c.request("tools/call", {"name": "screen", "arguments": {}})
-        check("screen without topic/run_dir is a clean error",
-              _payload(noscreen).get("ok") is False
-              and (noscreen.get("result") or {}).get("isError") is True)
-
-        screen_def = next(t for t in tools if t["name"] == "screen")["inputSchema"]
+        screen_def = next(t for t in cat["tools"] if t["name"] == "screen")["inputSchema"]
         check("screen schema takes agent queries",
               "queries" in screen_def["properties"])
-
-        noverify = c.request("tools/call", {"name": "verify", "arguments": {}})
-        check("verify without review is a clean error",
-              _payload(noverify).get("ok") is False
-              and (noverify.get("result") or {}).get("isError") is True)
-        verify_def = next(t for t in tools if t["name"] == "verify")["inputSchema"]
+        verify_def = next(t for t in cat["tools"] if t["name"] == "verify")["inputSchema"]
         check("verify schema requires a review path",
               "review" in verify_def["properties"]
               and "review" in (verify_def.get("required") or []))
-
-        noexp = c.request("tools/call", {"name": "expand", "arguments": {"topic": "t"}})
-        check("expand without seeds is a clean error",
-              _payload(noexp).get("ok") is False
-              and (noexp.get("result") or {}).get("isError") is True)
-        expand_def = next(t for t in tools if t["name"] == "expand")["inputSchema"]
+        expand_def = next(t for t in cat["tools"] if t["name"] == "expand")["inputSchema"]
         check("expand schema: topic required, seeds optional with from_notes",
               set(expand_def.get("required") or []) == {"topic"}
               and "from_notes" in expand_def["properties"]
               and "directions" in expand_def["properties"])
-
-        nonotes = c.request("tools/call", {"name": "notes", "arguments": {}})
-        check("notes without topic is a clean error",
-              _payload(nonotes).get("ok") is False)
-        notes_def = next(t for t in tools if t["name"] == "notes")["inputSchema"]
+        notes_def = next(t for t in cat["tools"] if t["name"] == "notes")["inputSchema"]
         check("notes schema has verdict enum",
               notes_def["properties"]["verdict"].get("enum")
               == ["core", "uncertain", "off"])
-
-        dedup_def = next(t for t in tools if t["name"] == "dedup")["inputSchema"]
+        dedup_def = next(t for t in cat["tools"] if t["name"] == "dedup")["inputSchema"]
         check("dedup schema has merge flag", "merge" in dedup_def["properties"])
-        export_def = next(t for t in tools if t["name"] == "export")["inputSchema"]
+        export_def = next(t for t in cat["tools"] if t["name"] == "export")["inputSchema"]
         check("export formats include endnote + csljson",
               set(export_def["properties"]["format"]["enum"])
               == {"bib", "ris", "endnote", "csljson"})
 
-        unknown_tool = c.request("tools/call", {"name": "nope", "arguments": {}})
-        check("unknown tool returns isError with the tool list",
-              (unknown_tool.get("result") or {}).get("isError") is True
-              and "tools" in _payload(unknown_tool))
+        # doctor: a real, offline tool call — bare tool form (no `cli` prefix)
+        code, doc = _cli(cfg_path, "doctor")
+        check("doctor reports ok and exits 0",
+              code == 0 and doc.get("ok") is True, str(doc.get("notes")))
+        check("doctor never leaks key values", "sk-" not in json.dumps(doc))
+        check("doctor lists env key names", "env_keys_present" in doc)
+        check("doctor requires no LLM keys", doc.get("llm_keys_required") == [])
 
-        err = c.request("does/not/exist", {})
-        check("unknown method returns -32601",
-              (err.get("error") or {}).get("code") == -32601)
+        # the exit-code contract: tool-reported failure -> 1, usage error -> 2
+        code, fp = _cli(cfg_path, "fetch")
+        check("fetch without doi/title/arxiv: clean error, exit 1",
+              code == 1 and fp.get("ok") is False)
+        code, bp = _cli(cfg_path, "search", "--topic", "x", "--families", "nope")
+        check("unknown family is rejected without spawning a job",
+              code == 1 and bp.get("ok") is False
+              and "unknown families" in str(bp.get("error")))
+        for tool in ("pool", "audit", "screen", "verify", "notes"):
+            code, out = _cli(cfg_path, tool)
+            check(f"{tool} without required args: clean error, exit 1",
+                  code == 1 and out.get("ok") is False)
+        code, ep = _cli(cfg_path, "expand", "--topic", "t")
+        check("expand without seeds is a clean error",
+              code == 1 and ep.get("ok") is False)
+        code, up = _cli(cfg_path, "nope")
+        check("unknown command: usage error (exit 2) with the tool list",
+              code == 2 and "tools" in up)
 
-        res_empty = c.request("resources/list")
-        check("resources/list answers empty (clients probe it)",
-              (res_empty.get("result") or {}).get("resources") == [])
+        code, sp = _cli(cfg_path, "serve")
+        check("serve answers with the 2.0 removal note, exit 2",
+              code == 2 and "removed" in str(sp.get("error")))
+        code, bare = _cli(cfg_path)
+        check("bare invocation prints usage + tools + discipline, exit 2",
+              code == 2 and set(bare.get("tools") or []) == TOOLS
+              and "discipline" in bare)
 
-        # stdout purity: every frame must be a complete JSON-RPC object
-        check("stdout contains only JSON-RPC frames", all(
-            _is_jsonrpc_line(line) for line in c.raw_stdout))
-        code = c.close()
-        check("clean exit after stdin closes", code == 0, str(code))
+        # legacy explicit form still dispatches
+        code, doc2 = _cli(cfg_path, "cli", "doctor")
+        check("explicit `cli <tool>` form still works",
+              code == 0 and doc2.get("ok") is True)
     finally:
-        try:
-            c.proc.kill()
-        except Exception:  # noqa: BLE001
-            pass
         shutil.rmtree(tmp, ignore_errors=True)
-
-
-def _payload(response: dict) -> dict:
-    content = (response.get("result") or {}).get("content") or []
-    if not content:
-        return {}
-    try:
-        return json.loads(content[0].get("text") or "{}")
-    except Exception:  # noqa: BLE001
-        return {}
-
-
-def _is_jsonrpc_line(line: str) -> bool:
-    try:
-        msg = json.loads(line)
-    except Exception:  # noqa: BLE001
-        return False
-    return isinstance(msg, dict) and msg.get("jsonrpc") == "2.0" and (
-        "result" in msg or "error" in msg or "method" in msg)
 
 
 # ── install tests ────────────────────────────────────────────────────────────
@@ -317,33 +190,48 @@ def _run_install(env: dict, *args: str) -> subprocess.CompletedProcess:
 
 
 def test_install() -> None:
-    print("\n== installer (sandbox HOME) ==")
+    print("\n== installer (sandbox HOME, legacy cleanup) ==")
     tmp = Path(tempfile.mkdtemp(prefix="citlens-home-"))
-    # seed the four config dialects with realistic pre-existing content
+    # seed the sandbox like a REAL 1.x machine: other servers present AND
+    # stale citlens MCP entries the 2.0 installer must clean up
     (tmp / ".codex").mkdir(parents=True)
     (tmp / ".codex" / "config.toml").write_text(
-        'model = "deepseek-v4-flash"\n\n[mcp_servers.other]\ncommand = "x"\nargs = []\n',
+        'model = "deepseek-v4-flash"\n\n'
+        "[mcp_servers.other]\ncommand = \"x\"\nargs = []\n\n"
+        "# >>> citlens mcp (managed by ~/.citlens/install.py) >>>\n"
+        "[mcp_servers.citlens]\ncommand = 'old-python'\nargs = ['citlens_mcp.py', 'serve']\n\n"
+        "[mcp_servers.citlens.env]\nPYTHONUTF8 = '1'\n"
+        "# <<< citlens mcp <<<\n",
         encoding="utf-8")
     (tmp / ".claude.json").write_text(json.dumps(
-        {"numStartups": 12, "mcpServers": {"web-reader": {"type": "http",
-                                                          "url": "https://example.invalid/mcp"}}},
+        {"numStartups": 12, "mcpServers": {
+            "web-reader": {"type": "http", "url": "https://example.invalid/mcp"},
+            "citlens": {"type": "stdio", "command": "old-python",
+                        "args": ["citlens_mcp.py", "serve"]}}},
         ensure_ascii=False), encoding="utf-8")
     (tmp / ".zcode" / "cli").mkdir(parents=True)
     (tmp / ".zcode" / "cli" / "config.json").write_text(json.dumps(
-        {"mcp": {"servers": {"firecrawl": {"type": "stdio", "command": "npx"}}}},
+        {"mcp": {"servers": {
+            "firecrawl": {"type": "stdio", "command": "npx"},
+            "citlens": {"type": "stdio", "command": "old-python"}}}},
         ensure_ascii=False), encoding="utf-8")
     dsh_profile = tmp / ".dsh" / "profiles" / "desktop"
     dsh_profile.mkdir(parents=True)
     (dsh_profile / "package.json").write_text(json.dumps(
         {"name": "dsh-profile-desktop", "private": True,
-         "dsh": {"profile": {"bundles": ["@deepseek-ai/dsh-base"]}}}, indent=2), encoding="utf-8")
+         "dsh": {"profile": {"bundles": ["@deepseek-ai/dsh-base"]}}}, indent=2),
+        encoding="utf-8")
     env = _sandbox_home(tmp)
     try:
+        st0 = _run_install(env, "status")
+        check("status flags the stale 1.x registrations",
+              st0.stdout.count("stale-mcp") >= 3, st0.stdout[-500:])
+
         plan = _run_install(env, "plan")
         check("plan runs", plan.returncode == 0, plan.stderr[-400:])
         check("plan writes nothing", not (tmp / ".citlens" / "config.json").exists())
-        check("plan covers the detected clients",
-              all(a in plan.stdout for a in ("codex", "claude", "zcode", "dsh")))
+        check("plan previews the legacy cleanup",
+              "would remove" in plan.stdout and "would write CLI shim" in plan.stdout)
 
         apply1 = _run_install(env, "apply", "--no-dsh-auto")
         check("apply runs", apply1.returncode == 0, apply1.stderr[-400:])
@@ -355,33 +243,31 @@ def test_install() -> None:
         check("config lists all eight families (policy included)",
               len(cfg.get("families") or []) == 8 and "policy" in cfg["families"])
         check("CLI shim written", (tmp / ".citlens" / "bin" / "citlens.cmd").is_file())
+        shim = (tmp / ".citlens" / "bin" / "citlens.cmd").read_text(encoding="utf-8")
+        check("shim targets citlens_cli.py with the bare tool form",
+              "citlens_cli.py" in shim and " serve" not in shim)
 
         toml = (tmp / ".codex" / "config.toml").read_text(encoding="utf-8")
         check("codex: pre-existing model line kept", 'model = "deepseek-v4-flash"' in toml)
         check("codex: pre-existing mcp server kept", "[mcp_servers.other]" in toml)
-        check("codex: citlens mcp block added", "[mcp_servers.citlens]" in toml)
-        check("codex: skill block added", "[[skills.config]]" in toml)
+        check("codex: stale citlens block REMOVED",
+              "[mcp_servers.citlens]" not in toml and "citlens mcp" not in toml)
         check("codex: backup written", any(p.name.startswith("config.toml.citlens-backup-")
                                            for p in (tmp / ".codex").iterdir()))
 
         claude = json.loads((tmp / ".claude.json").read_text(encoding="utf-8"))
         check("claude: existing server kept", "web-reader" in claude["mcpServers"])
         check("claude: existing top-level keys kept", claude.get("numStartups") == 12)
-        check("claude: citlens stdio entry added",
-              claude["mcpServers"]["citlens"]["type"] == "stdio"
-              and Path(claude["mcpServers"]["citlens"]["command"]).is_file())
+        check("claude: stale citlens entry REMOVED",
+              "citlens" not in claude["mcpServers"])
 
         zcode = json.loads((tmp / ".zcode" / "cli" / "config.json").read_text(encoding="utf-8"))
         check("zcode: existing server kept", "firecrawl" in zcode["mcp"]["servers"])
-        check("zcode: citlens entry added",
-              zcode["mcp"]["servers"]["citlens"]["type"] == "stdio")
+        check("zcode: stale citlens entry REMOVED",
+              "citlens" not in zcode["mcp"]["servers"])
 
-        bundle = tmp / ".citlens" / "dsh-bundle"
-        check("dsh: bundle package.json written", (bundle / "package.json").is_file())
-        patch = (bundle / "cordis.patch.yml").read_text(encoding="utf-8")
-        check("dsh: patch inserts the mcp-client row",
-              "@deepseek-ai/dsh-mcp-client" in patch and "serverName: citlens" in patch
-              and "transport: stdio" in patch)
+        check("dsh: no bundle written (MCP machinery gone)",
+              not (tmp / ".citlens" / "dsh-bundle").exists())
 
         for target in (tmp / ".agents" / "skills" / "citlens",
                        tmp / ".claude" / "skills" / "citlens",
@@ -393,6 +279,8 @@ def test_install() -> None:
         check("skill carries the verification chain",
               all(k in skill_md for k in ("six-grade", "verdicts.jsonl",
                                           "verify", "clean", "honesty")))
+        check("skill is CLI-only (no MCP surface)",
+              "MCP tools" not in skill_md and "mcp__citlens__" not in skill_md)
 
         # idempotency: a second apply must change nothing and add no new backup
         before = {p: len(list(p.parent.glob(p.name + ".citlens-backup-*")))
@@ -406,50 +294,20 @@ def test_install() -> None:
               apply2.stdout[-900:])
 
         status = _run_install(env, "status")
-        check("status reports the three config-file clients as registered",
-              status.stdout.count("registered") >= 3, status.stdout[-800:])
-        check("status reports the dsh profile and the skill hub",
-              "profile 'desktop'" in status.stdout and "skill hub" in status.stdout)
+        check("status reports everything clean after apply",
+              "stale-mcp" not in status.stdout and "clean" in status.stdout,
+              status.stdout[-800:])
+        check("status reports the shim and the skill hub",
+              "shim" in status.stdout and "skill hub" in status.stdout)
         check("status reports per-agent skill dirs", "Per-agent skill dirs:" in status.stdout)
 
         un = _run_install(env, "uninstall", "--no-dsh-auto")
         check("uninstall runs", un.returncode == 0, un.stderr[-400:])
-        toml2 = (tmp / ".codex" / "config.toml").read_text(encoding="utf-8")
-        check("uninstall: codex block gone, rest intact",
-              "[mcp_servers.citlens]" not in toml2 and "[mcp_servers.other]" in toml2
-              and 'model = "deepseek-v4-flash"' in toml2)
-        claude2 = json.loads((tmp / ".claude.json").read_text(encoding="utf-8"))
-        check("uninstall: claude entry gone, rest intact",
-              "citlens" not in claude2["mcpServers"] and "web-reader" in claude2["mcpServers"])
-        zcode2 = json.loads((tmp / ".zcode" / "cli" / "config.json").read_text(encoding="utf-8"))
-        check("uninstall: zcode entry gone, rest intact",
-              "citlens" not in zcode2["mcp"]["servers"] and "firecrawl" in zcode2["mcp"]["servers"])
         check("uninstall: skill dirs removed",
               not (tmp / ".agents" / "skills" / "citlens").exists())
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
-
-def test_cli_fallback() -> None:
-    print("\n== CLI fallback (no MCP) ==")
-    cfg_path, tmp = _temp_config()
-    try:
-        r = subprocess.run([sys.executable, str(SERVER), "cli", "--config", str(cfg_path), "doctor"],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=180)
-        ok = r.returncode == 0
-        payload = {}
-        if ok:
-            try:
-                payload = json.loads(r.stdout)
-            except Exception:  # noqa: BLE001
-                ok = False
-        check("cli doctor prints one JSON document", ok and payload.get("ok") is True)
-        bad = subprocess.run([sys.executable, str(SERVER), "cli", "--config", str(cfg_path)],
-                             capture_output=True, text=True, encoding="utf-8", errors="replace",
-                             timeout=60)
-        check("cli without a tool prints usage JSON", bad.returncode == 2
-              and "tools" in bad.stdout)
+        check("uninstall: config + shim stay (managed assets)",
+              (tmp / ".citlens" / "config.json").is_file()
+              and (tmp / ".citlens" / "bin" / "citlens.cmd").is_file())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -478,22 +336,13 @@ def test_registry() -> None:
         check("list shows the mainstream clients",
               all(n in listing.stdout for n in ("cursor", "windsurf", "gemini", "opencode",
                                                 "cline", "zed", "aider")))
-        check("list marks dialects and confidence", "json-map" in listing.stdout
-              and "verified" in listing.stdout)
 
         snip = _run_install(env, "snippet", "zed")
-        # Zed's real shape: context_servers -> {command: {path, args}} — the
-        # old generic mcpServers JSON was not paste-ready (third-party P2-3)
-        check("snippet prints Zed's own context_servers shape",
-              snip.returncode == 0 and '"context_servers"' in snip.stdout
-              and '"path"' in snip.stdout and '"args"' in snip.stdout)
+        check("snippet answers with the 2.0 removal note",
+              snip.returncode == 2 and "removed" in snip.stdout)
 
-        snip2 = _run_install(env, "snippet", "aider")
-        check("snippet explains the CLI-only integration",
-              snip2.returncode == 0 and "CLI shim" not in snip2.stdout.lower()
-              and "citlens.cmd" in snip2.stdout)
-
-        # drop a brand-new client into ~/.citlens/agents.d and install it
+        # drop a brand-new client into ~/.citlens/agents.d and install it:
+        # its skill dir is data-driven; no MCP registration exists to write
         (tmp / ".citlens" / "agents.d").mkdir(parents=True)
         (tmp / ".citlens" / "agents.d" / "custom.json").write_text(json.dumps({
             "agents": {"myagent": {
@@ -501,7 +350,7 @@ def test_registry() -> None:
                 "dialect": "json-map",
                 "file": "~/.myagent/mcp.json",
                 "container": ["mcpServers"],
-                "env": True,
+                "skillDirs": ["~/.myagent/skills"],
             }}
         }), encoding="utf-8")
         listing2 = _run_install(env, "list")
@@ -509,26 +358,26 @@ def test_registry() -> None:
               "myagent" in listing2.stdout)
 
         applied = _run_install(env, "apply", "--only", "myagent", "--no-dsh-auto")
-        target = tmp / ".myagent" / "mcp.json"
-        ok = applied.returncode == 0 and target.is_file()
-        entry = {}
-        if ok:
-            entry = json.loads(target.read_text(encoding="utf-8"))["mcpServers"]["citlens"]
-        check("apply writes the stdio entry for a custom client",
-              ok and entry.get("type") == "stdio" and Path(entry.get("command", "")).is_file())
+        target = tmp / ".myagent" / "skills" / "citlens" / "SKILL.md"
+        check("apply installs the skill for a custom client",
+              applied.returncode == 0 and target.is_file(),
+              applied.stdout[-300:])
+        check("apply writes NO mcp.json for a custom client",
+              not (tmp / ".myagent" / "mcp.json").exists())
+
         # --only still installs the shared prelude (config + shim + hub): that is
         # shared infrastructure, not per-agent state. It must not touch other agents.
         check("--only still writes the shared prelude", (tmp / ".citlens" / "config.json").is_file())
         codex_after = (tmp / ".codex" / "config.toml").read_text(encoding="utf-8")
         check("--only leaves other agents' configs untouched",
-              "[mcp_servers.citlens]" not in codex_after)
+              "citlens" not in codex_after)
 
         removed = _run_install(env, "uninstall", "--only", "myagent", "--no-dsh-auto")
-        data = json.loads(target.read_text(encoding="utf-8"))
-        check("uninstall removes only the citlens key",
-              removed.returncode == 0 and "citlens" not in data.get("mcpServers", {}))
+        check("uninstall removes the custom client's skill",
+              removed.returncode == 0 and not target.exists())
 
         # a config file we cannot parse must never be "repaired" into emptiness
+        # (the legacy-cleanup path reads it; failure to parse = leave alone)
         bad = tmp / ".badagent" / "mcp.json"
         bad.parent.mkdir(parents=True)
         bad.write_text('{\n  // json5 comment\n  "mcpServers": {}\n}\n', encoding="utf-8")
@@ -541,18 +390,13 @@ def test_registry() -> None:
         check("unparsable client config is left untouched, not overwritten",
               bad_run.returncode == 0 and bad.read_text(encoding="utf-8").startswith("{\n  //"))
 
-        # --all creates configs for absent clients instead of skipping them
+        # --all covers every registry entry (skill dirs), never creates configs
         all_run = _run_install(env, "apply", "--all", "--no-dsh-auto")
-        check("apply --all creates configs for absent clients",
-              all_run.returncode == 0 and (tmp / ".cursor" / "mcp.json").is_file()
-              and (tmp / ".config" / "opencode" / "opencode.json").is_file())
-        cursor = json.loads((tmp / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
-        check("cursor entry uses the shared server argv",
-              cursor["mcpServers"]["citlens"]["args"][:1] == [str(SERVER)])
-        opencode = json.loads((tmp / ".config" / "opencode" / "opencode.json").read_text(encoding="utf-8"))
-        check("opencode uses its own dialect (type=local, command list)",
-              opencode["mcp"]["citlens"]["type"] == "local"
-              and isinstance(opencode["mcp"]["citlens"]["command"], list))
+        check("apply --all writes no absent-client config files",
+              all_run.returncode == 0 and not (tmp / ".cursor" / "mcp.json").exists()
+              and not (tmp / ".config" / "opencode" / "opencode.json").exists())
+        check("apply --all still distributes absent clients' skill dirs",
+              (tmp / ".cursor" / "skills" / "citlens" / "SKILL.md").is_file())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -635,15 +479,15 @@ def test_init_wizard() -> None:
         envp = (tmp / ".env").read_text(encoding="utf-8")
         check("env file holds the set keys", "SERPER_API_KEY=sp-1" in envp
               and "SEMANTIC_SCHOLAR_API_KEY=s2-1" in envp)
-        r3 = _run_install(env, "init", "--home", str(tmp), "--non-interactive",
-                          "--set", "OPENALEX_EMAIL=a@b.c")
+        _run_install(env, "init", "--home", str(tmp), "--non-interactive",
+                     "--set", "OPENALEX_EMAIL=a@b.c")
         envp2 = (tmp / ".env").read_text(encoding="utf-8")
         check("second init keeps earlier keys", "SERPER_API_KEY=sp-1" in envp2
               and "OPENALEX_EMAIL=a@b.c" in envp2)
 
         # upsert replaces in place, no duplicates
-        r4 = _run_install(env, "init", "--home", str(tmp), "--non-interactive",
-                          "--set", "SERPER_API_KEY=sp-2")
+        _run_install(env, "init", "--home", str(tmp), "--non-interactive",
+                     "--set", "SERPER_API_KEY=sp-2")
         envp3 = (tmp / ".env").read_text(encoding="utf-8")
         check("upsert replaces value in place",
               "SERPER_API_KEY=sp-2" in envp3 and "SERPER_API_KEY=sp-1" not in envp3
@@ -662,20 +506,20 @@ def test_init_wizard() -> None:
 def test_cli_arg_parsing() -> None:
     print("\n== CLI arg parsing (multi-value list keys) ==")
     sys.path.insert(0, str(ROOT))
-    import citlens_mcp  # noqa: PLC0415
+    import citlens_cli  # noqa: PLC0415
 
-    name, args = citlens_mcp._parse_cli_args(
+    name, args = citlens_cli._parse_cli_args(
         ["screen", "--topic", "t", "--queries", "sparse attention", "long context",
          "--limit", "5"])
     check("multi-value queries collected as a list",
           args.get("queries") == ["sparse attention", "long context"], str(args))
     check("scalar after the list still parsed", args.get("limit") == 5)
-    name2, args2 = citlens_mcp._parse_cli_args(
+    name2, args2 = citlens_cli._parse_cli_args(
         ["search", "--topic", "t", "--families", "raw,web", "--append-pool"])
     check("comma-separated families still accepted",
           args2.get("families") == ["raw,web"] or args2.get("families") == ["raw", "web"])
     check("boolean flag becomes True", args2.get("append_pool") is True)
-    name3, args3 = citlens_mcp._parse_cli_args(
+    name3, args3 = citlens_cli._parse_cli_args(
         ["expand", "--topic", "t", "--seeds", "10.1000/a", "2301.12345",
          "A Great Paper", "--directions", "backward", "recs"])
     check("expand seeds collected as a list",
@@ -737,7 +581,6 @@ def main() -> int:
     test_protocol()
     test_install()
     test_registry()
-    test_cli_fallback()
     test_engine_override_and_driver_scoping()
     test_init_wizard()
     test_cli_arg_parsing()

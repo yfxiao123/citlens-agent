@@ -1,13 +1,13 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens tools — the harness CLI (%USERPROFILE%\.citlens\bin\citlens.cmd <tool>, preferred when you have a shell) or the MCP server "citlens" (search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded survey writing through the CiteLens CLI (%USERPROFILE%\.citlens\bin\citlens.cmd <tool> — search, pool, screen, expand, fetch, export, audit, verify, status, doctor; one JSON document per call). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
 
 `citlens` is a tool, not a prompt. The retrieval mechanics live in a Python
-core exposed as a harness CLI (one subprocess per call — preferred) and an
-MCP server (for shell-less clients); you call it and report what it returns.
+core exposed as a CLI (one subprocess per call, one JSON document on stdout);
+you call it and report what it returns.
 That is the whole point: **the tool is what makes the search reproducible** —
 two different agents calling `search` with the same queries get the same
 pool, and an agent that searched can hand its pool to an agent that writes.
@@ -20,8 +20,7 @@ planning queries, judging relevance, writing, and verifying every claim.
 
 ## Tools
 
-Your client prefixes tool names with the server name (`mcp__citlens__search`,
-`citlens:search`, `citlens.search` — whatever it shows you). The names are:
+Every tool is a subcommand of the shim. The names are:
 
 | tool | purpose |
 |---|---|
@@ -39,13 +38,10 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed. Fail-closed: a review with claims but no verdicts file returns `clean=false` |
 | `status` | poll a running search job: state, elapsed, log tail, artifacts, stats |
 
-## Two surfaces, one engine — harness CLI first
+## One surface — the CLI
 
-The same 13 tools, same JSON, same shared data home, two ways in:
-
-**1. Harness CLI — PREFERRED when you have a shell** (every coding agent
-does). One subprocess per call, results printed as one JSON document, full
-records always in artifact files next to the pool:
+The 13 tools, one JSON contract, one shared data home, one way in (the MCP
+server that used to shadow this CLI was removed in 2.0):
 
 ```
 %USERPROFILE%\.citlens\bin\citlens.cmd search --topic "..." --queries "..." --target 60 --pivot 2
@@ -56,31 +52,28 @@ records always in artifact files next to the pool:
 %USERPROFILE%\.citlens\bin\citlens.cmd fetch --doi "..." --topic "..."
 %USERPROFILE%\.citlens\bin\citlens.cmd status --job_id "..."
 ```
-(macOS/Linux: `~/.citlens/bin/citlens` shim, same syntax.)
+(macOS/Linux: `~/.citlens/bin/citlens` shim, same syntax. `citlens.cmd`
+with no arguments prints usage; `citlens.cmd tools` prints the catalogue
+with every argument schema.)
 
-Timing: `search` takes 2–6 min, `screen`/`expand` ~1–2 min — run the
-command through your shell's OWN background mechanism (run_in_background)
-and read stdout when it completes. CLI calls always run synchronously:
-a detached job spawned from a short-lived shell command dies with the
-shell's process tree (measured), so the harness never detaches — your
-shell IS the background mechanism. Long operations write artifacts as
-they go (`screening.jsonl`, `<topic>.expand.json`, `pool.jsonl`), so a
-killed run keeps its evidence.
+Timing, two classes of command:
 
-**2. MCP tools — for clients without a shell** (Claude Desktop and
-friends). Same tool names as the table above. Long tools (`screen`,
-`gaps`, `expand`) run as DETACHED JOBS by default and return a `job_id`
-immediately — poll `status`; the result JSON arrives in log_tail. This
-is mandatory there because MCP clients hard-kill calls at ~30s (measured
-three times); a long-lived MCP server can keep detached runners alive, a
-short-lived shell cannot.
+- **Detached by design — `search` (always) and `fetch --background true`.**
+  They return a `job_id` after ~20s (`wait_seconds`): the search genuinely
+  takes 2–6 min and its runner must outlive your shell. Poll `status`.
+- **Synchronous — everything else** (`screen`/`expand` ~1–2 min, `gaps`,
+  `pool`, ...). Wrap them in your shell's OWN background mechanism
+  (run_in_background) and read stdout when done: a detached job spawned
+  from a short-lived shell command dies with the shell's process tree
+  (measured), so these never detach. Long operations write artifacts as
+  they go (`screening.jsonl`, `<topic>.expand.json`, `pool.jsonl`), so a
+  killed run keeps its evidence.
 
 Dead jobs self-heal: any state read reaps runners whose process died or
 that went silent >45 min, persisting state=lost with the reason — a job
 never sits in "running" forever.
 
-Never reimplement the search yourself when the CLI or the MCP tool is
-available.
+Never reimplement the search yourself when the CLI is available.
 
 ## The one rule
 
@@ -185,8 +178,8 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
        drifts alone. Measured to rescue golds no hand-written variant
        reached.
 3. **`search`** with `topic` + `queries`. Start with `wait_seconds` = 20 (the
-   config default; safe for clients that hard-kill calls at 30s — raise it
-   only when your client tolerates long calls). A
+   config default — you get the job_id early instead of a held shell; raise
+   it for scripted runs that prefer to wait). A
    rich topic takes 2–6 minutes; if you get a `job_id`, poll `status` rather
    than starting a second search. Keep `append_pool` true so the shared pool
    grows. **Reuse the topic string byte-identically** across searches — pools
@@ -495,7 +488,7 @@ Before declaring a task finished:
 | `api_keys_recommended_absent` | degraded *breadth*, not broken: no SERPER → web family skipped (report it); no OA key → polite-pool throttling |
 | `failed` sources in report | report them explicitly; never as zero hits |
 | pool empty before writing | run `search` for the byte-identical topic first |
-| `rejected: too many concurrent jobs` | poll the existing jobs; the server caps concurrency deliberately |
+| `rejected: too many concurrent jobs` | poll the existing jobs; the runner caps concurrency deliberately |
 | `fetch` returns `fulltext: false` | abstract-only citation; restrict claims accordingly and count it in the honesty block. `outcomes` names every leg tried and why it failed; `fetch --force` retries past the 1-day miss cache |
 | `verify` returns `clean: false` | fix before delivery: unresolved reference = fabricated citation; `span_not_found` = the quote is not in the source; `unverifiable_but_ground_text_exists` = downgrade or ground it; `claims_without_verdict > 0` = you shipped without judging every claim (write the verdicts file) |
 | `quality_flag: ai_generated` on a record | machine-synthesized report that self-describes as such — human judgment required, not citable as peer-reviewed scholarship |
@@ -506,5 +499,5 @@ All agents on this machine point at one data home, so the pool is shared:
 search in one agent, `pool`/`fetch`/write from another. Jobs survive the
 agent that started them (they are detached), so a long search is not lost
 when a session ends. One `~/.citlens/config.json` configures every agent at
-once. No LLM key is ever needed by the server — each agent uses its own
+once. No LLM key is ever needed by the tool — each agent uses its own
 model for the judgment work.

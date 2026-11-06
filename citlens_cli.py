@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""citlens_mcp.py — CiteLens for agents: one MCP server, any client, no LLM key.
+"""citlens_cli.py — CiteLens for agents: one CLI, any shell, no LLM key.
 
 Why this file exists
 --------------------
@@ -7,35 +7,43 @@ The agent-specific half of CiteLens (persona + skill + mode picker) cannot be
 shared: Codex reads AGENTS.md, Claude reads CLAUDE.md, DSH reads bundles. What
 *can* be shared is the part that actually finds literature. So the split is:
 
-    this repo (retrieval core, LLM-free)  ->  this MCP server  ->  {codex, claude, zcode, dsh, ...}
+    this repo (retrieval core, LLM-free)  ->  this CLI  ->  {any agent with a shell}
 
-Every one of those clients speaks MCP over stdio, so a single stdio server
-gives all of them the same tools, the same retrieval method and — because they
-all point at one CITLENS_HOME — the same literature pool. An agent that searches
-here can hand its pool to another agent that writes the review.
+Every agent that can run a command gets the same tools, the same retrieval
+method and — because they all point at one CITLENS_HOME — the same literature
+pool. An agent that searches here can hand its pool to another agent that
+writes the review. (An MCP server used to live here; it was removed in 2.0 —
+the CLI was always the primary interface and the protocol layer only ever
+re-exported it.)
 
-The deliberate design decision: this server makes **zero LLM calls and needs
-zero LLM keys**. The calling agent IS the model — it crafts the queries
-(`queries`), supplies anchor titles (`title_probes`) and web phrasings
-(`web_queries`), judges the relevance of the returned pool, and writes the
-review under the skill's verification discipline. What the server owns is
-everything mechanical and reproducible: the eight recall families, RRF fusion,
-citation snowball, survey harvest, full-text fetch, BibTeX/RIS export, the
-honest health buckets and the PRISMA exclusion log.
+The deliberate design decision: this CLI makes **zero LLM calls and needs zero
+LLM keys**. The calling agent IS the model — it crafts the queries (`queries`),
+supplies anchor titles (`title_probes`) and web phrasings (`web_queries`),
+judges the relevance of the returned pool, and writes the review under the
+skill's verification discipline. What the CLI owns is everything mechanical and
+reproducible: the eight recall families, RRF fusion, citation snowball, survey
+harvest, full-text fetch, BibTeX/RIS export, the honest health buckets and the
+PRISMA exclusion log.
 
 This file deliberately imports **nothing from citens**. It is a stdlib-only
-supervisor that (a) speaks JSON-RPC 2.0 on stdin/stdout and (b) spawns the two
-drivers — `citlens_recall.py` (seven-family recall) and `citlens_tools.py`
-(fetch / export / audit / screen / verify) — in this repo's own interpreter. The retrieval method
-therefore stays exactly where it is measured and tested; this layer adds no
-retrieval logic of its own.
+front end that translates command-line arguments into calls on the two drivers
+— `citlens_recall.py` (eight-family recall) and `citlens_tools.py`
+(fetch / export / audit / screen / verify / ...) — in this repo's own
+interpreter. The retrieval method therefore stays exactly where it is measured
+and tested; this layer adds no retrieval logic of its own.
 
-Subcommands
------------
-    serve       MCP stdio server (what the agents launch)
-    run-job     internal: detached job runner, spawned by `serve`
-    tools       print the tool list (debugging / docs)
-    selftest    protocol + config smoke test, no network
+Interface contract
+------------------
+    citlens_cli.py <tool> [--key value ...]     one JSON document on stdout
+    cli <tool> ...                              same thing, explicit form
+    tools                                       print the tool catalogue
+    selftest                                    config + doctor smoke test
+    run-job                                     internal: detached job runner
+                                                (spawned by search/fetch)
+
+Exit codes are part of the contract: 0 = the tool ran (inspect the JSON for
+`ok: false`), 1 = the tool reported failure, 2 = usage error. stdout carries
+the JSON document ONLY; every log line goes to stderr.
 
 Config
 ------
@@ -43,14 +51,6 @@ Config
     $CITLENS_CONFIG                          override the file path
     $CITLENS_HOME                            override the data home
     $CITLENS_PYTHON                          override the repo interpreter
-
-Protocol notes (so this stays maintainable)
--------------------------------------------
-MCP stdio transport is newline-delimited JSON-RPC 2.0, one message per line,
-UTF-8. stdout carries protocol frames ONLY; every log line goes to stderr. A
-notification (no `id`) never gets a response. Unknown methods with an `id` get
--32601. Tool failures are reported as results with `isError: true`, never as
-JSON-RPC errors, so the calling model can read the reason.
 """
 
 from __future__ import annotations
@@ -66,8 +66,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SERVER_NAME = "citlens"
-SERVER_VERSION = "1.1.0"
-SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+SERVER_VERSION = "2.0.0"  # 2.0: the MCP server is gone; the CLI is the interface
 
 _REPO_ROOT = Path(__file__).resolve().parent
 
@@ -75,10 +74,12 @@ ALL_FAMILIES = [
     "agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey", "policy",
 ]
 
-# The retrieval discipline each tool result reminds the model about. These are
-# the rules from the CiteLens skill that must survive the trip through a client
-# that never read the skill at all (e.g. an agent that only sees the tool list).
-INSTRUCTIONS = (
+# The retrieval discipline every interface reminds the model about. These are
+# the rules from the CiteLens skill that must survive the trip through an agent
+# that never read the skill at all (e.g. one that only ran `tools` or `search`).
+# It used to ride the MCP initialize handshake; now `tools` prints it and
+# `search` results carry the pointer.
+DISCIPLINE = (
     "CiteLens literature search is available. For ANY literature/paper/survey "
     "question, call `search` instead of inventing your own search — and YOU are "
     "the planner: craft the English concept-block queries yourself (4-6 concepts "
@@ -149,21 +150,20 @@ DEFAULT_CONFIG = {
     "sources": ["arxiv", "semantic_scholar", "openalex", "crossref"],
     "families": ALL_FAMILIES,
     "target": 60,
-    # 20, not 45: several MCP clients (zcode observed 2026-11-05) hard-kill a
-    # tool call at 30s — and the kill takes the freshly spawned runner down
-    # with it (measured: a queued search's runner died before its first log
-    # line, state stuck "lost"). Returning the job_id at ~20s leaves the poll
-    # pattern (`status`) as the only contract; raising this per-call via
-    # wait_seconds is still allowed for clients without the 30s wall.
+    # 20, not 45: interactive callers want an answer fast (measured history:
+    # MCP clients hard-killed a tool call at 30s and the kill took the freshly
+    # spawned runner down with it; same UX applies to a shell). Returning the
+    # job_id at ~20s leaves the poll pattern (`status`) as the only contract;
+    # raising this per-call via wait_seconds is fine for scripted runs.
     "wait_seconds": 20,
     "max_concurrent_jobs": 3,
 }
 
 
 def _log(msg: str) -> None:
-    """stderr only — stdout belongs to the protocol."""
+    """stderr only — stdout belongs to the JSON document."""
     try:
-        sys.stderr.write(f"[citlens-mcp] {msg}\n")
+        sys.stderr.write(f"[citlens] {msg}\n")
         sys.stderr.flush()
     except Exception:  # noqa: BLE001
         pass
@@ -420,10 +420,11 @@ def _find_run_dir(cfg: dict, kind: str, since: float) -> str | None:
 
 
 def start_job(cfg: dict, kind: str, payload: dict) -> dict:
-    """Spawn a DETACHED runner so the job survives this MCP server and its client.
+    """Spawn a DETACHED runner so the job survives the calling shell / agent.
 
-    That detachment is the whole point: the user can start a 5-minute recall in
-    Claude, close Claude, and read the pool from Codex a minute later.
+    That detachment is the whole point: the user can start a 5-minute recall,
+    close the terminal or the agent, and read the pool from another agent a
+    minute later.
     """
     python = cfg.get("python") or sys.executable
     driver = cfg.get("recall_driver") if kind == "search" else cfg.get("tools_driver")
@@ -824,10 +825,10 @@ def tool_fetch(cfg: dict, args: dict) -> dict:
         # miss or an upstream fix (third-party addendum P2-12).
         argv += ["--force"]
     if args.get("background"):
-        # A fulltext download + PDF conversion can outlive MCP clients that
-        # hard-kill calls at ~30s (zcode, measured 2026-11-05). background
-        # runs the same driver as a detached job; poll `status` — for tools
-        # jobs the log_tail IS the result JSON.
+        # A fulltext download + PDF conversion can take many minutes and
+        # would hold the calling shell hostage. background runs the same
+        # driver as a detached job; poll `status` — for tools jobs the
+        # log_tail IS the result JSON.
         started = start_job(cfg, "fetch", {"argv": argv})
         if started.get("ok"):
             started["hint"] = (
@@ -980,10 +981,11 @@ def _search_view(cfg: dict, st: dict) -> dict:
 def _maybe_background(cfg: dict, args: dict, argv: list, tool_name: str, topic: str):
     """Long tools (screen / gaps / expand) run as DETACHED JOBS by default —
     harness-first (2026-11-06): these operations legitimately take minutes
-    (embedding download, decide layer, citation crawls) and MCP clients
-    hard-kill calls at ~30s — the failure that killed screen and expand live
-    in the A股动量机制 run. Background-by-default makes the 30s kill class
-    structurally impossible instead of patched per-incident; pass
+    (embedding download, decide layer, citation crawls) — long enough that a
+    synchronous call would hold the agent's shell hostage for the whole run
+    (this class of failure killed screen and expand live in the A股动量机制
+    run). Background-by-default makes that class structurally impossible
+    instead of patched per-incident; pass
     ``background: false`` to run synchronously (small pools, quick checks).
     Poll `status` — for tools jobs the log_tail IS the result JSON (compact
     view; full records in the artifact files)."""
@@ -1290,7 +1292,7 @@ def tool_pool(cfg: dict, args: dict) -> dict:
     }
 
 
-# ── MCP protocol ──────────────────────────────────────────────────────────────
+# ── tool catalogue (CLI help / docs; printed by `tools`) ─────────────────────
 
 TOOL_DEFS = [
     {
@@ -1456,7 +1458,7 @@ TOOL_DEFS = [
                 "decide_limit": {"type": "integer",
                                  "description": "Max records the decision layer processes (0 = all; default 0)."},
                 "background": {"type": "boolean",
-                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (long tools get killed by MCP clients at ~30s otherwise). Poll `status`. Pass false to run synchronously — only for small pools / quick checks."},
+                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (long tools would hold the caller's shell hostage otherwise). Poll `status`. Pass false to run synchronously — only for small pools / quick checks."},
             },
             "required": [],
         },
@@ -1491,7 +1493,7 @@ TOOL_DEFS = [
                 "model": {"type": "string",
                           "description": "Novelty-check embedding model override (empty string disables the semantic channel — use for offline runs)."},
                 "background": {"type": "boolean",
-                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (the embedding download or a big coverage matrix exceeds MCP clients' ~30s kill). Poll `status`. Pass false to run synchronously."},
+                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (the embedding download or a big coverage matrix runs for many minutes). Poll `status`. Pass false to run synchronously."},
             },
             "required": [],
         },
@@ -1548,7 +1550,7 @@ TOOL_DEFS = [
                 "limit_per_paper": {"type": "integer", "description": "Per seed per direction (default 20)."},
                 "no_write": {"type": "boolean", "description": "Return without merging into the pool."},
                 "background": {"type": "boolean",
-                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (citation crawls are throttled and MCP clients kill calls at ~30s). Poll `status`. Pass false to run synchronously."},
+                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (citation crawls are throttled and run for many minutes). Poll `status`. Pass false to run synchronously."},
             },
             "required": ["topic"],
         },
@@ -1652,112 +1654,6 @@ def handle_tool(cfg: dict, name: str, args: dict) -> dict:
     if name == "dedup":
         return tool_dedup(cfg, args)
     return {"ok": False, "error": f"unknown tool {name!r}", "tools": [t["name"] for t in TOOL_DEFS]}
-
-
-def _result(payload: dict, is_error: bool = False) -> dict:
-    text = json.dumps(payload, ensure_ascii=False, indent=1, default=str)
-    return {"content": [{"type": "text", "text": text}], "isError": bool(is_error)}
-
-
-class Server:
-    def __init__(self, cfg: dict):
-        self.cfg = cfg
-        self._initialized = False
-
-    # -- transport ---------------------------------------------------------
-    def log(self, msg: str) -> None:
-        _log(msg)
-
-    def send(self, msg: dict) -> None:
-        data = json.dumps(msg, ensure_ascii=False).encode("utf-8", "replace")
-        out = sys.stdout.buffer
-        out.write(data + b"\n")
-        out.flush()
-
-    def reply(self, msg_id, result: dict) -> None:
-        self.send({"jsonrpc": "2.0", "id": msg_id, "result": result})
-
-    def error(self, msg_id, code: int, message: str) -> None:
-        if msg_id is None:
-            return
-        self.send({"jsonrpc": "2.0", "id": msg_id, "error": {"code": code, "message": message}})
-
-    # -- dispatch ----------------------------------------------------------
-    def dispatch(self, msg: dict) -> None:
-        msg_id = msg.get("id")
-        method = msg.get("method") or ""
-        params = msg.get("params") or {}
-        if msg_id is None and method.startswith("notifications/"):
-            return  # notifications never get a response
-        try:
-            if method == "initialize":
-                asked = params.get("protocolVersion") or ""
-                version = asked if asked in SUPPORTED_PROTOCOLS else SUPPORTED_PROTOCOLS[0]
-                self._initialized = True
-                self.reply(msg_id, {
-                    "protocolVersion": version,
-                    "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-                    "instructions": INSTRUCTIONS,
-                })
-            elif method == "ping":
-                self.reply(msg_id, {})
-            elif method == "tools/list":
-                self.reply(msg_id, {"tools": TOOL_DEFS})
-            elif method == "tools/call":
-                name = params.get("name") or ""
-                args = params.get("arguments") or {}
-                try:
-                    payload = handle_tool(self.cfg, name, args)
-                except Exception as e:  # noqa: BLE001 — a tool bug must not kill the session
-                    self.log(f"tool {name} raised: {e}")
-                    payload = {"ok": False, "error": f"tool raised: {type(e).__name__}: {e}"}
-                ok = payload.get("ok", True) is not False and payload.get("state") not in ("failed", "rejected", "refused")
-                self.reply(msg_id, _result(payload, is_error=not ok))
-            elif method in ("resources/list",):
-                self.reply(msg_id, {"resources": []})
-            elif method in ("resources/templates/list",):
-                self.reply(msg_id, {"resourceTemplates": []})
-            elif method in ("prompts/list",):
-                self.reply(msg_id, {"prompts": []})
-            elif method in ("shutdown", "exit"):
-                self.reply(msg_id, {})
-                raise SystemExit(0)
-            else:
-                self.error(msg_id, -32601, f"method not found: {method}")
-        except SystemExit:
-            raise
-        except Exception as e:  # noqa: BLE001
-            self.log(f"dispatch failed for {method}: {e}")
-            self.error(msg_id, -32603, f"internal error: {e}")
-
-    def serve(self) -> int:
-        self.log(f"ready · server={SERVER_NAME} v{SERVER_VERSION} · config={self.cfg.get('config_path')}"
-                 f" · home={self.cfg.get('home')}")
-        stdin = sys.stdin.buffer
-        while True:
-            try:
-                raw = stdin.readline()
-            except Exception:  # noqa: BLE001
-                break
-            if not raw:
-                break
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line.decode("utf-8", "replace"))
-            except Exception as e:  # noqa: BLE001
-                self.send({"jsonrpc": "2.0", "id": None,
-                           "error": {"code": -32700, "message": f"parse error: {e}"}})
-                continue
-            if isinstance(msg, list):  # JSON-RPC batch
-                for item in msg:
-                    if isinstance(item, dict):
-                        self.dispatch(item)
-            elif isinstance(msg, dict):
-                self.dispatch(msg)
-        return 0
 
 
 # ── detached job runner ───────────────────────────────────────────────────────
@@ -1882,7 +1778,7 @@ def selftest(cfg: dict) -> int:
     for k, v in (doc.get("drivers") or {}).items():
         if not v.get("exists"):
             problems.append(f"{k} driver missing: {v.get('path')}")
-    print("protocol: tools/list + tools/call(doctor) exercised by tests/test_portable.py")
+    print("interface: cli dispatch + doctor exercised by tests/test_portable.py")
     if problems:
         print("\nPROBLEMS:")
         for p in problems:
@@ -1943,80 +1839,96 @@ def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
     return name, args
 
 
+_TOOL_NAMES = [t["name"] for t in TOOL_DEFS]
+_META_COMMANDS = ("tools", "selftest", "run-job", "cli")
+
+
+def _cli_dispatch(cfg: dict, rest: list[str]) -> int:
+    """The one and only front end: tool name + flags -> one JSON document."""
+    rest2: list[str] = []
+    i = 0
+    while i < len(rest):  # drop the global --config pair before tool parsing
+        if rest[i] == "--config" and i + 1 < len(rest):
+            i += 2
+            continue
+        rest2.append(rest[i])
+        i += 1
+    name, args = _parse_cli_args(rest2)
+    if not name:
+        print(json.dumps({"ok": False,
+                          "error": f"usage: {Path(__file__).name} <tool> [--key value ...] "
+                                   "(or: tools | selftest)",
+                          "tools": _TOOL_NAMES, "discipline": DISCIPLINE},
+                         ensure_ascii=False, indent=1))
+        return 2
+    if name in ("screen", "gaps", "expand"):
+        # A CLI caller HAS a shell — detachment is the caller's job (run the
+        # command itself in background). A detached job spawned from a
+        # short-lived shell command dies with the shell's process tree anyway
+        # (measured 2026-11-06: citlens.cmd screen -> job lost mid-embedding
+        # when the shell returned). Run synchronously; `--background true`
+        # is refused with a note.
+        if args.get("background"):
+            print(json.dumps({"ok": False, "error":
+                "background is not available on the CLI (a detached job "
+                "spawned from a shell command dies with the shell's "
+                "process tree). Run this command synchronously, or wrap "
+                "it in your shell's own background mechanism "
+                "(run_in_background), then read the artifact files."},
+                ensure_ascii=False))
+            return 2
+        args["background"] = False
+    try:
+        payload = handle_tool(cfg, name, args)
+    except Exception as e:  # noqa: BLE001
+        payload = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    print(json.dumps(payload, ensure_ascii=False, indent=1, default=str))
+    # harness semantics: the exit code is part of the contract — automation
+    # branches on it. This returned 0 unconditionally, so `citlens.cmd pool
+    # --topic missing` and unknown tools both read as success (measured
+    # 2026-11-06). NOTE: several views (status, doctor) carry no `ok` key —
+    # absence must mean success, only an explicit false (or a bare error)
+    # fails; the first cut of this rule broke `status` (state=done, exit 1).
+    failed = payload.get("ok") is False or (
+        payload.get("ok") is None and bool(payload.get("error"))
+    )
+    return 1 if failed else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    cmd = argv[0] if argv else "serve"
-    rest = argv[1:]
-    config = None
-    for i, a in enumerate(rest):
-        if a == "--config" and i + 1 < len(rest):
-            config = rest[i + 1]
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:  # noqa: BLE001
             pass
-    if cmd == "serve":
-        return Server(load_config(config)).serve()
+    # `--config PATH` may sit before or after the tool name (the shim and
+    # hand-typed calls both do this); no tool takes a --config argument
+    config = None
+    rest = list(argv)
+    if "--config" in rest:
+        i = rest.index("--config")
+        if i + 1 < len(rest):
+            config = rest[i + 1]
+            del rest[i:i + 2]
+    cmd = rest[0] if rest else ""
+    rest = rest[1:]
+    if cmd == "cli":  # explicit form: `cli search --topic ...`
+        return _cli_dispatch(load_config(config), rest)
     if cmd == "tools":
-        print(json.dumps(TOOL_DEFS, ensure_ascii=False, indent=1))
+        print(json.dumps({"tools": TOOL_DEFS, "discipline": DISCIPLINE},
+                         ensure_ascii=False, indent=1))
         return 0
-    if cmd == "cli":
-        # Portable fallback for an agent whose client speaks no MCP: same tools,
-        # same JSON, one JSON document on stdout. `citlens.cmd search --topic ...`
-        cfg = load_config(config)
-        rest2: list[str] = []
-        i = 0
-        while i < len(rest):  # drop the global --config pair before tool parsing
-            if rest[i] == "--config" and i + 1 < len(rest):
-                i += 2
-                continue
-            rest2.append(rest[i])
-            i += 1
-        name, args = _parse_cli_args(rest2)
-        if name == "tools":
-            # the shim always prepends `cli`, so the top-level `tools`
-            # discovery command was unreachable through `citlens.cmd tools`
-            # (measured 2026-11-06: "unknown tool 'tools'"). Route it.
-            print(json.dumps(TOOL_DEFS, ensure_ascii=False, indent=1))
-            return 0
-        if name in ("screen", "gaps", "expand"):
-            # harness-first: a CLI caller HAS a shell — detachment is the
-            # caller's job (run the command itself in background). A detached
-            # job spawned from a short-lived shell command dies with the
-            # shell's process tree anyway (measured 2026-11-06: citlens.cmd
-            # screen -> job lost mid-embedding when the shell returned), so
-            # the MCP background default would only produce corpses here.
-            # Run synchronously; `--background true` is refused with a note.
-            if args.get("background"):
-                print(json.dumps({"ok": False, "error":
-                    "background jobs are an MCP-only mode (a detached job "
-                    "spawned from a shell command dies with the shell's "
-                    "process tree). Run this command synchronously, or wrap "
-                    "it in your shell's own background mechanism "
-                    "(run_in_background), then read the artifact files."},
-                    ensure_ascii=False))
-                return 2
-            args["background"] = False
-        if not name:
-            print(json.dumps({"ok": False, "error": "usage: cli <tool> [--key value ...]",
-                              "tools": [t["name"] for t in TOOL_DEFS]}, ensure_ascii=False, indent=1))
-            return 2
-        try:
-            payload = handle_tool(cfg, name, args)
-        except Exception as e:  # noqa: BLE001
-            payload = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        print(json.dumps(payload, ensure_ascii=False, indent=1, default=str))
-        # harness semantics: the exit code is part of the contract — automation
-        # branches on it. This returned 0 unconditionally, so `citlens.cmd pool
-        # --topic missing` and unknown tools both read as success (measured
-        # 2026-11-06). NOTE: several views (status, doctor) carry no `ok` key —
-        # absence must mean success, only an explicit false (or a bare error)
-        # fails; the first cut of this rule broke `status` (state=done, exit 1).
-        failed = payload.get("ok") is False or (
-            payload.get("ok") is None and bool(payload.get("error"))
-        )
-        return 1 if failed else 0
+    if cmd == "serve":
+        # 2.0 removed the MCP server — the CLI is the interface. Old client
+        # registrations still point here; tell the caller exactly that.
+        print(json.dumps({"ok": False,
+                          "error": "the MCP server was removed in 2.0 — the CLI is the "
+                                   "interface. Run `install.py apply` to clean up this "
+                                   "registration, then call the tools as shell commands "
+                                   "(citlens.cmd <tool> ...).",
+                          "tools": _TOOL_NAMES}, ensure_ascii=False))
+        return 2
     if cmd == "selftest":
         return selftest(load_config(config))
     if cmd == "run-job":
@@ -2039,17 +1951,19 @@ def main(argv: list[str] | None = None) -> int:
             _log("run-job needs --job-dir")
             return 2
         return run_job(job_dir, config_kind or "", kind)
-    print(f"usage: {Path(__file__).name} [serve|tools|selftest|cli|run-job] [--config PATH]")
+    if cmd in _TOOL_NAMES:  # bare tool form: `citlens.cmd search --topic ...`
+        return _cli_dispatch(load_config(config), [cmd, *rest])
+    if not cmd:
+        _cli_dispatch(load_config(config), [])  # prints usage + tool list
+        return 2
+    print(json.dumps({"ok": False, "error": f"unknown command {cmd!r}",
+                      "tools": _TOOL_NAMES}, ensure_ascii=False, indent=1))
     return 2
 
 
 def console_main() -> None:
-    """Console entry point (`citlens-mcp`). Defaults to `serve` so an MCP client
-    can point at the command with no arguments."""
-    argv = list(sys.argv[1:])
-    if not argv:
-        argv = ["serve"]
-    sys.exit(main(argv))
+    """Console entry point (`citlens-agent`). Bare invocation prints usage."""
+    sys.exit(main())
 
 
 if __name__ == "__main__":

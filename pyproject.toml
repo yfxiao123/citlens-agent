@@ -39,14 +39,14 @@ dev = ["pytest>=8", "ruff>=0.4", "mypy>=1.8"]
 embedding = ["sentence-transformers>=2.7", "torch>=2.1"]
 
 [project.scripts]
-citlens-agent = "citlens_mcp:console_main"
+citlens-agent = "citlens_cli:console_main"
 
 [project.urls]
 Homepage = "https://github.com/yfxiao123/citlens-agent"
 Engine = "https://github.com/yfxiao123/citens"
 
 [tool.setuptools]
-py-modules = ["citlens_mcp"]
+py-modules = ["citlens_cli"]
 
 [tool.setuptools.packages.find]
 include = ["citens*"]

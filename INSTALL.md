@@ -1,6 +1,6 @@
 # 安装与配置
 
-目标：把 CiteLens 装进你的 AI agent。全程不需要任何 LLM API key。
+目标：把 CiteLens 装进你的 AI agent（一个 CLI 工具链，任何能跑命令的 agent 都能用）。全程不需要任何 LLM API key。
 
 > 这份文档也是给 agent 看的安装说明书——用户一句"帮我装
 > https://github.com/yfxiao123/citlens-agent"就该触发你从上到下按节执行。
@@ -11,7 +11,7 @@
 
 - Python ≥ 3.10（`python --version` 可执行）
 - git
-- 你至少有一个 MCP 客户端（Claude Code / Codex CLI / zcode / DSH / Cursor / ...），或用 CLI 通道
+- 你的 agent 能执行 shell 命令（Claude Code / Codex CLI / zcode / Cursor / ... 都可以）
 - 网络可达 arxiv.org / api.semanticscholar.org / api.openalex.org / api.crossref.org
 
 > **代理注意（Windows 常见坑）**：若 git 报 `Failed to connect to 127.0.0.1:7897`，说明全局配了
@@ -40,41 +40,39 @@ python -m venv .venv
 Serper（web 桥接家族）、Semantic Scholar（限速提升）、OpenAlex（key 或邮箱二选一）。
 逐键说明见 [docs/CONFIGURATION.md](docs/CONFIGURATION.md)。
 
-## 3. 注册进 agent
+## 3. 装进 agent
 
 ```bash
-.venv/Scripts/python install.py plan     # 干跑：将检测到哪些客户端、会写什么
-.venv/Scripts/python install.py apply    # 实际写入（写前自动备份，只动 citlens 一个键）
+.venv/Scripts/python install.py plan     # 干跑：将写什么、会清理哪些旧注册
+.venv/Scripts/python install.py apply    # 写 shim + 共享配置 + skill；清理 1.x 的 MCP 注册
 .venv/Scripts/python install.py list     # 查看全部 21 个已声明客户端
+.venv/Scripts/python install.py status   # CLI 资产状态 + 残留旧注册
 ```
 
-- 只装指定客户端：`apply --only zcode,claude`
-- 没被检测到的客户端也强制生成配置：`apply --all`
-- 一个 MCP 客户端都没检测到时，`plan/apply` 仍会写共享 config + CLI shim + skill
-  （纯 CLI 用户可直接用 `citlens.cmd`），不会 exit 1
-- 手工粘贴型客户端：`install.py snippet zed` 打印即贴（按客户端方言生成：
-  Zed `context_servers`、Goose/Continue YAML、Crush `mcp`、Copilot `servers`）
+apply 写四样东西：
 
-注册内容是标准的 stdio MCP 条目（command = 本仓库 venv 的 python，args =
-`<repo>/citlens_mcp.py serve --config ~/.citlens/config.json`）。skill 会同时安装到
-`~/.agents/skills/citlens`（跨客户端约定）与各客户端自己的 skill 目录。
+- `~/.citlens/bin/citlens.cmd` —— CLI 入口（`citlens.cmd <tool> ...`）
+- `~/.citlens/config.json` —— 所有 agent 共享的本机配置（数据家路径、venv 解释器）
+- `~/.agents/skills/citlens` —— 跨客户端约定的 skill（教学 agent 怎么用这套工具）
+- 各被检测客户端自己的 skill 目录（声明在 `agents.json`，可用 `--only` 限定、`--all` 全覆盖）
 
-**重启你的 agent** 使 MCP 注册生效。
+同时它会**清理 1.x 安装留下的 MCP 注册**（旧条目指向的 server 文件已不存在）。一个客户端
+都没检测到时照样写上面四样（不会 exit 1）——任何能跑命令的 agent 都能直接用 `citlens.cmd`。
 
 ## 4. 验收
 
 对 agent 说：
 
-> run the citlens doctor tool
+> run `citlens.cmd doctor` and show me the result
 
 期望 `doctor.ok: true`（配置里的 families 不含本构建不支持的旧家族名），十三个工具
 （search / pool / fetch / export / audit / screen / gaps / verify / expand / notes /
-dedup / status / doctor）可见。
-命令行直接验收：
+dedup / status / doctor）可用。命令行直接验收：
 
 ```bash
-.venv/Scripts/python citlens_mcp.py selftest
+.venv/Scripts/python citlens_cli.py selftest
 %USERPROFILE%\.citlens\bin\citlens.cmd doctor
+%USERPROFILE%\.citlens\bin\citlens.cmd tools
 ```
 
 再让它真跑一次（可选）：
@@ -104,10 +102,10 @@ dedup / status / doctor）可见。
 .venv/Scripts/python install.py uninstall
 ```
 
-`uninstall` 只移除本安装器添加的注册项（客户端里的 `citlens` 条目、`~/.agents/skills/citlens`、
-DSH bundle 引用），并保留 `~/.citlens/config.json` / shim / 数据家。客户端配置文件在改写前会写
-`.citlens-backup-<ts>` 副本；shim、skill 目录与 DSH bundle 是**受管重建**（不是用户手写内容），
-因此没有逐文件备份——需要回滚时用 `install.py apply` 重新指向目标实现即可。
+`uninstall` 移除本安装器装的 skill 副本并清理任何 citlens 注册残留，保留
+`~/.citlens/config.json` / shim / 数据家。客户端配置文件只在**移除**旧注册时被改写，改写前会写
+`.citlens-backup-<ts>` 副本；shim 与 skill 目录是**受管重建**（不是用户手写内容），因此没有
+逐文件备份——需要回滚时用 `install.py apply` 重新指向目标实现即可。
 
 ## 故障排查
 
@@ -119,7 +117,7 @@ DSH bundle 引用），并保留 `~/.citlens/config.json` / shim / 数据家。�
 | OpenAlex 配额 | works 搜索每次 10 credits、免费 1 万/天；不配 key 走匿名/邮箱礼貌池也可用。预算护栏见引擎仓库文档 |
 | arXiv 偶发 ConnectError | 源不稳，驱动内建重试 ×2；仍失败会记入健康桶 |
 | fetch 全是摘要兜底 | 缺 markitdown：`.venv/Scripts/python -m pip install "markitdown[pdf]"`；或该论文确实无 OA 版本（此时只能摘要级引用） |
-| agent 看不到工具 | 重启 agent；确认其 MCP 配置里 `citlens` 的 command 指向本仓库 venv python |
+| agent 看不到工具 | 确认 skill 已装（`install.py status`）；工具本身直接跑 `citlens.cmd <tool>` 验证 |
 | 中文控制台乱码/崩 | 环境变量 `PYTHONUTF8=1`（安装器写注册表/shim 时已带） |
 
 ## 引擎切换语义

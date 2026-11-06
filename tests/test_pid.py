@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import citlens_mcp as m  # noqa: E402
+import citlens_cli as m  # noqa: E402
 
 PASS: list[str] = []
 FAIL: list[str] = []

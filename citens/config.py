@@ -39,7 +39,7 @@ def _resolve_env_file() -> str:
     out-of-home launch produced an OpenAlex 429 storm and a false
     "SERPER_API_KEY 未配置" note while the keys sat in ``<home>/.env``).
     The MCP runner sets ``cwd=<home>`` for its jobs (contract,
-    citlens_mcp.py), but nothing else has to honor it. An explicit
+    citlens_cli.py), but nothing else has to honor it. An explicit
     ``CITLENS_HOME`` wins over config.json, matching the MCP layer.
     """
     if Path(".env").is_file():

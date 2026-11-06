@@ -26,10 +26,10 @@ rspec = importlib.util.spec_from_file_location(
 recall = importlib.util.module_from_spec(rspec)
 rspec.loader.exec_module(recall)
 
-mspec = importlib.util.spec_from_file_location(
-    "mcp_mod", ROOT / "citlens_mcp.py")
-mcp = importlib.util.module_from_spec(mspec)
-mspec.loader.exec_module(mcp)
+cspec = importlib.util.spec_from_file_location(
+    "cli_mod", ROOT / "citlens_cli.py")
+cli = importlib.util.module_from_spec(cspec)
+cspec.loader.exec_module(cli)
 
 PASS, FAIL = [], []
 
@@ -112,9 +112,9 @@ check("layer carries the four econ disciplines",
                                "NBER working papers", "stakes")))
 check("general 归→评→找→定 movements stay field-neutral",
       "economic" not in skill[skill.find("**Write with numbered claims"):skill.find("**Prose style")])
-check("MCP instructions carry the mechanism, not the discipline text",
-      "discipline" in mcp.INSTRUCTIONS
-      and "ECONOMIC significance" not in mcp.INSTRUCTIONS)
+check("CLI discipline text carries the mechanism, not the discipline text",
+      "discipline" in cli.DISCIPLINE
+      and "ECONOMIC significance" not in cli.DISCIPLINE)
 
 print(f"\n{'ALL PASS' if not FAIL else 'FAILURES: ' + str(FAIL)} ({len(PASS)} checks)")
 sys.exit(1 if FAIL else 0)

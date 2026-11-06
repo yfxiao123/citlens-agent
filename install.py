@@ -1,57 +1,48 @@
 #!/usr/bin/env python
-"""install.py — register the CiteLens MCP tool with the agents on this machine.
+"""install.py — put the CiteLens CLI where every agent on this machine can use it.
 
 Agent-agnostic by design
 ------------------------
-Almost every modern agent client speaks **MCP over stdio**, and almost all of
-them store MCP servers in the *same shape* (a JSON map at some path, or a TOML
-table). So this installer is not a pile of per-agent adapters: it reads a
-declarative registry (`agents.json`) and has six registration shapes.
+The interface is a shell command (`citlens.cmd <tool> ...` -> one JSON document
+on stdout), and every agent that can run a command already speaks it. There is
+no MCP server to register (removed in 2.0 — the CLI always was the primary
+interface). What this installer does:
 
-    dialect          how the server is registered                    used by
-    --------------   ----------------------------------------------  ----------------------------
-    json-map         file[container...][name] = {type,command,args}   claude zcode cursor windsurf
-                                                                     gemini qwen cline roo kilo ...
-    json-opencode    file.mcp[name] = {type:local, command:[...]}     opencode
-    toml-block       file += [mcp_servers.name] command/args/env      codex
-    dsh-bundle       bundle patch row + `dsh plugin add`              dsh
-    snippet          we only print paste-ready config                 zed goose continue amp ...
-    cli-only         no MCP client; the CLI shim is the integration   aider, scripts, CI
+  * writes the shared config (`~/.citlens/config.json`) that points every
+    invocation at ONE data home, so an agent that searched can hand its pool
+    to an agent that writes the review;
+  * writes the CLI shim (`~/.citlens/bin/citlens.cmd`) that agents call;
+  * installs the skill (`~/.agents/skills/citlens` + per-client skill dirs
+    from `agents.json` / `~/.citlens/agents.d/`) so the *method* travels to
+    clients that read skills;
+  * CLEANS UP legacy MCP registrations left by 1.x installs (the server file
+    they point at no longer exists — a dead entry in a client config).
 
-Adding an agent is adding an entry to `agents.json` — or dropping your own JSON
-into `~/.citlens/agents.d/` (same schema; your entry wins). No code change.
-
-The other half of "works with any agent" is not registration at all:
-
-  * one shared data home (`~/.citlens/config.json` -> home) means every agent
-    reads and writes the SAME literature pool, so an agent that searched can
-    hand its pool to an agent that writes the review;
-  * jobs are detached processes, so a long search survives the session that
-    started it and any other agent can poll `status` / read the artifacts;
-  * the skill (`~/.agents/skills/citlens`) is the cross-agent convention: DSH,
-    Codex and the `npx skills` ecosystem read it, so the *method* travels even
-    to a client that never saw this installer.
+The declarative registry (`agents.json`) still drives per-client knowledge:
+where each client keeps its config (for legacy cleanup) and its skill dirs.
+Adding an agent is adding an entry there — or dropping your own JSON into
+`~/.citlens/agents.d/` (same schema; your entry wins). No code change.
 
 Usage
 -----
     python install.py list                     # every known client, detected or not
-    python install.py status                   # what is registered right now
+    python install.py status                   # CLI assets + stale registrations
     python install.py plan                     # dry run of apply (detected clients)
-    python install.py apply                    # register every DETECTED client
-    python install.py apply --all              # also create configs for absent clients
+    python install.py apply                    # shim + config + skill + legacy cleanup
     python install.py apply --only cursor,gemini
-    python install.py snippet zed              # paste-ready config for a manual client
     python install.py uninstall                # remove only what this script added
 
-Safety: client config files are written with a `<file>.citlens-backup-<ts>`
-copy, TOML edits live between `# >>> citlens ...>>>` markers, JSON edits only
-add/remove the one `citlens` key, and a skill dir is only deleted when its
-SKILL.md says `name: citlens`. The shim, the skill copy and the DSH bundle are
-managed/regenerated files and are intentionally not backed up; `uninstall`
-removes this installer's registrations but leaves `~/.citlens/config.json`,
+Safety: client config files are only ever edited to REMOVE a legacy citlens
+MCP entry, with a `<file>.citlens-backup-<ts>` copy first; TOML edits strip
+between `# >>> citlens ...>>>` markers; JSON edits remove only the one
+`citlens` key, and a skill dir is only deleted when its SKILL.md says
+`name: citlens`. The shim and the skill copy are managed/regenerated files
+and are intentionally not backed up; `uninstall` removes this installer's
+skill copies and any legacy registrations but leaves `~/.citlens/config.json`,
 the shim and the data home in place. No secret is ever written (keys stay in
 the data home's `.env`).
 """
+
 
 from __future__ import annotations
 
@@ -67,7 +58,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent          # the citlens-agent repo root
 REPO_ROOT = HERE                                 # this repo IS the retrieval core
 
-SERVER = HERE / "citlens_mcp.py"
+SERVER = HERE / "citlens_cli.py"
 SKILL_SRC = HERE / "skill" / "citlens"
 REGISTRY_FILE = HERE / "agents.json"
 
@@ -86,8 +77,8 @@ MCP_END = "# <<< citlens mcp <<<"
 SKILL_START = "# >>> citlens skill (managed by ~/.citlens/install.py) >>>"
 SKILL_END = "# <<< citlens skill <<<"
 
-DSH_BUNDLE_NAME = "@local/dsh-citlens-mcp"
-SERVER_NAME = "citlens"   # the MCP tool name every agent registers under
+DSH_BUNDLE_NAME = "@local/dsh-citlens-mcp"  # legacy 1.x bundle (cleanup only)
+SERVER_NAME = "citlens"   # the legacy MCP key this installer cleans up
 
 
 # ── registry ─────────────────────────────────────────────────────────────────
@@ -133,10 +124,6 @@ def is_detected(entry: dict) -> bool:
 
 def detected_agents(registry: dict) -> list[str]:
     return [n for n, e in registry.items() if is_detected(e)]
-
-
-def writable_dialects() -> set[str]:
-    return {"json-map", "json-opencode", "toml-block", "dsh-bundle"}
 
 
 # ── discovery of the engine ─────────────────────────────────────────────────
@@ -208,9 +195,10 @@ def discover() -> dict:
         "families": ["agent", "raw", "oa_title", "s2_rec", "snowball", "web",
                      "survey", "policy"],
         "target": 60,
-        # 20, not 45: several MCP clients hard-kill a tool call at 30s and the
-        # kill takes the freshly spawned runner with it. Matches
-        # citlens_mcp.DEFAULT_CONFIG (third-party report flagged the 45/20
+        # 20, not 45: interactive callers get the job_id early instead of a
+        # held shell (history: MCP clients hard-killed a call at 30s and the
+        # kill took the freshly spawned runner with it). Matches
+        # citlens_cli.DEFAULT_CONFIG (third-party report flagged the 45/20
         # doc-vs-source mismatch).
         "wait_seconds": 20,
         "max_concurrent_jobs": 3,
@@ -315,31 +303,6 @@ def _upsert_block(text: str, start: str, end: str, body: str) -> str:
     return text + ("\n" if text.strip() else "") + f"{start}\n{body.rstrip()}\n{end}\n"
 
 
-def _toml_str(value: str) -> str:
-    if "'" in value:
-        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    return f"'{value}'"
-
-
-def _toml_list(values) -> str:
-    return "[" + ", ".join(_toml_str(v) for v in values) + "]"
-
-
-def _server_argv(cfg: dict) -> list[str]:
-    return [str(SERVER), "serve", "--config", str(CONFIG_PATH)]
-
-
-def _server_env() -> dict:
-    return {"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-
-
-def _stdio_entry(cfg: dict, with_env: bool = True) -> dict:
-    entry = {"type": "stdio", "command": cfg["python"], "args": _server_argv(cfg)}
-    if with_env:
-        entry["env"] = _server_env()
-    return entry
-
-
 # ── shared config + CLI shim + skill hub ────────────────────────────────────
 
 
@@ -396,11 +359,11 @@ def install_config(p: Plan, cfg: dict) -> None:
 def install_shim(p: Plan, cfg: dict) -> None:
     body = (
         "@echo off\r\n"
-        "rem citlens CLI fallback (managed by ~/.citlens/install.py)\r\n"
+        "rem citlens CLI entry (managed by ~/.citlens/install.py)\r\n"
         "setlocal\r\n"
         'set "PYTHONUTF8=1"\r\n'
         'set "PYTHONIOENCODING=utf-8"\r\n'
-        f'"{cfg["python"]}" "{SERVER}" cli --config "{CONFIG_PATH}" %*\r\n'
+        f'"{cfg["python"]}" "{SERVER}" --config "{CONFIG_PATH}" %*\r\n'
     )
     if _read_text(SHIM_PATH) == body:
         return
@@ -505,94 +468,6 @@ def _container(data: dict, path: list[str], create: bool) -> dict | None:
     return node
 
 
-def agent_json_map(p: Plan, name: str, entry: dict, cfg: dict, dry_run: bool) -> None:
-    path = entry_file(entry)
-    if not path:
-        p.note(f"!! {name}: registry entry has no file")
-        return
-    data, ok = _load_json_checked(path, {})
-    if not ok:
-        p.note(f"!! {name}: {path} is not plain JSON (comments or half-written?); leaving it "
-               f"alone — run `install.py snippet {name}` and paste the entry")
-        return
-    container_path = list(entry.get("container") or ["mcpServers"])
-    servers = _container(data, container_path, create=True)
-    wanted = _stdio_entry(cfg, with_env=bool(entry.get("env", True)))
-    if servers.get(SERVER_NAME) == wanted:
-        p.info(f"{instance(name, entry)}: already registered ({path})")
-        return
-    servers[SERVER_NAME] = wanted
-    text = _dump_json(data)
-    if dry_run:
-        p.note(f"would set {'.'.join(container_path)}.{SERVER_NAME} in {path}")
-        return
-    p.backup(path)
-    p.write_text(path, text)
-    p.note(f"{name} <- {path}")
-
-
-def agent_json_opencode(p: Plan, name: str, entry: dict, cfg: dict, dry_run: bool) -> None:
-    path = entry_file(entry)
-    if not path:
-        p.note(f"!! {name}: registry entry has no file")
-        return
-    data, ok = _load_json_checked(path, {"$schema": "https://opencode.ai/config.json"})
-    if not ok:
-        p.note(f"!! {name}: {path} is not plain JSON; leaving it alone — run "
-               f"`install.py snippet {name}` and paste the entry")
-        return
-    mcp = _container(data, list(entry.get("container") or ["mcp"]), create=True)
-    wanted = {
-        "type": "local",
-        "command": [cfg["python"], *_server_argv(cfg)],
-        "enabled": True,
-        "environment": _server_env(),
-    }
-    if mcp.get(SERVER_NAME) == wanted:
-        p.info(f"{name}: already registered ({path})")
-        return
-    mcp[SERVER_NAME] = wanted
-    text = _dump_json(data)
-    if dry_run:
-        p.note(f"would set mcp.{SERVER_NAME} in {path}")
-        return
-    p.backup(path)
-    p.write_text(path, text)
-    p.note(f"{name} <- {path}")
-
-
-def agent_toml_block(p: Plan, name: str, entry: dict, cfg: dict, dry_run: bool) -> None:
-    path = entry_file(entry)
-    if not path:
-        p.note(f"!! {name}: registry entry has no file")
-        return
-    text = _read_text(path)
-    body = "\n".join([
-        f"[mcp_servers.{SERVER_NAME}]",
-        f"command = {_toml_str(cfg['python'])}",
-        f"args = {_toml_list(_server_argv(cfg))}",
-        "startup_timeout_sec = 60",
-        "",
-        f"[mcp_servers.{SERVER_NAME}.env]",
-        'PYTHONIOENCODING = "utf-8"',
-        'PYTHONUTF8 = "1"',
-    ])
-    new = _upsert_block(text, MCP_START, MCP_END, body)
-    skill_md = expand(entry.get("skillEntry")) if entry.get("skillEntry") else None
-    if skill_md and skill_md.is_file():
-        new = _upsert_block(new, SKILL_START, SKILL_END, "\n".join([
-            "[[skills.config]]", f"path = {_toml_str(str(skill_md))}", "enabled = true"]))
-    if new == text:
-        p.info(f"{name}: already registered ({path})")
-        return
-    if dry_run:
-        p.note(f"would add [mcp_servers.{SERVER_NAME}] to {path}")
-        return
-    p.backup(path)
-    p.write_text(path, new)
-    p.note(f"{name} <- {path}")
-
-
 def remove_simple(p: Plan, name: str, entry: dict, dry_run: bool) -> None:
     dialect = entry.get("dialect")
     if dialect == "dsh-bundle":
@@ -639,91 +514,12 @@ def dsh_home() -> Path:
     return expand(os.environ.get("DSH_HOME") or (USER / ".dsh"))  # type: ignore[return-value]
 
 
-def dsh_bundle_files(cfg: dict) -> tuple[str, str]:
-    pkg = _dump_json({
-        "name": DSH_BUNDLE_NAME,
-        "version": "1.0.0",
-        "private": True,
-        "dsh": {"bundle": {"patch": "./cordis.patch.yml"}},
-    })
-
-    def q(s: str) -> str:
-        return "'" + str(s).replace("\\", "/") + "'"
-
-    patch = (
-        "# CiteLens MCP client row (generated by ~/.citlens/install.py).\n"
-        "# Host-level, so every DSH preset/mode gets the mcp__citlens__* tools.\n"
-        "- insert:\n"
-        "    - id: citlens-mcp\n"
-        "      name: '@deepseek-ai/dsh-mcp-client'\n"
-        "      config:\n"
-        "        serverName: citlens\n"
-        "        transport: stdio\n"
-        f"        command: {q(cfg['python'])}\n"
-        "        args:\n"
-        + "".join(f"          - {q(a)}\n" for a in _server_argv(cfg))
-        + "        env:\n"
-        "          PYTHONIOENCODING: utf-8\n"
-        "          PYTHONUTF8: '1'\n"
-        "        failOnStartupError: true\n"
-    )
-    return pkg, patch
-
-
 def _dsh_profile_has_bundle(profile_dir: Path) -> bool:
     try:
         pkg = json.loads((profile_dir / "package.json").read_text(encoding="utf-8"))
         return DSH_BUNDLE_NAME in (pkg.get("dsh", {}).get("profile", {}).get("bundles") or [])
     except Exception:  # noqa: BLE001
         return False
-
-
-def install_dsh(p: Plan, cfg: dict, dry_run: bool, profile: str, auto: bool) -> None:
-    pkg, patch = dsh_bundle_files(cfg)
-    profile_dir = dsh_home() / "profiles" / profile
-    if not profile_dir.is_dir():
-        p.info(f"dsh: profile '{profile}' not found under {dsh_home()} (pass --dsh-profile)")
-        return
-    stale = True
-    try:
-        stale = ((BUNDLE_DIR / "package.json").read_text(encoding="utf-8") != pkg
-                 or (BUNDLE_DIR / "cordis.patch.yml").read_text(encoding="utf-8") != patch)
-    except Exception:  # noqa: BLE001
-        stale = True
-    if dry_run:
-        if stale:
-            p.note(f"would write bundle {BUNDLE_DIR}")
-        if _dsh_profile_has_bundle(profile_dir):
-            p.info(f"dsh profile '{profile}' already lists {DSH_BUNDLE_NAME}")
-        else:
-            p.note(f"would run: dsh plugin --profile {profile} add \"{BUNDLE_DIR}\"")
-        return
-    BUNDLE_DIR.mkdir(parents=True, exist_ok=True)
-    wrote = p.write_text(BUNDLE_DIR / "package.json", pkg)
-    wrote = p.write_text(BUNDLE_DIR / "cordis.patch.yml", patch) or wrote
-    if wrote:
-        p.note(f"dsh bundle {BUNDLE_DIR}")
-    if _dsh_profile_has_bundle(profile_dir):
-        if wrote:
-            p.info(f"dsh profile '{profile}' already lists {DSH_BUNDLE_NAME}")
-        return
-    dsh = shutil.which("dsh") or shutil.which("dsh.cmd")
-    if not (auto and dsh):
-        print(f"  [manual] register it yourself:  dsh plugin --profile {profile} add \"{BUNDLE_DIR}\"")
-        return
-    try:
-        r = subprocess.run([dsh, "plugin", "--profile", profile, "add", str(BUNDLE_DIR)],
-                           capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=300)
-        if _dsh_profile_has_bundle(profile_dir):
-            p.note(f"dsh <- {profile_dir / 'package.json'} (via dsh plugin add)")
-        else:
-            p.note(f"!! dsh plugin add ran (exit {r.returncode}) but the profile does not list "
-                   f"{DSH_BUNDLE_NAME}; run manually:\n"
-                   f"    dsh plugin --profile {profile} add \"{BUNDLE_DIR}\"")
-    except Exception as e:  # noqa: BLE001
-        p.note(f"!! dsh plugin add failed ({e}); run manually: "
-               f"dsh plugin --profile {profile} add \"{BUNDLE_DIR}\"")
 
 
 def remove_dsh(p: Plan, dry_run: bool, profile: str = "desktop", auto: bool = True) -> None:
@@ -747,80 +543,6 @@ def remove_dsh(p: Plan, dry_run: bool, profile: str = "desktop", auto: bool = Tr
                "from dsh.profile.bundles by hand")
     else:
         p.note(f"dsh removed from profile '{profile}'")
-
-
-# ── snippets (for clients we cannot safely write) ──────────────────────────
-
-
-def instance(name: str, entry: dict) -> str:
-    return f"{name} ({entry.get('label') or name})"
-
-
-def print_snippet(name: str, entry: dict, cfg: dict) -> int:
-    dialect = entry.get("dialect")
-    print(f"\n# {instance(name, entry)}  [{entry.get('confidence', '?')}]")
-    if entry.get("note"):
-        print(f"# {entry['note']}")
-    if entry.get("file"):
-        print(f"# file: {expand(entry['file'])}")
-    print()
-    if dialect == "toml-block":
-        print("\n".join([
-            f"[mcp_servers.{SERVER_NAME}]",
-            f"command = {_toml_str(cfg['python'])}",
-            f"args = {_toml_list(_server_argv(cfg))}",
-            "",
-            f"[mcp_servers.{SERVER_NAME}.env]",
-            'PYTHONIOENCODING = "utf-8"',
-            'PYTHONUTF8 = "1"',
-        ]))
-    elif dialect == "json-opencode":
-        print(_dump_json({"mcp": {SERVER_NAME: {
-            "type": "local",
-            "command": [cfg["python"], *_server_argv(cfg)],
-            "enabled": True,
-            "environment": _server_env(),
-        }}}))
-    elif dialect == "dsh-bundle":
-        _, patch = dsh_bundle_files(cfg)
-        print(patch)
-    elif dialect == "cli-only":
-        print("No MCP client. Integration path:")
-        print(f'  "{SHIM_PATH}" doctor')
-        print(f'  "{SHIM_PATH}" search --topic "<topic>" --target 80')
-        print("Or point the agent at the skill file so it knows the tool exists:")
-        print(f"  {SKILL_HUB / 'citlens' / 'SKILL.md'}")
-    elif name == "zed":
-        # Zed settings.json -> context_servers with a nested command object
-        print(_dump_json({"context_servers": {SERVER_NAME: {
-            "command": {"path": cfg["python"], "args": _server_argv(cfg),
-                        "env": _server_env()},
-        }}}))
-    elif name == "goose":
-        # Goose config.yaml -> extensions.<name> (YAML, not JSON)
-        args = ", ".join(f'"{a}"' for a in _server_argv(cfg))
-        print(f"extensions:\n  {SERVER_NAME}:\n    type: stdio\n"
-              f'    cmd: "{cfg["python"]}"\n    args: [{args}]\n    enabled: true')
-    elif name == "continue":
-        args = "\n".join(f'      - "{a}"' for a in _server_argv(cfg))
-        print(f"mcpServers:\n  {SERVER_NAME}:\n    command: \"{cfg['python']}\"\n"
-              f"    args:\n{args}")
-    elif name == "crush":
-        print(_dump_json({"mcp": {SERVER_NAME: {
-            "type": "stdio", "command": cfg["python"], "args": _server_argv(cfg),
-            "env": _server_env(),
-        }}}))
-    elif name == "amp":
-        print(_dump_json({"amp.mcpServers": {SERVER_NAME: _stdio_entry(cfg)}}))
-    elif name == "copilot":
-        print(_dump_json({"servers": {SERVER_NAME: _stdio_entry(cfg)}}))
-    else:  # json-map and any unknown shape
-        print(_dump_json({"mcpServers": {SERVER_NAME: _stdio_entry(cfg)}}))
-        if entry.get("container") and list(entry["container"]) != ["mcpServers"]:
-            print(f"# merge the inner object under: {'.'.join(entry['container'])}.{SERVER_NAME}")
-    print("\n# Shared config (already written by `apply`):", CONFIG_PATH)
-    print(f"# Skill card: {SKILL_HUB / 'citlens' / 'SKILL.md'}")
-    return 0
 
 
 # ── commands ────────────────────────────────────────────────────────────────
@@ -923,105 +645,96 @@ def cmd_init(home: Path, *, non_interactive: bool, sets: list[str]) -> int:
     if still:
         print(f"still missing required: {', '.join(still)} — the engine cannot run")
         return 1
-    print("next: `install.py apply` (or `--only <agent>`), then ask your agent "
-          "to run the `doctor` tool")
+    print("next: `install.py apply`, then run the doctor check:\n  "
+          + str(SHIM_PATH) + " doctor")
     return 0
 
 
 def cmd_list(registry: dict) -> int:
     det = set(detected_agents(registry))
-    print(f"{'agent':<12} {'dialect':<14} {'confidence':<10} {'detected':<9} file / note")
+    print(f"{'agent':<12} {'detected':<9} {'skill dirs':<9} config file / note")
     print("-" * 100)
     for name, entry in registry.items():
         f = entry_file(entry)
         loc = str(f) if f else (entry.get("note") or "")
-        print(f"{name:<12} {entry.get('dialect', '?'):<14} {entry.get('confidence', '?'):<10} "
-              f"{('yes' if name in det else '-'):<9} {loc}")
+        print(f"{name:<12} {'yes' if name in det else '-':<9} "
+              f"{len(entry.get('skillDirs') or []):<9} {loc}")
     print(f"\n{len(det)} detected of {len(registry)} known. "
-          f"`apply` registers the detected ones; `apply --all` also creates absent configs.")
+          "`apply` installs the shim + config + skill and cleans up 1.x MCP "
+          "registrations on the detected ones.")
     print("Add your own client: drop a file into " + str(AGENTS_D) + " shaped like agents.json.")
     return 0
 
 
+def _stale_registration(entry: dict) -> str:
+    """'stale-mcp' when a 1.x citlens MCP entry is still present, else ''."""
+    dialect = entry.get("dialect")
+    path = entry_file(entry)
+    if dialect == "dsh-bundle":
+        for prof in ("desktop", "web"):
+            pd = dsh_home() / "profiles" / prof
+            if pd.is_dir() and _dsh_profile_has_bundle(pd):
+                return "stale-mcp"
+        return ""
+    if not path or not path.is_file():
+        return ""
+    if dialect == "toml-block":
+        return "stale-mcp" if MCP_START in _read_text(path) else ""
+    if dialect in ("json-map", "json-opencode"):
+        data = _load_json(path, {})
+        container = _container(data, list(entry.get("container") or ["mcpServers"]),
+                               create=False)
+        return "stale-mcp" if container and SERVER_NAME in container else ""
+    return ""
+
+
 def cmd_status(registry: dict) -> int:
     cfg = discover()
-    print("CiteLens portable tool — registration status\n")
-    print(f"server      {SERVER}")
+    print("CiteLens CLI — installation status\n")
+    print(f"cli         {SERVER}")
+    print(f"shim        {SHIM_PATH}  ({'present' if SHIM_PATH.is_file() else 'MISSING'})")
     print(f"config      {CONFIG_PATH}  ({'present' if CONFIG_PATH.is_file() else 'MISSING'})")
     print(f"home        {cfg.get('home')}")
     print(f"python      {cfg.get('python')}")
     print(f"skill hub   {SKILL_HUB / 'citlens'}  "
           f"[{'present' if _skill_dir_is_ours(SKILL_HUB / 'citlens') else 'absent'}]")
     print()
+    stale = 0
     for name, entry in registry.items():
-        dialect = entry.get("dialect")
         det = "detected" if is_detected(entry) else "not installed"
-        if dialect == "dsh-bundle":
-            states = []
-            for prof in ("desktop", "web"):
-                pd = dsh_home() / "profiles" / prof
-                if pd.is_dir():
-                    states.append(f"profile '{prof}': "
-                                  f"{'registered' if _dsh_profile_has_bundle(pd) else 'absent'}")
-            print(f"dsh          {det} | " + (" | ".join(states) or "no profiles"))
-            continue
+        mark = _stale_registration(entry)
+        if mark:
+            stale += 1
         path = entry_file(entry)
-        if dialect == "toml-block":
-            reg = MCP_START in _read_text(path) if path else False
-        elif dialect in ("json-map", "json-opencode"):
-            data = _load_json(path, {}) if path else {}
-            container = _container(data, list(entry.get("container") or ["mcpServers"]),
-                                   create=False) if path else None
-            reg = bool(container and SERVER_NAME in container)
-        elif dialect == "cli-only":
-            reg = False  # nothing to register: this client has no MCP surface
-        else:
-            reg = False  # snippet-only: nothing to check
-        if dialect == "cli-only":
-            mark = "cli-ready" if SHIM_PATH.is_file() else "absent"
-        elif dialect == "snippet":
-            mark = "manual"
-        else:
-            mark = "registered" if reg else "absent"
-        print(f"{name:<12} {det:<14} {mark:<12} {path or entry.get('note') or ''}")
+        print(f"{name:<12} {det:<14} {mark or 'clean':<10} {path or entry.get('note') or ''}")
     print()
     print("Per-agent skill dirs:")
     for t in skill_targets(registry):
         state = "present" if _skill_dir_is_ours(t) else ("FOREIGN" if t.exists() else "absent")
         print(f"  [{state:<7}] {t}")
-    print("\nVerify inside any client with: doctor  (mcp__citlens__doctor / citlens:doctor)")
+    if stale:
+        print(f"\n{stale} stale 1.x MCP registration(s) — `install.py apply` removes them.")
+    print("\nVerify with:  " + str(SHIM_PATH) + " doctor")
     return 0
 
 
 def _apply_one(p: Plan, registry: dict, cfg: dict, name: str, remove: bool,
                dry_run: bool, profile: str, dsh_auto: bool) -> None:
+    """Per-agent work after 2.0: only LEGACY CLEANUP — remove a 1.x MCP
+    registration pointing at the deleted server file. The interface itself
+    (shim + config + skill) is client-agnostic and handled by the prelude."""
     entry = registry.get(name)
     print(f"\n== {name} ==")
     if not entry:
         p.note(f"!! unknown agent {name!r}; see `install.py list`")
         return
     dialect = entry.get("dialect")
-    if remove:
-        if dialect == "dsh-bundle":
-            remove_dsh(p, dry_run, profile, dsh_auto)
-        elif dialect in writable_dialects():
-            remove_simple(p, name, entry, dry_run)
-        else:
-            p.info(f"{name}: nothing was written by this installer")
-        return
-    if dialect == "json-map":
-        agent_json_map(p, name, entry, cfg, dry_run)
-    elif dialect == "json-opencode":
-        agent_json_opencode(p, name, entry, cfg, dry_run)
-    elif dialect == "toml-block":
-        agent_toml_block(p, name, entry, cfg, dry_run)
-    elif dialect == "dsh-bundle":
-        install_dsh(p, cfg, dry_run, profile, dsh_auto)
-    elif dialect == "cli-only":
-        p.info(f"{name}: no MCP — use the CLI shim ({SHIM_PATH}); skill card explains it")
+    if dialect == "dsh-bundle":
+        remove_dsh(p, dry_run, profile, dsh_auto)
+    elif dialect in ("json-map", "json-opencode", "toml-block"):
+        remove_simple(p, name, entry, dry_run)
     else:
-        p.info(f"{name}: cannot be written safely [{entry.get('confidence')}]; "
-               f"run `install.py snippet {name}` and paste it")
+        p.info(f"{name}: nothing registered (CLI-only client)")
 
 
 def cmd_apply(registry: dict, names: list[str], *, dry_run: bool, remove: bool,
@@ -1155,16 +868,12 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "status":
         return cmd_status(registry)
     if cmd == "snippet":
-        target = rest[0] if rest and not rest[0].startswith("--") else ""
-        if not target:
-            print("usage: install.py snippet <agent>   (see `install.py list`)")
-            return 2
-        if target not in registry:
-            print(f"unknown agent {target!r}")
-            return 2
-        return print_snippet(target, registry[target], discover())
+        print("`snippet` was removed with the MCP server (2.0) — there is nothing "
+              "to paste: every client uses the CLI shim.\n"
+              f'  "{SHIM_PATH}" doctor')
+        return 2
     if cmd not in ("plan", "apply", "uninstall"):
-        print(f"unknown command {cmd!r}; use list | init | plan | apply | status | snippet | uninstall")
+        print(f"unknown command {cmd!r}; use list | init | plan | apply | status | uninstall")
         return 2
     if only:
         names = only
@@ -1173,18 +882,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"unknown agent(s): {', '.join(unknown)} — see `install.py list`")
             return 2
     elif all_clients:
-        names = [n for n, e in registry.items() if e.get("dialect") in writable_dialects()]
+        names = list(registry)
     else:
         names = detected_agents(registry)
         if not names:
-            # No MCP client detected is NOT a reason to write nothing: the
-            # shared config + shim + skill are what a CLI-only user needs,
-            # and INSTALL.md's first command is `plan` right after install.
+            # No agent client detected is NOT a reason to write nothing: the
+            # shared config + shim + skill are what a CLI user needs, and
+            # INSTALL.md's first command is `plan` right after install.
             # The old code exited 1 here, so a fresh machine could not even
             # run `doctor` (third-party report, install-mcp P2-1).
-            print("No MCP client detected on this machine — writing the shared "
-                  "config, shim and skill only.\nRegister a client later with "
-                  "`install.py apply --only <agent>` (see `list`), or `--all`.")
+            print("No agent client detected on this machine — writing the shared "
+                  "config, shim and skill only.\nAdd a client's skill dirs later "
+                  "with `install.py apply --only <agent>` (see `list`), or `--all`.")
             names = []
     return cmd_apply(registry, names, dry_run=dry_run or cmd == "plan",
                      remove=cmd == "uninstall", profile=profile, dsh_auto=dsh_auto,

@@ -3,9 +3,9 @@
 Groups:
   A surface      CLI reachability, arg parsing, tool list, exit codes
   B sync rules   long tools refuse --background; sync screen works; artifacts
-  C MCP rules    long tools default to detached jobs; status returns results
+  C job routing  long tools default to detached jobs; status returns results
   D jobs         lifecycle, reaping of dead/stale runners, concurrency guard
-  E shared home  CLI and MCP read the same pools / notes
+  E shared home  subprocess CLI and module calls read the same pools / notes
   F output view  compact stdout view contract
   G offline      embedding model loads from cache with no network
   H evidence     the pipeline fixes are visible in on-disk artifacts
@@ -20,7 +20,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -30,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
 if not Path(PY).is_file():  # a checkout without a venv still gets a runnable rig
     PY = sys.executable
-MCP = str(ROOT / "citlens_mcp.py")
+CLI = str(ROOT / "citlens_cli.py")
 SHIM = str(Path.home() / ".citlens" / "bin" / "citlens.cmd")
 TOPIC = "A股动量机制"
 OUT = ROOT / ".verify"  # scratch artifacts (gitignored)
@@ -138,7 +137,7 @@ def run_cli(args: list[str], timeout: int = 300) -> tuple[int, dict, float]:
     if _home:
         env["CITLENS_HOME"] = _home
     r = subprocess.run(
-        [PY, MCP, "cli", "--config", CONFIG, *args],
+        [PY, CLI, "--config", CONFIG, *args],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         timeout=timeout, cwd=str(ROOT), env=env,
     )
@@ -178,9 +177,11 @@ check("A1 shim doctor exits 0 with ok=true", code == 0 and doc and doc.get("ok")
 
 code, raw = run_shim(["tools"])
 tools = json_of(raw)
-check("A2 `citlens.cmd tools` lists the tool table (was unknown-tool)",
-      code == 0 and isinstance(tools, list) and len(tools) == 13,
-      f"code={code} n={len(tools) if isinstance(tools, list) else '?'}")
+check("A2 `citlens.cmd tools` lists the tool table + discipline",
+      code == 0 and isinstance(tools, dict)
+      and len(tools.get("tools") or []) == 13
+      and bool(tools.get("discipline")),
+      f"code={code} n={len((tools or {}).get('tools', [])) if isinstance(tools, dict) else '?'}")
 
 code, pool, _ = run_cli(["pool", "--topic", TOPIC, "--limit", "3"])
 recs = pool.get("records") or pool.get("papers") or []
@@ -208,7 +209,7 @@ code, bad, _ = run_cli(["pool", "--topic", "不存在的主题xyz"])
 check("A8 failing command exits NONZERO", code != 0 and bad.get("ok") is False, f"code={code}")
 
 # a finished job for A9 — newest state.json with state done (sandbox-aware)
-import citlens_mcp as _m  # noqa: E402
+import citlens_cli as _m  # noqa: E402
 
 jobs_root = Path(_m.load_config(CONFIG)["jobs_dir"])
 done_ids = []
@@ -227,7 +228,7 @@ for tool, extra in (("screen", []), ("expand", ["--seeds", "10.1016/j.finmar.202
                     ("gaps", ["--check", "x"])):
     code, payload, _ = run_cli([tool, "--topic", TOPIC, *extra, "--background", "true"])
     check(f"B/{tool}: --background refused with exit 2 + actionable error",
-          code == 2 and "MCP-only" in str(payload.get("error", "")), f"code={code}")
+          code == 2 and "not available on the CLI" in str(payload.get("error", "")), f"code={code}")
 
 code, scr, secs = run_cli(["screen", "--topic", TOPIC,
                           "--queries", "momentum strategy China retail investors",
@@ -257,10 +258,10 @@ back2 = read_screening(sp)
 check("B5 read_screening round-trips the new JSONL layout",
       len(back2["papers"]) == scr.get("n"), f"{len(back2['papers'])}")
 
-# ── C. MCP routing ───────────────────────────────────────────────────────────
-print("\n[C] MCP routing (long tools default to detached jobs)")
+# ── C. detached job routing ──────────────────────────────────────────────────
+print("\n[C] detached job routing (long tools default to detached jobs)")
 
-import citlens_mcp as m  # noqa: E402
+import citlens_cli as m  # noqa: E402
 
 cfg = m.load_config(CONFIG)
 iso = dict(cfg)
@@ -269,22 +270,22 @@ Path(iso["jobs_dir"]).mkdir(parents=True, exist_ok=True)
 
 started = m.tool_screen(cfg, {"topic": TOPIC, "queries": ["momentum strategy China"],
                               "model": ""})
-check("C1 MCP screen without `background` returns a job (default detached)",
+check("C1 screen without `background` returns a job (default detached)",
       started.get("state") == "running" and started.get("job_id"), str(started)[:160])
 
 sync_out = m.tool_screen(cfg, {"topic": TOPIC, "queries": ["momentum strategy China"],
                                "model": "", "background": False})
-check("C2 MCP screen background:false runs synchronously",
+check("C2 screen background:false runs synchronously",
       sync_out.get("ok") is True and "bands" in sync_out, str(sync_out)[:160])
 
 c3 = m.tool_expand(iso, {"topic": TOPIC, "seeds": ["10.1016/j.finmar.2020.100534"],
                           "directions": ["related"], "no_write": True})
-check("C3 MCP expand defaults to a detached job",
+check("C3 expand defaults to a detached job",
       c3.get("state") == "running" and c3.get("job_id"), str(c3)[:160])
 
 c4 = m.tool_gaps(iso, {"topic": TOPIC, "check": "momentum reversal China",
                         "model": "", "limit": 5})
-check("C4 MCP gaps defaults to a detached job",
+check("C4 gaps defaults to a detached job",
       c4.get("state") == "running" and c4.get("job_id"), str(c4)[:160])
 
 # C5 wait for C1 and read its result from log_tail
@@ -352,15 +353,15 @@ check("D4 concurrency guard rejects at max_concurrent_jobs",
 print("\n[E] shared data home")
 
 mp = m.tool_pool(cfg, {"topic": TOPIC, "limit": 1})
-check("E1 CLI pool and MCP pool read the same pool (same total)",
+check("E1 CLI subprocess and module call read the same pool (same total)",
       (mp.get("total") or 0) == (pool.get("total") or 0),
-      f"cli={pool.get('total')} mcp={mp.get('total')}")
+      f"subprocess={pool.get('total')} module={mp.get('total')}")
 
 mn = m.tool_notes(cfg, {"topic": TOPIC, "limit": 5})  # SAME limit as the CLI call
 cli_notes = len(notes.get("notes") or [])
-mcp_notes = len(mn.get("notes") or [])
-check("E2 CLI notes and MCP notes agree", cli_notes == mcp_notes,
-      f"cli={cli_notes} mcp={mcp_notes}")
+mod_notes = len(mn.get("notes") or [])
+check("E2 CLI notes and module notes agree", cli_notes == mod_notes,
+      f"subprocess={cli_notes} module={mod_notes}")
 
 # ── F. compact stdout view ───────────────────────────────────────────────────
 print("\n[F] stdout compaction")
