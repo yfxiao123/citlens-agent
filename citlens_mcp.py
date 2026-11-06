@@ -189,13 +189,21 @@ def load_config(explicit: str | None = None) -> dict:
     cfg = dict(DEFAULT_CONFIG)
     cfg["families"] = list(ALL_FAMILIES)
     path = config_path(explicit)
+    cfg["config_explicit"] = bool(explicit or os.environ.get("CITLENS_CONFIG"))
+    cfg["config_found"] = path.is_file()
+    cfg["config_error"] = None
     if path.is_file():
         try:
             disk = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(disk, dict):
                 cfg.update(disk)
+            else:
+                cfg["config_error"] = "top-level JSON is not an object"
         except Exception as e:  # noqa: BLE001
+            cfg["config_error"] = f"{type(e).__name__}: {e}"
             _log(f"config {path} unreadable ({e}); using defaults")
+    elif cfg["config_explicit"]:
+        cfg["config_error"] = "explicitly requested config does not exist"
     for env_key, cfg_key in (
         ("CITLENS_HOME", "home"),
         ("CITLENS_PYTHON", "python"),
@@ -516,7 +524,8 @@ def wait_job(cfg: dict, job_id: str, wait_seconds: int) -> dict:
 # ── artifact readers ──────────────────────────────────────────────────────────
 
 _POOL_FIELDS = ("title", "authors", "year", "venue", "doi", "citation_count",
-                "is_review", "url", "source", "doc_type", "policy_org")
+                "is_review", "url", "source", "doc_type", "policy_org",
+                "quality_flag")
 
 
 def read_pool_records(path: Path) -> list[dict]:
@@ -550,12 +559,17 @@ def _pool_path_for(cfg: dict, *, run_dir: str | None, topic: str | None) -> tupl
         return None, f"no pool.jsonl under {cand}"
     if not topic:
         return None, "pass run_dir or topic"
-    litdb = home / "data" / "litdb" / f"{slugify(topic)}.jsonl"
+    slug = slugify(topic)
+    if not slug:
+        # "   " slugifies to "" and `startswith("")` matches EVERY run dir —
+        # a blank topic silently read an arbitrary pool (third-party report,
+        # offline P2-5).
+        return None, f"topic {topic!r} has no usable slug (letters/digits/CJK required)"
+    litdb = home / "data" / "litdb" / f"{slug}.jsonl"
     if litdb.is_file():
         return litdb, str(litdb)
     runs = home / "citlens-runs"
     if runs.is_dir():
-        slug = slugify(topic)
         cands = sorted(
             (d for d in runs.iterdir() if d.is_dir() and d.name.startswith(slug)),
             key=lambda d: d.stat().st_mtime, reverse=True,
@@ -643,7 +657,9 @@ def tool_doctor(cfg: dict) -> dict:
         "ok": bool(home and home.is_dir() and py and py.is_file()
                    and all(v and Path(v).is_file() for v in drivers.values())),
         "config_path": cfg.get("config_path"),
-        "config_found": Path(cfg.get("config_path") or "").is_file(),
+        "config_found": bool(cfg.get("config_found")),
+        "config_explicit": bool(cfg.get("config_explicit")),
+        "config_error": cfg.get("config_error"),
         "home": cfg.get("home"),
         "home_exists": bool(home and home.is_dir()),
         "python": cfg.get("python"),
@@ -675,8 +691,20 @@ def tool_doctor(cfg: dict) -> dict:
     report["families_invalid"] = families_invalid
     if families_invalid:
         report["ok"] = False
+    # A config that was EXPLICITLY requested but is missing/unreadable is a
+    # hard failure, not a silent fall back to defaults: the old doctor said
+    # ok=true while every tool quietly ran on the default home (third-party
+    # report, install-mcp P2-2).
+    if cfg.get("config_error"):
+        report["ok"] = False
     notes = []
-    if not report["ok"] and not families_invalid:
+    if cfg.get("config_error"):
+        notes.append(
+            f"config problem: {cfg['config_error']} — "
+            f"path={cfg.get('config_path')}. Tools are running on DEFAULT settings "
+            "until this is fixed (run install.py apply, or point --config at a valid file)."
+        )
+    if not report["ok"] and not families_invalid and not cfg.get("config_error"):
         notes.append("Not ready: fix the missing paths above in the config file.")
     if families_invalid:
         notes.append(
@@ -759,6 +787,7 @@ def tool_search(cfg: dict, args: dict) -> dict:
         "queries": _as_list(args.get("queries")),
         "title_probes": _as_list(args.get("title_probes")),
         "web_queries": _as_list(args.get("web_queries")),
+        "policy_queries": _as_list(args.get("policy_queries")),
         "pivot": int(args.get("pivot") or 0),
     }
     if args.get("sources"):
@@ -789,6 +818,11 @@ def tool_fetch(cfg: dict, args: dict) -> dict:
                       ("--topic", "topic"), ("--run-dir", "run_dir")):
         if args.get(key):
             argv += [flag, str(args[key])]
+    if args.get("force"):
+        # bypass the caches (positive fulltext + the 1-day miss negative
+        # cache) and re-run every leg — the only escape after an outage-day
+        # miss or an upstream fix (third-party addendum P2-12).
+        argv += ["--force"]
     if args.get("background"):
         # A fulltext download + PDF conversion can outlive MCP clients that
         # hard-kill calls at ~30s (zcode, measured 2026-11-05). background
@@ -830,6 +864,9 @@ def tool_audit(cfg: dict, args: dict) -> dict:
     if not topic:
         return {"ok": False, "error": "topic is required (byte-identical to the search)"}
     argv = ["audit", "--topic", topic]
+    queries = _as_list(args.get("queries"))
+    if queries:
+        argv += ["--queries", *queries]
     if args.get("top_reviews"):
         argv += ["--top-reviews", str(int(args["top_reviews"]))]
     return _run_driver_json(cfg, "tools", argv, timeout=240)
@@ -852,7 +889,11 @@ def _search_view(cfg: dict, st: dict) -> dict:
         )
         out["log_tail"] = _tail_text(Path(st["log_path"]), 8)
         return out
-    run_dir = st.get("run_dir") or _find_run_dir(cfg, "search", float(st.get("started_ts") or 0))
+    run_dir = st.get("run_dir")
+    if not run_dir and st.get("state") in ("done", "lost"):
+        # "lost" may have finished its work before the runner died; a FAILED
+        # job must never inherit the previous run's artifacts by mtime.
+        run_dir = _find_run_dir(cfg, "search", float(st.get("started_ts") or 0))
     out.update(exit_code=st.get("exit_code"), error=st.get("error"),
                run_dir=run_dir, job_dir=st.get("job_dir"))
     if st.get("state") == "failed":
@@ -898,11 +939,14 @@ def _search_view(cfg: dict, st: dict) -> dict:
             out["discipline"] = disc
         by_source: dict[str, int] = {}
         no_doi = no_venue = reviews = 0
+        from citens.models import review_title_hint
+
         for rec in pool:
             by_source[rec.get("source") or "?"] = by_source.get(rec.get("source") or "?", 0) + 1
             no_doi += 0 if rec.get("doi") else 1
             no_venue += 0 if rec.get("venue") else 1
-            reviews += 1 if rec.get("is_review") else 0
+            reviews += 1 if (rec.get("is_review")
+                             or review_title_hint(rec.get("title"))) else 0
         out["pool_stats"] = {
             "kept": len(pool), "reviews": reviews, "missing_doi": no_doi,
             "missing_venue": no_venue, "by_source": by_source,
@@ -973,8 +1017,14 @@ def tool_screen(cfg: dict, args: dict) -> dict:
         argv += ["--model", str(args["model"])]
     for flag, key in (("--core", "core_threshold"), ("--off", "off_threshold"),
                       ("--limit", "limit")):
-        if args.get(key) is not None:
-            argv += [flag, str(args[key])]
+        val = args.get(key)
+        if val is None:
+            # harness-CLI aliases: `citlens.cmd screen --core 0.5` parses to
+            # the short key, which the tool schema never mentioned and the
+            # old lookup silently dropped (third-party report, offline P2-3).
+            val = args.get(flag[2:].replace("-", "_"))
+        if val is not None:
+            argv += [flag, str(val)]
     if args.get("decide"):
         argv += ["--decide"]
         if args.get("decide_limit") is not None:
@@ -1096,8 +1146,13 @@ def tool_verify(cfg: dict, args: dict) -> dict:
     if not review:
         return {"ok": False, "error": "review is required (path to the review markdown)"}
     argv = ["verify", "--review", review]
-    for flag, key in (("--topic", "topic"), ("--run_dir", "run_dir"),
-                      ("--verdicts", "verdicts"), ("--text_dir", "text_dir"),
+    # argparse accepts ONLY the hyphenated long options. The old list passed
+    # `--run_dir`/`--text_dir` (the tool-argument snake_case names) straight
+    # through, so the driver exited 2 with "unrecognized arguments" and MCP
+    # surfaced "driver produced no JSON" (found by the 2026-11-06 third-party
+    # test, offline-tools P1-1).
+    for flag, key in (("--topic", "topic"), ("--run-dir", "run_dir"),
+                      ("--verdicts", "verdicts"), ("--text-dir", "text_dir"),
                       ("--out", "out_dir"), ("--out", "out")):
         if args.get(key):
             argv += [flag, str(args[key])]
@@ -1146,6 +1201,10 @@ def tool_pool(cfg: dict, args: dict) -> dict:
         return {"ok": False, "error": where}
     records = read_pool_records(path)
     total = len(records)
+    from citens.models import review_title_hint
+
+    def _is_review(rec: dict) -> bool:
+        return bool(rec.get("is_review")) or review_title_hint(rec.get("title"))
 
     def _year(rec):
         y = rec.get("year")
@@ -1168,9 +1227,9 @@ def tool_pool(cfg: dict, args: dict) -> dict:
             return False
         if want_doi is False and rec.get("doi"):
             return False
-        if want_review is True and not rec.get("is_review"):
+        if want_review is True and not _is_review(rec):
             return False
-        if want_review is False and rec.get("is_review"):
+        if want_review is False and _is_review(rec):
             return False
         if kw:
             hay = " ".join(str(rec.get(k) or "") for k in
@@ -1215,7 +1274,7 @@ def tool_pool(cfg: dict, args: dict) -> dict:
         "stats": {
             "missing_doi": sum(0 if r.get("doi") else 1 for r in matched),
             "missing_venue": sum(0 if r.get("venue") else 1 for r in matched),
-            "reviews": sum(1 for r in matched if r.get("is_review")),
+            "reviews": sum(1 for r in matched if _is_review(r)),
             "with_fulltext_hint": sum(1 for r in matched if r.get("pdf_url")),
             "by_source": by_source,
             "by_doc_type": by_doc_type,
@@ -1272,7 +1331,7 @@ TOOL_DEFS = [
                 "append_pool": {"type": "boolean", "description": "Merge results into the shared per-topic pool (default true)."},
                 "pivot": {"type": "integer",
                           "description": "Mechanical pivot expansion (0 = off, default): after the first wave, build up to N queries from the corroborated head records' discriminative terms (LLM-free PRF local analysis; skips when fewer than 3 cross-family-corroborated seeds exist). Use 2 when the topic vocabulary is uncertain."},
-                "wait_seconds": {"type": "integer", "description": "Block up to this long before returning with a job id (0-300)."},
+                "wait_seconds": {"type": "integer", "description": "Block up to this long before returning with a job id (0-300). Default from config (20, safe for clients that hard-kill calls at 30s); raise it only when the client tolerates long calls."},
             },
             "required": ["topic"],
         },
@@ -1299,7 +1358,7 @@ TOOL_DEFS = [
                 "sort_by": {"type": "string", "enum": ["citations", "year", "none"]},
                 "limit": {"type": "integer", "description": "Records to return (default 30)."},
                 "fields": {"type": "array", "items": {"type": "string"},
-                           "description": "Subset of title,authors,year,venue,doi,citation_count,is_review,url,source,doc_type,policy_org,abstract,keywords,pdf_url."},
+                           "description": "Subset of title,authors,year,venue,doi,citation_count,is_review,url,source,doc_type,policy_org,quality_flag,abstract,keywords,pdf_url."},
             },
         },
     },
@@ -1320,6 +1379,8 @@ TOOL_DEFS = [
                 "arxiv": {"type": "string", "description": "arXiv id, e.g. 2401.12345"},
                 "topic": {"type": "string", "description": "Resolve the record from this topic's pool first."},
                 "run_dir": {"type": "string", "description": "Resolve the record from this run's pool.jsonl."},
+                "force": {"type": "boolean",
+                          "description": "Ignore both the fulltext cache and the short-lived failure cache and retry every leg (use after a network/proxy outage)."},
                 "background": {"type": "boolean",
                                "description": "Run as a detached job and return a job_id immediately (for clients that kill calls at ~30s; a fulltext download can take minutes). Poll `status` — for tools jobs log_tail IS the result JSON."},
             },
@@ -1356,6 +1417,8 @@ TOOL_DEFS = [
             "type": "object",
             "properties": {
                 "topic": {"type": "string", "description": "Byte-identical to the search topic."},
+                "queries": {"type": "array", "items": {"type": "string"},
+                            "description": "Your concept-block queries: rank survey anchors by topical relevance (default: citation count, which can pick an off-topic highly-cited survey)."},
                 "top_reviews": {"type": "integer", "description": "Top reviews to audit against (default 3)."},
             },
             "required": ["topic"],
@@ -1410,8 +1473,8 @@ TOOL_DEFS = [
             "fulltexts, each with paper+section+cue — quote them as gap "
             "evidence and `verify` checks the span like any other; "
             "(3) `check: \"<draft gap statement>\"` → nearest existing pool "
-            "records by BM25+embedding — a close neighbour is mechanical "
-            "refutation that the gap may already be done. Run all three "
+            "records by statement-term coverage + embedding — a close neighbour "
+            "is mechanical refutation that the gap may already be done. Run all three "
             "before writing the 找 movement; cite stated gaps with [n]."
         ),
         "inputSchema": {
@@ -1517,8 +1580,10 @@ TOOL_DEFS = [
         "name": "dedup",
         "description": (
             "Duplicate report over a pool: groups suspected duplicates by three "
-            "signals (exact DOI, arXiv id, fuzzy title + shared author — the "
-            "arXiv preprint and its published version are the classic case). "
+            "signals (exact DOI, arXiv id, normalized title — a specific title "
+            "with >=4 tokens stands alone even when authors are missing, which "
+            "is common for OpenAlex title-search records; short titles still "
+            "need a shared author). "
             "Report-only by default; merge=true collapses each group into its "
             "DOI-carrying survivor (topic pools only, .bak written first; "
             "pdf_url/abstract/found_by carry over)."
@@ -1766,7 +1831,6 @@ def run_job(job_dir: str, config: str, kind: str) -> int:
         emit(f"runner failed to launch driver: {e}")
         code = -2
     elapsed = time.time() - started
-    run_dir = _find_run_dir(cfg, kind, started)
     state.update(
         state="done" if code == 0 else "failed",
         exit_code=code,
@@ -1774,9 +1838,17 @@ def run_job(job_dir: str, config: str, kind: str) -> int:
         elapsed_s=round(elapsed, 1),
         runner_pid=os.getpid(),
     )
-    if run_dir:
-        state["run_dir"] = run_dir
-    if code != 0:
+    if code == 0:
+        run_dir = _find_run_dir(cfg, kind, started)
+        if run_dir:
+            state["run_dir"] = run_dir
+    else:
+        # A failed driver never owns an artifact directory. Scanning by
+        # mtime picked up the PREVIOUS successful run (its pool.jsonl is
+        # newer than the job start when the failure happens seconds after
+        # the last run), so `status` attributed old artifacts to the failed
+        # job (third-party report, live-recall P2-7).
+        state.pop("run_dir", None)
         state["error"] = f"driver exited {code}; see log"
     _write_json(jd / "state.json", state)
     emit(f"== {'done' if code == 0 else 'FAILED'} code={code} elapsed={elapsed:.0f}s run_dir={run_dir} ==")
@@ -1789,7 +1861,9 @@ def run_job(job_dir: str, config: str, kind: str) -> int:
 def selftest(cfg: dict) -> int:
     """Offline checks: config resolution, tool list, doctor, pool reader."""
     problems = []
-    path = config_path(None)
+    # Report the config ACTUALLY in use — `selftest --config X` printed the
+    # default ~/.citlens/config.json while loading X (third-party report P3).
+    path = Path(cfg.get("config_path") or config_path(None))
     print(f"config: {path} ({'found' if path.is_file() else 'MISSING — using defaults'})")
     print(f"home:   {cfg.get('home')}")
     print(f"python: {cfg.get('python')}")
@@ -1819,7 +1893,8 @@ def selftest(cfg: dict) -> int:
 
 
 _LIST_KEYS = ("families", "sources", "fields", "themes",
-              "queries", "title_probes", "web_queries", "seeds", "directions")
+              "queries", "title_probes", "web_queries", "policy_queries",
+              "seeds", "directions")
 
 
 def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
@@ -1844,6 +1919,11 @@ def _parse_cli_args(rest: list[str]) -> tuple[str, dict]:
             while j < len(rest) and not rest[j].startswith("--"):
                 vals.append(rest[j])
                 j += 1
+            # enum-ish lists accept both the JSON-array form (`--families a b`)
+            # and the comma form the drivers use (`--families a,b`) — the
+            # latter used to arrive as ONE value and the tool rejected it
+            if key in ("families", "sources", "fields", "directions"):
+                vals = [x for v in vals for x in v.split(",") if x]
             args[key] = vals
             i = j
             continue

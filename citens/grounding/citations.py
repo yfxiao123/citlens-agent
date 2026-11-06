@@ -86,12 +86,25 @@ def _bib_escape(value: object) -> str:
     return str(value).replace("{", "").replace("}", "").strip()
 
 
+_PROVENANCE_RE = re.compile(
+    r"^(?:snowball|expand|oa_title|s2_rec|survey|web|policy|agent|raw)(?:[-·(]|$)"
+)
+
+
 def _bib_venue(source: str, venue: str = "") -> str:
     """Prefer the explicit venue field, then the venue inside parens (e.g.
-    'OpenAlex (Journal of Finance)'), otherwise the whole source string."""
+    'OpenAlex (Journal of Finance)'), otherwise the whole source string.
+
+    Internal provenance labels are NOT venues: old snowball records carried
+    the seed DOI inside the label (`snowball-backward(10.1234/…)`), and the
+    fallback then rendered that string as the journal name in every export
+    format (third-party report, live-recall P2-5). Such sources yield "".
+    """
     if venue.strip():
         return _bib_escape(venue)
     s = (source or "").strip()
+    if _PROVENANCE_RE.match(s) or re.search(r"10\.\d{4,9}/", s):
+        return ""
     if "(" in s and s.endswith(")"):
         inner = s[s.find("(") + 1 : -1].strip()
         if inner:
@@ -151,7 +164,8 @@ class CitationTable:
             if p.pages:
                 fields.append(("pages", _bib_escape(p.pages).replace("-", "--")))
             source = _bib_venue(p.source, getattr(p, "venue", ""))
-            fields.append(("journal", source))
+            if source:
+                fields.append(("journal", source))
             body = ",\n  ".join(f"{k} = {{{v}}}" for k, v in fields)
             entries.append(f"@article{{{key},\n  {body},\n}}")
         return "\n\n".join(entries) + "\n"
@@ -168,7 +182,8 @@ class CitationTable:
                 lines.append(f"AU  - {_bib_escape(a)}")
             lines.append(f"TI  - {_bib_escape(p.title)}")
             venue = _bib_venue(p.source, getattr(p, "venue", ""))
-            lines.append(f"JO  - {venue}")
+            if venue:
+                lines.append(f"JO  - {venue}")
             if p.year:
                 lines.append(f"PY  - {p.year}")
             if p.volume:

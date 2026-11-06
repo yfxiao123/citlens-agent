@@ -309,6 +309,19 @@ def screen_papers(
         written = str(out_path)
 
     top = rows[: max(0, limit)]
+    notes: list[str] = []
+    if qs and sem_vecs is None:
+        notes.append(
+            "semantic channel unavailable: bands come from lexical (pool-normalized "
+            "BM25) + consensus only, so core can contain off-topic records that share "
+            "vocabulary and miss paraphrases. Read core+uncertain yourself; install "
+            'the "embedding" extra for a materially better triage.'
+        )
+    if not qs:
+        notes.append(
+            "no queries passed: all scores collapse to consensus only — pass your "
+            "concept-block queries for a usable banding."
+        )
     return {
         "n": len(rows),
         "queries": qs,
@@ -326,6 +339,7 @@ def screen_papers(
                                "channels", "best_query", "found_by")}
             for r in top
         ],
+        "notes": notes,
         "note": (
             "三分带是分流不是判决：core+uncertain 值得精读，likely_off 批量复核后"
             "按 PRISMA 记入 exclusions（绝不因 band 自动剔除）。core 阈值经 LitSearch "

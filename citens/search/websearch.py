@@ -187,8 +187,6 @@ async def _anchor_papers(results: list[dict], client: httpx.AsyncClient) -> list
     strings are candidates — searched on arXiv and Crossref and kept only
     on a strong title match. All free endpoints.
     """
-    from citens.search.openalex import OpenAlexSearcher
-
     papers: list[Paper] = []
     seen: set[str] = set()
 

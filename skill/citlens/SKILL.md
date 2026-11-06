@@ -31,12 +31,12 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `gaps` | mechanical substrate for 找: coverage matrix (concept blocks × time bands — empty cells are structural gap candidates), stated-gap mining (verbatim limitation/future-work sentences from fetched fulltexts), novelty check (a draft gap statement vs the pool's nearest existing work) |
 | `expand` | judgment feedback loop: citation-chain + S2-similarity expansion around papers YOU judged on-topic (`seeds` = DOIs / arXiv ids / titles, or `from_notes: core` to seed from your notes). The vocabulary-mismatch escape hatch — neighbors don't need query words to be found |
 | `notes` | reading notes: per-paper verdict (core / uncertain / off) + one-line reason, persisted per topic in data/notes/. The judgment memory — record as you read |
-| `dedup` | duplicate report over a pool (doi / arXiv / title+author signals); merge=true collapses groups into the DOI-carrying survivor (topic pools, .bak first) |
+| `dedup` | duplicate report over a pool (doi / arXiv / normalized title — a specific ≥4-token title stands alone even with missing authors); merge=true collapses groups into the DOI-carrying survivor (topic pools, .bak first) |
 | `pool` | read/filter the pool on disk (citations, years, reviews, DOIs); no new retrieval |
 | `fetch` | one paper's open-access full text (arXiv→S2→OpenAlex→Unpaywall→CORE), or abstract fallback |
 | `export` | pool → BibTeX / RIS / EndNote XML / CSL JSON via the same citation table the engine used |
 | `audit` | stage-F anchor check: pool coverage of the top surveys' bibliographies |
-| `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed |
+| `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed. Fail-closed: a review with claims but no verdicts file returns `clean=false` |
 | `status` | poll a running search job: state, elapsed, log tail, artifacts, stats |
 
 ## Two surfaces, one engine — harness CLI first
@@ -173,7 +173,10 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
        economist phrasings ("natural rate of interest estimates") feeding the
        policy corpus family — NBER working papers, Fed Board FEDS Notes and
        working papers, IMF. Plain wording, not ML-style concept blocks: these
-       queries speak the economics the notes themselves use.
+       queries speak the economics the notes themselves use. The family is
+       discipline-gated: without explicit `policy_queries` it runs only when
+       the topic is detected as economics, so it never injects NBER records
+       into a non-economics pool.
      - `pivot: 2` when the vocabulary is uncertain: after the first wave
        the driver builds 2 queries from the corroborated head's
        discriminative terms (LLM-free PRF local analysis — buys the
@@ -181,7 +184,9 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
        fewer than 3 cross-family-corroborated records exist, so it never
        drifts alone. Measured to rescue golds no hand-written variant
        reached.
-3. **`search`** with `topic` + `queries`. Start with `wait_seconds` = 45. A
+3. **`search`** with `topic` + `queries`. Start with `wait_seconds` = 20 (the
+   config default; safe for clients that hard-kill calls at 30s — raise it
+   only when your client tolerates long calls). A
    rich topic takes 2–6 minutes; if you get a `job_id`, poll `status` rather
    than starting a second search. Keep `append_pool` true so the shared pool
    grows. **Reuse the topic string byte-identically** across searches — pools
@@ -239,7 +244,9 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
 **Policy corpus mechanics (macro/economics topics).** The `policy` family
 pulls NBER working papers, Fed Board FEDS Notes plus the FEDS/IFDP
 working-paper series, and IMF papers — mechanically, over Crossref DOI
-prefixes, no scraping. Every pool record carries `doc_type` (journal /
+prefixes, no scraping. It is discipline-gated (runs only for economics
+topics or when you pass `policy_queries` explicitly), so a CRISPR or ML
+topic never receives policy noise. Every pool record carries `doc_type` (journal /
 preprint / working_paper / policy_note / report) and `policy_org`, so journal
 evidence and the policy side can be read as two perspectives on one
 question. Regional Fed banks, BIS and ECB deposit no Crossref DOIs — for
@@ -266,8 +273,11 @@ covered, check the shapes that are cheap to check:
   new, that is evidence of saturation. Say "no new distinct records on the
   second phrasing" rather than "exhaustive".
 - **Audit.** `audit` measures pool coverage of the top surveys'
-  bibliographies — the cheapest external recall anchor. Low coverage or
-  `reviews_checked = 0` means keep searching, not conclude.
+  bibliographies — the cheapest external recall anchor. Surveys are anchored
+  by the indexer's `is_review` flag OR a title that declares survey/review/
+  overview/meta-analysis (the flag alone missed most real surveys). Low
+  coverage or `reviews_checked = 0` means keep searching, not conclude;
+  `reviews_available` shows whether the pool even contains an anchor.
 
 Never present a subset as the whole field. If you filtered the pool (as the
 user asked), say what the filter was and what it removed.
@@ -486,8 +496,9 @@ Before declaring a task finished:
 | `failed` sources in report | report them explicitly; never as zero hits |
 | pool empty before writing | run `search` for the byte-identical topic first |
 | `rejected: too many concurrent jobs` | poll the existing jobs; the server caps concurrency deliberately |
-| `fetch` returns `fulltext: false` | abstract-only citation; restrict claims accordingly and count it in the honesty block |
-| `verify` returns `clean: false` | fix before delivery: unresolved reference = fabricated citation; `span_not_found` = the quote is not in the source; `unverifiable_but_ground_text_exists` = downgrade or ground it |
+| `fetch` returns `fulltext: false` | abstract-only citation; restrict claims accordingly and count it in the honesty block. `outcomes` names every leg tried and why it failed; `fetch --force` retries past the 1-day miss cache |
+| `verify` returns `clean: false` | fix before delivery: unresolved reference = fabricated citation; `span_not_found` = the quote is not in the source; `unverifiable_but_ground_text_exists` = downgrade or ground it; `claims_without_verdict > 0` = you shipped without judging every claim (write the verdicts file) |
+| `quality_flag: ai_generated` on a record | machine-synthesized report that self-describes as such — human judgment required, not citable as peer-reviewed scholarship |
 
 ## Sharing
 

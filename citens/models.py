@@ -10,6 +10,7 @@ build — the calling agent produces that structure in prose under the skill.
 from __future__ import annotations
 
 import hashlib
+import re
 from enum import Enum
 
 from pydantic import BaseModel, Field, computed_field, field_validator
@@ -70,6 +71,12 @@ class Paper(BaseModel):
     # different framings, and a review that cannot tell them apart misreads both.
     doc_type: str = ""  # journal | preprint | working_paper | policy_note | report
     policy_org: str = ""  # issuing institution for policy-corpus records (NBER, Federal Reserve Board, IMF)
+    # Mechanical quality marker stamped over the pool at recall ("" = none).
+    # "ai_generated": the record self-describes as machine-synthesized
+    # (Zenodo "autonomous synthesis report", "AI-generated", ...) — such a
+    # report must not be cited as ordinary scholarship (third-party report,
+    # live-recall P2-5).
+    quality_flag: str = ""
 
     @field_validator("authors", mode="before")
     @classmethod
@@ -125,6 +132,34 @@ class Paper(BaseModel):
             f"年份: {self.year} | 来源: {self.source} | 引用: {self.citation_count}\n"
             f"摘要: {self.abstract[:300]}..."
         )
+
+
+# Title words that mark a survey/review even when the indexer's type field is
+# missing or wrong. OpenAlex's `type:review` covers only part of the pool, and
+# the source that harvested a record may not carry a type at all — relying on
+# the flag alone made `audit` return reviews_checked=0 on pools with three
+# unmistakable surveys (third-party report, 2026-11-06).
+_REVIEW_TITLE_RE = re.compile(
+    r"\b(?:survey|systematic review|literature review|review|overview|"
+    r"meta-analysis|tutorial)\b",
+    re.IGNORECASE,
+)
+_REVIEW_TITLE_CJK_RE = re.compile(r"综述|述评|回顾|研究进展")
+
+
+def review_title_hint(title: str | None) -> bool:
+    """True when the TITLE itself declares a survey/review/overview."""
+    t = (title or "").strip()
+    if not t:
+        return False
+    return bool(_REVIEW_TITLE_RE.search(t) or _REVIEW_TITLE_CJK_RE.search(t))
+
+
+def looks_like_review(paper: "Paper") -> bool:
+    """Indexer flag OR title evidence — the anchor test audit/pool use."""
+    return bool(getattr(paper, "is_review", False)) or review_title_hint(
+        getattr(paper, "title", "")
+    )
 
 
 class ScoredPaper(Paper):

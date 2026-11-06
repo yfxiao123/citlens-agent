@@ -180,6 +180,27 @@ _MAX_PER_PAPER = 5
 _MIN_WORDS = 8
 
 
+def _text_health(texts: list[str]) -> dict:
+    """Cheap diagnostic for the "0 hits on real PDFs" failure mode.
+
+    PDF converters that drop inter-word spaces turn whole paragraphs into one
+    token: every line then fails the >=8-word test silently. Report the token
+    shape instead of returning an unexplained empty list (third-party report,
+    live-recall P2-4).
+    """
+    toks: list[str] = []
+    for t in texts:
+        toks.extend(t.split())
+    if not toks:
+        return {"tokens": 0, "avg_token_len": 0.0, "long_token_share": 0.0}
+    long_share = sum(1 for t in toks if len(t) > 25) / len(toks)
+    return {
+        "tokens": len(toks),
+        "avg_token_len": round(sum(len(t) for t in toks) / len(toks), 1),
+        "long_token_share": round(long_share, 3),
+    }
+
+
 def mine_stated_gaps(
     fulltext_dir: Path, papers: Sequence[Paper], limit: int = 40
 ) -> dict:
@@ -199,6 +220,7 @@ def mine_stated_gaps(
     by_file = {f"{slugify(p.title)[:80]}.txt": p for p in papers}
     hits: list[dict] = []
     scanned = 0
+    scanned_texts: list[str] = []
     for f in sorted(d.glob("*.txt")):
         p = by_file.get(f.name)
         try:
@@ -206,6 +228,7 @@ def mine_stated_gaps(
         except Exception:  # noqa: S112, BLE001 — one unreadable file must not kill the scan
             continue
         scanned += 1
+        scanned_texts.append(text)
         section = ""
         n_this = 0
         for line in text.splitlines():
@@ -231,6 +254,7 @@ def mine_stated_gaps(
                 hits.append({
                     "title": p.title if p else f.name,
                     "doi": p.doi if p else None,
+                    "in_pool": p is not None,
                     "text_file": str(f),
                     "section": section or "body",
                     "cue": cue.group(0).lower(),
@@ -241,17 +265,28 @@ def mine_stated_gaps(
                     break
             if len(hits) >= limit:
                 break
+    health = _text_health(scanned_texts)
+    note = (
+        "每条 span 是原文逐字句：引用为 gap 证据时走 [n] 纪律，"
+        "verify 会核 span 是否在被引原文逐字出现。"
+        "自陈局限是第三方证词，强于从沉默推测空白；"
+        "但作者没写局限不等于没有局限。"
+    )
+    if scanned and not hits:
+        if health["long_token_share"] > 0.2:
+            note += (
+                " 0 命中的原因大概率是全文文本丢空格（整段被并成一个 token，"
+                "句子词数判定失败）——用 fetch --force 重取，转换器已换 PyMuPDF。"
+            )
+        else:
+            note += " 0 命中：这些全文没有可识别的 limitations/future-work 句，换一批核心论文再扫。"
     return {
         "ok": True,
         "scanned_files": scanned,
-        "matched_to_pool": sum(1 for h in hits if h["doi"] or h["title"] != ""),
+        "matched_to_pool": sum(1 for h in hits if h["in_pool"]),
+        "text_health": health,
         "hits": hits,
-        "note": (
-            "每条 span 是原文逐字句：引用为 gap 证据时走 [n] 纪律，"
-            "verify 会核 span 是否在被引原文逐字出现。"
-            "自陈局限是第三方证词，强于从沉默推测空白；"
-            "但作者没写局限不等于没有局限。"
-        ),
+        "note": note,
     }
 
 
@@ -275,9 +310,18 @@ def novelty_check(statement: str, papers: Sequence[Paper], k: int = 8,
     if not st or not papers:
         return {"ok": False, "error": "pass a gap statement and a pool"}
     texts = [_paper_text(p) for p in papers]
-    raw = bm25_scores(texts, st)
-    mx = max(raw) if raw else 0.0
-    lex = [r / mx if mx > 0 else 0.0 for r in raw]
+    # Term COVERAGE, not max-normalized BM25: dividing by the pool max made
+    # the nearest neighbour score exactly 1.0 whenever ANY single word was
+    # shared, so every draft read as "高重叠" (third-party report, offline
+    # P2-4). Coverage answers the actual question — what share of the gap
+    # statement's content terms does this paper contain?
+    from citens.grounding.retrieval import _terms
+
+    qterms = set(_terms(st))
+    lex: list[float] = []
+    for t in texts:
+        dterms = set(_terms(t))
+        lex.append(len(qterms & dterms) / len(qterms) if qterms else 0.0)
 
     model_name = settings.screen_embedding_model if model is None else model.strip()
     sem: list[float] | None = None
@@ -309,7 +353,7 @@ def novelty_check(statement: str, papers: Sequence[Paper], k: int = 8,
     return {
         "ok": True,
         "statement": st[:200],
-        "channels": ["bm25"] + (["embedding"] if sem is not None else []),
+        "channels": ["term_coverage"] + (["embedding"] if sem is not None else []),
         "neighbors": [
             {"score": round(s, 4), "title": p.title[:100], "doi": p.doi,
              "year": p.year, "citation_count": p.citation_count}

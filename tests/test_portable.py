@@ -352,7 +352,8 @@ def test_install() -> None:
               Path(cfg["python"]).is_file() and Path(cfg["recall_driver"]).is_file()
               and Path(cfg["tools_driver"]).is_file())
         check("apply creates the data home", Path(cfg["home"]).is_dir())
-        check("config lists the seven families", len(cfg.get("families") or []) == 7)
+        check("config lists all eight families (policy included)",
+              len(cfg.get("families") or []) == 8 and "policy" in cfg["families"])
         check("CLI shim written", (tmp / ".citlens" / "bin" / "citlens.cmd").is_file())
 
         toml = (tmp / ".codex" / "config.toml").read_text(encoding="utf-8")
@@ -481,9 +482,11 @@ def test_registry() -> None:
               and "verified" in listing.stdout)
 
         snip = _run_install(env, "snippet", "zed")
-        check("snippet prints a paste-ready config for a manual client",
-              snip.returncode == 0 and "mcpServers" in snip.stdout
-              and "context_servers" in snip.stdout)
+        # Zed's real shape: context_servers -> {command: {path, args}} — the
+        # old generic mcpServers JSON was not paste-ready (third-party P2-3)
+        check("snippet prints Zed's own context_servers shape",
+              snip.returncode == 0 and '"context_servers"' in snip.stdout
+              and '"path"' in snip.stdout and '"args"' in snip.stdout)
 
         snip2 = _run_install(env, "snippet", "aider")
         check("snippet explains the CLI-only integration",
@@ -708,8 +711,9 @@ def test_config_migration() -> None:
         check("apply migrates the old config", r.returncode == 0,
               (r.stdout + r.stderr)[-400:])
         migrated = json.loads(cfg_path.read_text(encoding="utf-8"))
-        seven = ["agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey"]
-        check("nine-family list becomes seven", migrated.get("families") == seven,
+        eight = ["agent", "raw", "oa_title", "s2_rec", "snowball", "web",
+                 "survey", "policy"]
+        check("nine-family list becomes the current eight", migrated.get("families") == eight,
               str(migrated.get("families")))
         check("migration is reported, not silent", "migrated" in r.stdout, r.stdout[-300:])
 

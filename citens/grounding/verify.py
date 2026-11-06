@@ -47,7 +47,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from citens.grounding.citations import parse_claims_from_review
-from citens.grounding.fulltext import slugify
+from citens.grounding.fulltext import slugify, text_quality_ok
 from citens.models import Paper, Verdict
 
 # --- vocabulary -------------------------------------------------------------
@@ -214,8 +214,12 @@ def ground_text(paper: Paper, text_dir: Path) -> tuple[str, bool]:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if text.strip():
+        if text.strip() and text_quality_ok(text):
             return text, True
+        # A run-together conversion (old markitdown output) cannot ground a
+        # verbatim quote: treating it as full text manufactured span
+        # mismatches (third-party report P1-2). Fall through to the abstract
+        # floor instead — the honest downgrade.
     return (paper.abstract or ""), False
 
 
@@ -504,10 +508,16 @@ def verify_review(
         or span_mismatch > 0
         or no_ground > 0
         or unverifiable_with_text > 0
+        # Fail CLOSED on an unjudged review. The old gate only tested
+        # "not verdict_list or ..." — so a review with 37 claims and NO
+        # verdicts returned clean=true while honesty reported
+        # claims_without_verdict=37 and citation_precision=0.0, i.e. the
+        # honesty gate passed the exact artifact it exists to stop
+        # (third-party report, offline-tools P1-6).
+        or claims_without_verdict > 0
+        or bool(unmatched_verdicts)
     )
-    clean = not structural_problems and (
-        not verdict_list or (claims_without_verdict == 0 and not unmatched_verdicts)
-    )
+    clean = not structural_problems
 
     result: dict[str, Any] = {
         "ok": True,

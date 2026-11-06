@@ -50,7 +50,10 @@ Serper（web 桥接家族）、Semantic Scholar（限速提升）、OpenAlex（k
 
 - 只装指定客户端：`apply --only zcode,claude`
 - 没被检测到的客户端也强制生成配置：`apply --all`
-- 手工粘贴型客户端：`install.py snippet zed` 打印即贴
+- 一个 MCP 客户端都没检测到时，`plan/apply` 仍会写共享 config + CLI shim + skill
+  （纯 CLI 用户可直接用 `citlens.cmd`），不会 exit 1
+- 手工粘贴型客户端：`install.py snippet zed` 打印即贴（按客户端方言生成：
+  Zed `context_servers`、Goose/Continue YAML、Crush `mcp`、Copilot `servers`）
 
 注册内容是标准的 stdio MCP 条目（command = 本仓库 venv 的 python，args =
 `<repo>/citlens_mcp.py serve --config ~/.citlens/config.json`）。skill 会同时安装到
@@ -64,8 +67,9 @@ Serper（web 桥接家族）、Semantic Scholar（限速提升）、OpenAlex（k
 
 > run the citlens doctor tool
 
-期望 `doctor.ok: true`（配置里的 families 不含本构建不支持的旧家族名），九个工具
-（search / pool / screen / fetch / export / audit / verify / status / doctor）可见。
+期望 `doctor.ok: true`（配置里的 families 不含本构建不支持的旧家族名），十三个工具
+（search / pool / fetch / export / audit / screen / gaps / verify / expand / notes /
+dedup / status / doctor）可见。
 命令行直接验收：
 
 ```bash

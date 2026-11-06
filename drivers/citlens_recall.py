@@ -46,6 +46,8 @@ from pathlib import Path
 # installed (e.g. the engine repo's editable install).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from citens.models import Paper  # noqa: E402
+
 # --- CiteLens constants, copied verbatim (do not "improve" them) --------------
 PER_SOURCE = 20          # per-source cell depth (== the union@20 ceiling)
 AGENT_DEPTH = 40         # agent-query leg per-cell depth; RRF only sums ranks
@@ -224,12 +226,18 @@ async def recall(args) -> dict:
         if entry["verdict"] == "ok" and best == 0.0 and len(query_feedback) > 1:
             entry["verdict"] = "isolated"
     report["query_feedback"] = query_feedback
-    weak = [q["query"] for q in query_feedback if q["verdict"] != "ok"]
+    weak = [q["query"] for q in query_feedback if q["verdict"] in ("empty", "thin")]
+    isolated = [q["query"] for q in query_feedback if q["verdict"] == "isolated"]
     if weak:
         notes.append(
             f"查询反馈：{len(weak)}/{len(query_feedback)} 条查询命中过低（empty/thin，见报告表）——"
             "这些概念块换论文侧词汇（方法名/数据集名/任务名/术语缩写）重拟后补一轮 search；"
             "命中过低通常意味着词汇错配，不是池子太小"
+        )
+    if isolated:
+        notes.append(
+            f"查询反馈：{len(isolated)} 条查询与他查询结果集零重叠（isolated）——"
+            "可能是真正的独立概念块，也可能是盲猜词汇；读其返回记录再决定是否保留该块"
         )
 
     # NOTE: the mechanical pivot wave used to run HERE — between family 2
@@ -410,28 +418,42 @@ async def recall(args) -> dict:
     # DOI-depositing institutions directly and stamps doc_type/policy_org so
     # the agent can contrast the two perspectives instead of blending them.
     if "policy" in want:
-        policy_qs = [q for q in (args.policy_queries or []) if q.strip()] \
-            or agent_qs or [topic]
-        report["policy_queries"] = policy_qs
-        try:
-            pol_src = PolicySearchSource()
-            pol_papers = await pol_src.search(policy_qs, 24)
-            for org, b in pol_src.health.items():
-                health[f"policy-{org}"] = list(b)
-            _note("policy", pol_papers)
-            quota_cut.extend(pol_papers[FAMILY_QUOTA:])
-            from citens.eval.litsearch import _key_of
-            seen = {_key_of(p) for p in pool}
-            added = 0
-            for p in pol_papers[:FAMILY_QUOTA]:
-                if _key_of(p) not in seen:
-                    seen.add(_key_of(p))
-                    pool.append(p)
-                    added += 1
-            family_sizes["policy"] = added
-            _log(f"family policy: +{added} (head {len(pol_papers)})")
-        except Exception as e:  # noqa: BLE001
-            notes.append(f"policy: 失败，跳过（{str(e)[:120]}）")
+        explicit_policy = bool([q for q in (args.policy_queries or []) if q.strip()])
+        # Discipline gate: the policy corpus is macro/economics evidence. On a
+        # non-economics topic (CRISPR, DPO, ...) it injects NBER/Fed/IMF noise
+        # that can even flip the detected discipline to economics (measured by
+        # the 2026-11-06 third-party test: 29 NBER records on a CRISPR topic).
+        # Explicit --policy-queries always wins — the caller asked for it.
+        gate = None if explicit_policy else detect_discipline([topic, *agent_qs])
+        if not explicit_policy and not (gate and gate.get("name") == "economics"):
+            notes.append(
+                "policy: 主题未识别为经济学/政策语料且未显式提供 --policy-queries — 已跳过"
+                "（避免向无关主题注入 NBER/Fed/IMF 记录；需要时显式传 --policy-queries）"
+            )
+            want.discard("policy")
+        else:
+            policy_qs = [q for q in (args.policy_queries or []) if q.strip()] \
+                or agent_qs or [topic]
+            report["policy_queries"] = policy_qs
+            try:
+                pol_src = PolicySearchSource()
+                pol_papers = await pol_src.search(policy_qs, 24)
+                for org, b in pol_src.health.items():
+                    health[f"policy-{org}"] = list(b)
+                _note("policy", pol_papers)
+                quota_cut.extend(pol_papers[FAMILY_QUOTA:])
+                from citens.eval.litsearch import _key_of
+                seen = {_key_of(p) for p in pool}
+                added = 0
+                for p in pol_papers[:FAMILY_QUOTA]:
+                    if _key_of(p) not in seen:
+                        seen.add(_key_of(p))
+                        pool.append(p)
+                        added += 1
+                family_sizes["policy"] = added
+                _log(f"family policy: +{added} (head {len(pol_papers)})")
+            except Exception as e:  # noqa: BLE001
+                notes.append(f"policy: 失败，跳过（{str(e)[:120]}）")
 
     # ── mechanical pivot expansion (opt-in: --pivot N, default 0 = off) ──────
     # The vocabulary-mismatch escape hatch that needs no LLM: corroborated
@@ -493,7 +515,15 @@ async def recall(args) -> dict:
     # "3 families voted for this paper" is far more reviewable.
     for p in pool:
         p.found_by = sorted(votes.get(_fuse_key(p), set()))
+    # Two denominators, both written to the report so the numbers can be
+    # re-derived from artifacts: votes cover each family's FULL recall (many
+    # records never enter the pool), while pool/kept counts describe the
+    # records that survived seat selection and the target cut. The old report
+    # printed only the full-ballot count next to a smaller pool, which read
+    # as an arithmetic error ("80 corroborated > 68 candidates", third-party
+    # report live-recall P2-9).
     consensus = {
+        "records_seen": len(votes),
         "2plus": sum(1 for v in votes.values() if len(v) >= 2),
         "3plus": sum(1 for v in votes.values() if len(v) >= 3),
     }
@@ -504,6 +534,17 @@ async def recall(args) -> dict:
     # nobody queried for) get the same tag for the 学术/政策端 contrast
     stamp_doc_types(pool)
     stamp_doc_types(quota_cut)
+
+    # mechanical quality flag: machine-synthesized "reports" (Zenodo etc.)
+    # must be visible as such, not blend into the scholarly pool
+    from citens.collect import flag_low_quality
+
+    quality_flags = flag_low_quality(pool)
+    if quality_flags:
+        notes.append(
+            "quality_flag: " + ", ".join(f"{k} {v}" for k, v in sorted(quality_flags.items()))
+            + " 条记录自述为机器生成/合成报告——引用前必须人工判断，不可当同行评议文献"
+        )
 
     notes.append(
         "排序说明：本构建无 LLM 级联——顺序为 RRF/家族保底席位序，"
@@ -612,6 +653,15 @@ async def recall(args) -> dict:
     )
     report["saturation_note"] = saturation_note(report["saturation"])
 
+    consensus.update(
+        pool_records=len(pool),
+        pool_2plus=sum(1 for p in pool if len(p.found_by) >= 2),
+        kept_2plus=sum(1 for p in ranked if len(p.found_by) >= 2),
+    )
+    # policy may have been discipline-gated away above — the report must list
+    # what actually ran, not what the caller asked for
+    report["families_enabled"] = sorted(want)
+
     report.update(
         family_sizes=family_sizes,
         family_consensus=consensus,
@@ -621,6 +671,7 @@ async def recall(args) -> dict:
         notes=notes,
         doc_types=doc_types,
         policy_orgs=policy_orgs,
+        quality_flags=quality_flags,
         exclusions={
             reason: sum(1 for r, _p in rejected if r == reason)
             for reason in ("family_quota", "duplicate_or_merged", "ranked_below_target")
@@ -633,6 +684,7 @@ async def recall(args) -> dict:
 
 def write_run(out_root: Path, topic: str, result: dict) -> Path:
     from citens.grounding.fulltext import slugify
+    from citens.models import looks_like_review
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     run_dir = out_root / f"{slugify(topic)}-{ts}"
@@ -715,7 +767,7 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
     notes = "\n".join(f"- {n}" for n in report.get("notes", [])) or "- （无）"
     missing_venue = sum(1 for p in papers if not p.venue)
     no_doi = sum(1 for p in papers if not p.doi)
-    reviews = sum(1 for p in papers if p.is_review)
+    reviews = sum(1 for p in papers if looks_like_review(p))
     doc_types = report.get("doc_types", {})
     policy_orgs = report.get("policy_orgs", {})
     kind_line = " · ".join(f"{k} {v}" for k, v in sorted(doc_types.items())) or "（无标记）"
@@ -742,8 +794,9 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 - 文献类型：{kind_line}（政策机构：{org_line}）
   （doc_type/policy_org 已写入每条记录——学术证据与政策端视角分开读，
   二者的分析框架与关心变量并不相同）
-- 家族共识：≥2 家族同时命中 {cons.get('2plus', 0)} 篇 · ≥3 家族 {cons.get('3plus', 0)} 篇
-  （`found_by` 已写入每条 pool 记录；`screen` 工具的 consensus 通道消费它）
+- 家族共识：全召回票池 {cons.get('records_seen', 0)} 条中 ≥2 家族 {cons.get('2plus', 0)} 篇 · ≥3 家族 {cons.get('3plus', 0)} 篇；
+  入池 {cons.get('pool_records', 0)} 条中 ≥2 家族 {cons.get('pool_2plus', 0)} 篇（保留 {cons.get('kept_2plus', 0)} 篇）
+  （`found_by` 已写入每条 pool 记录，入池口径可直接复算；全召回口径包含未入池记录）
 - 排除日志：家族配额 {excl.get('family_quota', 0)} · 合并去重 {excl.get('duplicate_or_merged', 0)}
   · 目标截断 {excl.get('ranked_below_target', 0)}（`exclusions.jsonl` 逐条带原因码）
 - 顺序为 RRF/家族席位序（无 LLM 级联）：引用前由 agent 逐篇判断相关性，

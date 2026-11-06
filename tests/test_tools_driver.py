@@ -37,15 +37,20 @@ def _args(**kw):
     return argparse.Namespace(**base)
 
 
-# no pool, no network: fetch_fulltext stubbed — these tests exercise the
-# record-construction path only
-tools.fetch_fulltext = lambda paper: None
+# no pool, no network: fetch_fulltext + identifier metadata stubbed — these
+# tests exercise the record-construction path only
+tools.fetch_fulltext = lambda paper, force=False: None
+tools.arxiv_metadata = lambda aid: {}
+tools.fetch_work_by_doi = lambda doi: {}
 
 print("== fetch minimal-record path ==")
 out = tools.cmd_fetch(_args(title="Some Paper Title"))
 check("title-only fetch survives (url bug)", out.get("ok") is True, str(out.get("error")))
-check("title-only fetch reports abstract-only posture",
-      out.get("fulltext") is False and "仅摘要级" in (out.get("note") or ""))
+check("title-only fetch with no abstract does NOT promise an abstract fallback",
+      out.get("fulltext") is False
+      and ("没有摘要" in (out.get("note") or "")
+           or "不可作为证据" in (out.get("note") or "")),
+      out.get("note") or "")
 
 out = tools.cmd_fetch(_args(arxiv="2401.12345"))
 check("arxiv fetch builds the abs url",

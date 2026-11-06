@@ -34,6 +34,32 @@ def _clean_abstract(raw: str | None) -> str:
     return re.sub(r"\s+", " ", _JATS_RE.sub(" ", raw)).strip()
 
 
+# Crossref indexes supplementary files, appendices and media attachments as
+# separate "works". They are not papers: they have titles like "Appendix",
+# "Supplemental Information 2: …" or "…_sup", and DOIs ending in /mm1 or
+# /supp-2. Left in, they entered the pool as ordinary records and produced
+# junk references (third-party report, live-recall P2-5).
+_COMPONENT_TITLE_RE = re.compile(
+    r"^(?:appendix|appendices|supplement(?:ary|al)?\b|supporting information\b|"
+    r"supplementary material\b)",
+    re.IGNORECASE,
+)
+_COMPONENT_DOI_RE = re.compile(r"(?:/mm\d+|/suppl?-\d+|/suppl?ement\w*)$", re.IGNORECASE)
+_COMPONENT_TYPE = {"component", "dataset", "peer-review", "grant", "annotation"}
+
+
+def _is_component(item: dict) -> bool:
+    """True for Crossref supplementary/attachment records, not real works."""
+    if (item.get("type") or "").strip().lower() in _COMPONENT_TYPE:
+        return True
+    title = ((item.get("title") or [""])[0] or "").strip()
+    if _COMPONENT_TITLE_RE.match(title):
+        return True
+    if title.lower().endswith(("_sup", "_supp", " appendix")):
+        return True
+    return bool(_COMPONENT_DOI_RE.search((item.get("DOI") or "").strip()))
+
+
 @register("crossref")
 class CrossrefSearcher(SearchSource):
     name = "Crossref"
@@ -71,7 +97,7 @@ class CrossrefSearcher(SearchSource):
         resp = await client.get(f"{_BASE}/works", params=params)
         resp.raise_for_status()
         items = resp.json().get("message", {}).get("items", [])
-        out = [self._to_paper(it) for it in items]
+        out = [self._to_paper(it) for it in items if not _is_component(it)]
         for p in out:
             p.matched_queries.append(query)  # retrieval provenance
         self.query_stats[query] = len(out)
@@ -125,3 +151,26 @@ def fetch_abstract_by_doi(doi: str) -> str:
             return _clean_abstract(r.json()["message"].get("abstract"))
     except Exception:  # noqa: BLE001
         return ""
+
+
+def fetch_work_by_doi(doi: str) -> dict:
+    """Best-effort metadata for a bare DOI (title/authors/year/abstract/venue).
+
+    `fetch --doi` on a paywalled paper used to report "abstract-only" with an
+    EMPTY abstract because nothing looked the record up (third-party report
+    P2-8). One Crossref call fills it; failure degrades to {}.
+    """
+    if not doi:
+        return {}
+    try:
+        with net.sync_client(name=_LIMITER, timeout=20, headers=_UA) as client:
+            r = client.get(f"{_BASE}/works/{doi}", params=_polite_params())
+            if r.status_code != 200:
+                return {}
+            p = CrossrefSearcher._to_paper(r.json()["message"])
+            return {
+                "title": p.title, "authors": p.authors, "year": p.year,
+                "abstract": p.abstract, "venue": p.venue, "doi": p.doi,
+            }
+    except Exception:  # noqa: BLE001
+        return {}

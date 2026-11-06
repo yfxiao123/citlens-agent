@@ -1,5 +1,162 @@
 # Changelog
 
+## Unreleased — third-party test report: 7 P1 / 12 P2 fixed
+
+第三方对 `main @ 473864b` 的完整试运行（`citlens/test-report/`）暴露的
+问题逐项修复。核心结论不变：**缺陷几乎全部在"参数接线 / 真实数据契约 /
+文档声明"三层，不是算法回归**——所以修复集中在"声明了但没接上"和
+"失败被伪装成正常"两类。
+
+### P1-1 policy_queries 断链 + policy 家族默认关闭
+
+- `tool_search` 组装的 payload 现在携带 `policy_queries`；此前 schema/
+  instructions/README 都声明该参数，payload 里却没有这个键，驱动永远
+  收不到。CLI 的 `_parse_cli_args` 也把 `policy_queries` 加入列表键
+  （否则 `--policy-queries a b` 只传第一个词）。
+- `install.py` 写出的默认 families 补上 `policy`（此前 7 个，文档称 8 个）。
+- **新增学科门控**：未显式提供 `policy_queries` 时，policy 家族只在主题
+  被 `detect_discipline` 识别为 economics 时运行，避免向 CRISPR/DPO 等
+  主题注入 NBER/Fed/IMF 噪声（第三方实测 CRISPR 主题 29 条 NBER 记录）。
+  显式传 `policy_queries` 始终优先。
+
+### P1-2 arXiv PDF 转文本丢空格 → PyMuPDF 主转换器
+
+- **根因**：markitdown 的 pdfminer 路径在大量 arXiv PDF 上丢掉词间空格
+  （`Whilelarge-scaleunsupervised…`），逐字 span 回查因此大面积失败
+  （第三方实测 37 条 span 中 14 条 mismatch，全部集中在 arXiv 全文），
+  `gaps --mine` 也因句子无法分词而 0 命中。
+- `_convert_pdf_file` 改为 **PyMuPDF 优先、markitdown 兜底**；PyMuPDF
+  加入核心依赖（本地轮子，无需网络）。
+- **缓存版本化**：本地转换缓存键与正向 fulltext 缓存键都带
+  `_CONVERTER_VERSION`——旧转换器产出的坏文本不会因 TTL=0 永久复用。
+- **质量门 + verify 回退**：`text_quality_ok`（长 token 占比与平均 token
+  长度）拒绝把丢空格的转换结果当全文：`_convert_pdf_file` 直接判为不可用，
+  `verify.ground_text` 对旧 `.txt` 回退到摘要层而不是制造 14/37 条假
+  span mismatch。
+- 实测：同一篇 arXiv PDF，旧路径 head 为
+  `Thisarticleinvestigatessignalestimation…`，新路径为
+  `This article investigates signal estimation in wireless…`（87k 字）。
+
+### P1-3 dedup 漏报完全同名重复
+
+- 题名信号此前强制要求"模糊题名相同 + 共作者"，而 oa_title 家族记录
+  常带 `authors=[]`，完全同名的对也进不了候选（第三方池中 3 组同名
+  重复，`dedup` 报 0 组）。
+- 新增纯题名信号：**≥4 个有效词的归一化题名完全一致即可成组**（不要求
+  作者）；短/泛题名仍需共作者，保守规则不变。`duplicate_groups` 与
+  `dedup_pool` 共用同一个 `_match_reasons`。
+
+### P1-4 audit 永远 reviews_checked=0
+
+- `OpenAlexSearcher.to_paper` 现在读取 OpenAlex `type` 字段
+  （`type == "review"` → `is_review=True`），所有 OpenAlex 家族
+  （oa_title、相关性、snowball、expand）都受益。
+- `looks_like_review()` 增加题名回退：题名含 survey / review /
+  overview / meta-analysis / tutorial / 综述 / 述评 / 研究进展 也算锚点
+  （仅题名，不扫摘要，避免 "we review the literature" 误报）。
+- `audit` 新增 `--queries`：按概念块相关性优先选锚点，缺省才按引用数
+  （实测 RL/广告池按引用数会选中公司治理综述；给查询后回到 RL 综述）。
+  输出增加 `reviews_available` 与每条锚点的 `anchor: is_review|title`。
+- 实测旧池："强化学习与广告算法" 池 180 条，此前 `is_review=0`，
+  现在识别出 19 篇综述候选。
+
+### P1-5 verify 的 --run-dir/--text-dir 经 CLI/MCP 传不到
+
+- `tool_verify` 此前拼 `--run_dir`/`--text_dir`（下划线），argparse 只认
+  连字符 → 驱动 exit 2，MCP 显示 "driver produced no JSON"。已改为
+  `--run-dir`/`--text-dir`。
+- 实测：带 `--run-dir --text-dir` 的 CLI verify 正常返回
+  `clean=true, refs_in_pool=1, span_ok=1`。
+
+### P1-6 verify 缺 verdicts 时 fail-open
+
+- 旧闸门只在"提供了 verdicts"时检查完整性，于是 37 条 claim、0 条
+  verdict 的综述返回 `clean=true`，同时 honesty 里
+  `claims_without_verdict=37`、`citation_precision=0.0`——诚实闸门放行了
+  它本该拦住的产物。
+- `clean` 现在 fail-closed：`claims_without_verdict > 0` 或存在未匹配
+  verdict 一律 false。实测无 verdicts 时 `clean=false`，
+  problems 列出 `1 claim(s) have no verdict`。
+
+### P1-7 fetch 的 scansci 末棒抛 UnboundLocalError 丢弃已下载全文
+
+- **根因**：`f"{leg} ✓ …"` 里的 `leg` 只在 OA 候选循环中赋值；裸 DOI
+  无 OA 候选时循环不执行，scansci 成功路径引用未绑定变量 → 异常被
+  `cmd_fetch` 吞掉，最终 `fulltext=false` + "仅摘要级"。
+- 现在记录**实际交付的通道**（`source_leg`），初始化清晰；scansci 成功
+  时标签为 `scansci(<渠道>)`，不再把末棒记成前置 OA 通道。
+- scansci **缓存短路**：CLI 命中自身缓存时不复制文件到 `--output`
+  （旧逻辑读作 `no-file`）；现在先查 `~/.scansci-pdf/cache/*.json`，
+  标识符匹配且文件存在就直接转换。
+- `fetch` 结果新增 `fulltext_source` 与逐腿 `outcomes`（哪条腿、为什么
+  失败），`cmd_fetch` 不再在异常后仍报 `ok:true`。
+- 新增 `--force`：绕过正向 fulltext 缓存与 1 天失败负缓存（且缓存键带
+  转换器版本），网络恢复后无需手工清缓存。
+
+### P2（12 条）
+
+- **诊断/配置**：显式指定但缺失/坏 JSON 的 config 现在让 `doctor.ok=false`
+  并给出原因（此前静默回退默认值）；`install.py plan/apply` 在无已检测
+  客户端时仍写共享 config + shim + skill（不再 exit 1）；`selftest
+  --config X` 打印实际使用的 config 路径。
+- **screen**：CLI 别名 `--core/--off` 不再被静默忽略；语义通道缺失时
+  报告 `notes` 明确说明"仅 lexical+consensus，core 可能含共享词汇的
+  离题项、也会漏掉转述"。
+- **gaps**：`matched_to_pool` 现在只数真正在池的记录（旧实现恒等于
+  hits 数）；0 命中且文本出现"整段无空格"特征时给出诊断（"用
+  `fetch --force` 重取，转换器已换 PyMuPDF"）；novelty 的 lexical 通道
+  从"除以池内最大值"改为**陈述词覆盖率**——旧实现只要有任意一个共享词，
+  最近邻就恒为 1.0、永远判"高重叠"。
+- **pool**：纯空白 topic 不再 slug 成 "" 后匹配任意 run 池（明确报错）。
+- **OpenAlex null 题名**：一条 `"title": null` 的记录会让整个源抛
+  `ValidationError`、所有关键词一起判 failed（本轮修复时实测复现）。
+  `to_paper` 归一为 ""，调用方过滤空题名，源不再被单条坏记录击穿。
+- **CLI 逗号列表**：`--families agent,raw,oa_title` 不再被当成一个值
+  （enum 型列表同时接受空格分隔与逗号分隔；queries 保持原样）。
+- **status**：失败作业的 `run_dir` 不再按 mtime 误指向前一轮成功 run
+  （失败即清空；只有 done/lost 才回退扫描）。
+- **报告口径**：家族共识同时给出全召回分母（`records_seen`）与入池/
+  保留口径（`pool_2plus`/`kept_2plus`），数字可从 `found_by` 复算。
+- **fetch 摘要措辞 / 元数据**：无全文且无摘要时不再承诺"仅摘要级"（明确
+  "不可作为证据引用"）。`fetch --arxiv` / `fetch --doi` 现在先做一次元数据
+  回填（arXiv Atom / Crossref work），标题不再是裸标识符、摘要不再为空
+  （第三方实测：`fetch --arxiv 2401.12345` 此前 title=id、abstract=null）。
+- **policy 噪声**：见 P1-1 学科门控。
+- **S2 预期管理**：README 写明无 key 的缩水范围与"有 key 仍可能有 429
+  burst（重试后成功，不等于无 429）"。
+- **scansci 重试语义**：缓存命中先查、`--force` 绕过负缓存。
+- **AI 生成伪论文 / 附件污染**：`Paper.quality_flag`；recall 结束时机械标记
+  自述为 "autonomous synthesis / AI-generated / tribunal consensus" 的记录，
+  并在报告 notes 提醒不可当同行评议文献。Crossref 检索现在过滤
+  supplementary/attachment 记录（标题 Appendix/Supplemental、DOI 以
+  `/mm1`、`/supp-2` 结尾、type=component/dataset 等）——这些曾被当成普通
+  论文入池并产出垃圾参考文献。
+- **导出污染**：snowball 的 `source` 不再携带 seed DOI；`_bib_venue`
+  拒绝把 provenance 串（含内嵌 DOI）渲染成期刊名。
+
+### P3 快修
+
+- INSTALL 工具数 "九个" → 十三个（含完整名单）；`export --format
+  bibtex` 接受（此前只认 `bib`）；`wait_seconds` 文档与配置默认（20）一致
+  （install.py 也改为 20）；`fetch --title` 接受近似逐字题名（唯一候选且
+  token Jaccard ≥0.9，避免标点/大小写导致的失败）；
+  snippet 按客户端方言生成（Zed `context_servers`、Goose/Continue YAML、
+  Crush `mcp`、Amp `amp.mcpServers`、Copilot `servers`；此前 8 个客户端
+  都打印同一份 `mcpServers` JSON）。
+
+### 验证
+
+- 新增 `tests/test_report_fixes.py`（26 项）覆盖以上每条根因：题名去重、
+  review 锚点推导、verify fail-closed / 参数接线、policy_queries 转发、
+  screen 别名、scansci 零 OA 候选成功、PyMuPDF 空格保留、provenance
+  venue、AI 生成标记、config 严格性、空白 topic、mine 计数。
+- 全量离线套件：16 个测试文件全绿（`test_portable` 114、`test_health`
+  53、`test_net` 51、`test_policy` 40……）；`tools/verify_harness.py`
+  34/34 绿。
+- 实测：arXiv PDF 87k 字含空格；Jensen 1976 付费 DOI 取回 175k 字；
+  verify `--run-dir/--text-dir` 返回 clean=true；无 verdicts 时
+  clean=false；stub 驱动的 search 载荷/argv 均含 `--policy-queries`。
+
 ## Unreleased — verification closure: the three uncovered gaps, all closed
 
 验收报告里诚实列出的三个未覆盖项，逐项解决：

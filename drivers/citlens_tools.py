@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -33,9 +34,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from citens.collect import audit_recall, pool_path, read_pool  # noqa: E402
 from citens.grounding.citations import CitationTable  # noqa: E402
-from citens.grounding.fulltext import fetch_fulltext, slugify  # noqa: E402
+from citens.grounding.fulltext import (  # noqa: E402
+    arxiv_metadata,
+    fetch_fulltext,
+    fetch_outcomes,
+    fetch_report,
+    slugify,
+)
 from citens.grounding.verify import load_verdicts, verify_review  # noqa: E402
 from citens.models import Paper  # noqa: E402
+from citens.search.crossref import fetch_work_by_doi  # noqa: E402
 
 
 def _log(msg: str) -> None:
@@ -102,6 +110,22 @@ def _match(papers: list[Paper], doi: str | None, title: str | None) -> Paper | N
         for p in papers:
             if " ".join((p.title or "").lower().split()) == t:
                 return p
+        # `fetch --title` used to demand a byte-exact title. A near-verbatim
+        # title (punctuation, a dropped subtitle word) is a legitimate query;
+        # accept a UNIQUE candidate at >=90% token Jaccard, never a guess
+        # between several (third-party report P3).
+        want = set(re.findall(r"[a-z0-9]+", (title or "").lower()))
+        if len(want) >= 4:
+            cands = []
+            for p in papers:
+                got = set(re.findall(r"[a-z0-9]+", (p.title or "").lower()))
+                union = want | got
+                if union:
+                    score = len(want & got) / len(union)
+                    if score >= 0.9:
+                        cands.append((score, p))
+            if len(cands) == 1:
+                return cands[0][1]
     return None
 
 
@@ -114,15 +138,25 @@ def cmd_fetch(args) -> dict:
     if paper is None:
         # No pool to resolve from (or no match): build a minimal record.
         # Paper carries arXiv identity via url/doi (10.48550/arXiv.<id>) —
-        # exactly what _arxiv_pdf_url greps for.
+        # exactly what _arxiv_pdf_url greps for. Best-effort metadata lookup:
+        # a bare identifier used to produce a record titled by the identifier
+        # and an EMPTY abstract, so `fetch --doi` promised "abstract-only"
+        # while carrying no abstract at all (third-party report P2-8/P3).
         arxiv = (args.arxiv or "").strip()
+        meta: dict = {}
+        if arxiv:
+            meta = arxiv_metadata(arxiv)
+        elif args.doi:
+            meta = fetch_work_by_doi(args.doi)
         paper = Paper(
-            title=(args.title or args.doi or arxiv or "").strip(),
-            authors=[], year=None,
-            doi=args.doi or (f"10.48550/arXiv.{arxiv}" if arxiv else None),
+            title=(args.title or meta.get("title") or args.doi or arxiv or "").strip(),
+            authors=list(meta.get("authors") or []), year=meta.get("year"),
+            abstract=meta.get("abstract") or "",
+            doi=args.doi or (f"10.48550/arXiv.{arxiv}" if arxiv else meta.get("doi")),
             # url is a required str on Paper — None here raised ValidationError
             # and killed every title-only fetch (dogfooded 2026-10-28)
             url=f"https://arxiv.org/abs/{arxiv}" if arxiv else "",
+            venue=meta.get("venue") or "",
         )
     out: dict = {
         "title": paper.title,
@@ -138,10 +172,12 @@ def cmd_fetch(args) -> dict:
         return {"ok": False, "error": "pass --doi, --title or --arxiv "
                 "(plus --topic/--run-dir to resolve from a pool)"}
     try:
-        text = fetch_fulltext(paper)
+        text = fetch_fulltext(paper, force=bool(getattr(args, "force", False)))
     except Exception as e:  # noqa: BLE001 — a dead source must not kill the tool
         text = None
         out["fetch_error"] = str(e)[:200]
+    out["fulltext_source"] = fetch_report(paper.id) or None
+    out["outcomes"] = fetch_outcomes(paper.id)
     if text:
         out_dir = Path(args.text_dir or "fulltext")
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -154,12 +190,24 @@ def cmd_fetch(args) -> dict:
                  "引用页码/章节时给出可核对的定位。",
         )
     else:
+        abstract = (paper.abstract or "").strip()
+        if abstract:
+            note = ("拿不到开放获取全文——该论文只能以【仅摘要级】引用："
+                    "主张限于摘要明说的内容，并在成稿的 grounding 块里如实计数。")
+        else:
+            # `fetch --doi` on a paywalled paper has no abstract either: the
+            # old note promised an abstract-level fallback that did not exist
+            # (third-party report, live-recall P2-8).
+            note = ("拿不到全文，且池内/元数据里也没有摘要——该记录不可作为证据引用；"
+                    "先补元数据（换 DOI/标题来源）或放弃引用。")
         out.update(
             fulltext=False, text_path=None,
-            note="拿不到开放获取全文——该论文只能以【仅摘要级】引用："
-                 "主张限于摘要明说的内容，并在成稿的 grounding 块里如实计数。",
+            note=note,
         )
-    out["ok"] = True
+    # A swallowed exception must not read as success: the old code always set
+    # ok=true, so `fetch` reported "abstract-only" for a code bug that had
+    # already downloaded the PDF (third-party addendum P1-7).
+    out["ok"] = not out.get("fetch_error")
     return out
 
 
@@ -172,6 +220,8 @@ def cmd_export(args) -> dict:
         return {"ok": False, "error": where}
     table = CitationTable(papers)
     fmt = (args.format or "bib").lower()
+    if fmt == "bibtex":  # the docs call the format BibTeX; accept both spellings
+        fmt = "bib"
     content = (
         table.to_bibtex() if fmt == "bib"
         else table.to_ris() if fmt == "ris"
@@ -504,7 +554,8 @@ def cmd_notes(args) -> dict:
 
 def cmd_audit(args) -> dict:
     try:
-        out = audit_recall(args.topic, top_reviews=args.top_reviews)
+        out = audit_recall(args.topic, top_reviews=args.top_reviews,
+                           queries=getattr(args, "queries", None))
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"audit failed: {e}"}
     out["ok"] = True
@@ -551,11 +602,13 @@ def main(argv=None) -> int:
     p_fetch.add_argument("--topic", help="从该主题的池子里解析记录")
     p_fetch.add_argument("--run-dir", help="从该 run 目录的 pool.jsonl 解析记录")
     p_fetch.add_argument("--text-dir", default="fulltext", help="全文文本落盘目录")
+    p_fetch.add_argument("--force", action="store_true",
+                         help="忽略正/负结果缓存，重跑所有取全文通道（网络恢复后重试用）")
 
     p_export = sub.add_parser("export", help="把池子导出为 BibTeX/RIS")
     p_export.add_argument("--topic")
     p_export.add_argument("--run-dir")
-    p_export.add_argument("--format", choices=["bib", "ris", "endnote", "csljson"],
+    p_export.add_argument("--format", choices=["bib", "bibtex", "ris", "endnote", "csljson"],
                           default="bib")
     p_export.add_argument("--out", help="输出文件路径（默认 run 目录或 exports/ 下）")
     p_export.add_argument("--with-labels", action="store_true", help="附带 [n] APA 标签清单")
@@ -581,6 +634,8 @@ def main(argv=None) -> int:
     p_audit = sub.add_parser("audit", help="池子对 top 综述参考文献的覆盖审计")
     p_audit.add_argument("--topic", required=True)
     p_audit.add_argument("--top-reviews", type=int, default=3)
+    p_audit.add_argument("--queries", nargs="+", default=[],
+                         help="概念块查询：优先选与主题相关的综述作锚点（缺省按引用数）")
 
     p_screen = sub.add_parser(
         "screen", help="相关性三分带分流（core / uncertain / likely_off）——分流不是判决"

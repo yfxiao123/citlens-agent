@@ -120,11 +120,17 @@ with tempfile.TemporaryDirectory() as td:
 
 print("\n== novelty_check ==")
 settings.screen_embedding_model = ""
-nv = gap.novelty_check("no work has studied the natural rate under fiscal dominance", ps)
+nv = gap.novelty_check("fiscal policy natural rate r-star interactions", ps)
 check("nearest neighbour is the fiscal paper",
       "fiscal" in nv["neighbors"][0]["title"].lower(), str(nv["neighbors"][0]))
-check("high-overlap verdict fires",
+check("high-overlap verdict fires when statement terms are mostly present",
       "可能已被" in nv["verdict"] or "高重叠" in nv["verdict"], nv["verdict"][:40])
+# regression: the old max-normalized BM25 scored the top neighbour 1.0 whenever
+# ANY single word matched, so every draft read as high overlap
+nv_partial = gap.novelty_check(
+    "no work has studied the natural rate under fiscal dominance", ps)
+check("partial overlap is not reported as high overlap",
+      "高重叠" not in nv_partial["verdict"], nv_partial["verdict"][:40])
 nv2 = gap.novelty_check("quantum error correction for topological superconductors", ps)
 check("unrelated statement gets the weak-evidence warning",
       "弱证据" in nv2["verdict"], nv2["verdict"][:40])

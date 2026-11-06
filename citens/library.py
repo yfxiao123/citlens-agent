@@ -52,6 +52,33 @@ def _signals(p: Paper) -> dict[str, str | None]:
     }
 
 
+def _match_reasons(a: Paper, b: Paper) -> list[str]:
+    """Why two records may be the same work: doi / arxiv / title evidence.
+
+    The title signal used to REQUIRE a shared surname even when the normalized
+    titles were byte-identical. Records from the oa_title family often carry
+    ``authors=[]`` (OpenAlex title search returns a thin projection), so exact
+    duplicates never became candidates and `dedup` reported zero groups on a
+    pool with three obvious pairs (third-party report, 2026-11-06). A title
+    with >=4 significant tokens is specific enough to stand alone; shorter
+    titles still need a shared author (conservative — a false merge is worse
+    than a duplicate).
+    """
+    sa, sb = _signals(a), _signals(b)
+    reasons: list[str] = []
+    if sa["doi"] and sa["doi"] == sb["doi"]:
+        reasons.append("doi")
+    if sa["arxiv"] and sa["arxiv"] == sb["arxiv"]:
+        reasons.append("arxiv")
+    ta, tb = _fuzzy_title(a.title), _fuzzy_title(b.title)
+    if ta and ta == tb:
+        if len(ta.split()) >= 4:
+            reasons.append("title")
+        elif a.authors and b.authors and _shared_author(a, b):
+            reasons.append("title+author")
+    return reasons
+
+
 def duplicate_groups(papers: list[Paper]) -> list[dict]:
     """Suspected duplicate groups (>=2 members) over a pool, report-only.
 
@@ -62,23 +89,13 @@ def duplicate_groups(papers: list[Paper]) -> list[dict]:
     """
     groups: list[dict] = []  # {"members": [Paper], "signals": set[str]}
     for p in papers:
-        sig = _signals(p)
         target = None
         for g in groups:
             reasons: list[str] = []
-            if sig["doi"] and any(
-                _signals(m)["doi"] == sig["doi"] for m in g["members"]
-            ):
-                reasons.append("doi")
-            if sig["arxiv"] and any(
-                _signals(m)["arxiv"] == sig["arxiv"] for m in g["members"]
-            ):
-                reasons.append("arxiv")
-            if any(
-                _fuzzy_title(m.title) == _fuzzy_title(p.title) and _shared_author(m, p)
-                for m in g["members"]
-            ):
-                reasons.append("title+author")
+            for m in g["members"]:
+                for r in _match_reasons(m, p):
+                    if r not in reasons:
+                        reasons.append(r)
             if reasons:
                 target = (g, reasons)
                 break
@@ -93,7 +110,7 @@ def duplicate_groups(papers: list[Paper]) -> list[dict]:
         if len(g["members"]) < 2:
             continue
         out.append({
-            "reasons": sorted(g["signals"] or {"title+author"}),
+            "reasons": sorted(g["signals"] or {"title"}),
             "members": [
                 {
                     "title": m.title,
@@ -121,15 +138,9 @@ def dedup_pool(papers: list[Paper]) -> tuple[list[Paper], int]:
     groups: list[list[Paper]] = []
     group_of: dict[int, int] = {}  # id(paper) -> group index
     for p in papers:
-        sig = _signals(p)
         target = None
         for g in groups:
-            if (sig["doi"] and any(_signals(m)["doi"] == sig["doi"] for m in g)) or (
-                sig["arxiv"] and any(_signals(m)["arxiv"] == sig["arxiv"] for m in g)
-            ) or any(
-                _fuzzy_title(m.title) == _fuzzy_title(p.title) and _shared_author(m, p)
-                for m in g
-            ):
+            if any(_match_reasons(m, p) for m in g):
                 target = g
                 break
         if target:

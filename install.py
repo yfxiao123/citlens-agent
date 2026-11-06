@@ -205,9 +205,14 @@ def discover() -> dict:
         "tools_driver": tools_drv,
         "jobs_dir": str(JOBS_DIR),
         "sources": ["arxiv", "semantic_scholar", "openalex", "crossref"],
-        "families": ["agent", "raw", "oa_title", "s2_rec", "snowball", "web", "survey"],
+        "families": ["agent", "raw", "oa_title", "s2_rec", "snowball", "web",
+                     "survey", "policy"],
         "target": 60,
-        "wait_seconds": 45,
+        # 20, not 45: several MCP clients hard-kill a tool call at 30s and the
+        # kill takes the freshly spawned runner with it. Matches
+        # citlens_mcp.DEFAULT_CONFIG (third-party report flagged the 45/20
+        # doc-vs-source mismatch).
+        "wait_seconds": 20,
         "max_concurrent_jobs": 3,
     }
 
@@ -369,6 +374,14 @@ def install_config(p: Plan, cfg: dict) -> None:
             merged["families"] = kept
             p.note(f"config families: migrated {fams} -> {merged['families']}"
                    f" (dropped unsupported {dropped})")
+    # `policy` joined the family list in 0.3.x; configs written before that
+    # say seven families while the docs promise eight. It is discipline-gated
+    # (only economics topics, or explicit policy_queries), so adding it is
+    # safe even for non-economics users.
+    fam_list = merged.get("families")
+    if isinstance(fam_list, list) and fam_list and "policy" not in fam_list:
+        merged["families"] = [*fam_list, "policy"]
+        p.note("config families: added discipline-gated `policy` family")
     text = _dump_json(merged)
     if _read_text(CONFIG_PATH) == text:
         return
@@ -777,6 +790,30 @@ def print_snippet(name: str, entry: dict, cfg: dict) -> int:
         print(f'  "{SHIM_PATH}" search --topic "<topic>" --target 80')
         print("Or point the agent at the skill file so it knows the tool exists:")
         print(f"  {SKILL_HUB / 'citlens' / 'SKILL.md'}")
+    elif name == "zed":
+        # Zed settings.json -> context_servers with a nested command object
+        print(_dump_json({"context_servers": {SERVER_NAME: {
+            "command": {"path": cfg["python"], "args": _server_argv(cfg),
+                        "env": _server_env()},
+        }}}))
+    elif name == "goose":
+        # Goose config.yaml -> extensions.<name> (YAML, not JSON)
+        args = ", ".join(f'"{a}"' for a in _server_argv(cfg))
+        print(f"extensions:\n  {SERVER_NAME}:\n    type: stdio\n"
+              f'    cmd: "{cfg["python"]}"\n    args: [{args}]\n    enabled: true')
+    elif name == "continue":
+        args = "\n".join(f'      - "{a}"' for a in _server_argv(cfg))
+        print(f"mcpServers:\n  {SERVER_NAME}:\n    command: \"{cfg['python']}\"\n"
+              f"    args:\n{args}")
+    elif name == "crush":
+        print(_dump_json({"mcp": {SERVER_NAME: {
+            "type": "stdio", "command": cfg["python"], "args": _server_argv(cfg),
+            "env": _server_env(),
+        }}}))
+    elif name == "amp":
+        print(_dump_json({"amp.mcpServers": {SERVER_NAME: _stdio_entry(cfg)}}))
+    elif name == "copilot":
+        print(_dump_json({"servers": {SERVER_NAME: _stdio_entry(cfg)}}))
     else:  # json-map and any unknown shape
         print(_dump_json({"mcpServers": {SERVER_NAME: _stdio_entry(cfg)}}))
         if entry.get("container") and list(entry["container"]) != ["mcpServers"]:
@@ -1140,9 +1177,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         names = detected_agents(registry)
         if not names:
-            print("No agent detected on this machine. Use --all to create configs anyway, "
-                  "or `list` to see the supported clients.")
-            return 1
+            # No MCP client detected is NOT a reason to write nothing: the
+            # shared config + shim + skill are what a CLI-only user needs,
+            # and INSTALL.md's first command is `plan` right after install.
+            # The old code exited 1 here, so a fresh machine could not even
+            # run `doctor` (third-party report, install-mcp P2-1).
+            print("No MCP client detected on this machine — writing the shared "
+                  "config, shim and skill only.\nRegister a client later with "
+                  "`install.py apply --only <agent>` (see `list`), or `--all`.")
+            names = []
     return cmd_apply(registry, names, dry_run=dry_run or cmd == "plan",
                      remove=cmd == "uninstall", profile=profile, dsh_auto=dsh_auto,
                      overrides=overrides)

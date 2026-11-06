@@ -100,7 +100,7 @@ async def _openalex_cited_by(doi: str, limit: int = 10) -> list[dict]:
         "filter": f"cites:{work_id}",
         "per_page": min(limit, 25),
         "select": "id,title,authorships,publication_year,abstract_inverted_index,"
-        "cited_by_count,doi,primary_location",
+        "cited_by_count,doi,primary_location,type",
         "sort": "cited_by_count:desc",
         **_polite_params(),
     }
@@ -197,8 +197,11 @@ def _to_paper(work: dict, direction: str, from_doi: str) -> Paper | None:
         paper = OpenAlexSearcher.to_paper(work)
         if not paper.title or not paper.title.strip():
             return None
-        # Mark provenance in the source field for auditability
-        paper.source = f"snowball-{direction}({from_doi[:30]})"
+        # Provenance label ONLY — the seed DOI used to ride inside the parens
+        # (`snowball-backward(10.1234/…)`), and export's venue fallback then
+        # rendered that internal string as the journal name (third-party
+        # report, live-recall P2-5).
+        paper.source = f"snowball-{direction}"
         return paper
     except Exception:  # noqa: BLE001
         return None
@@ -273,7 +276,7 @@ def _s2_to_paper(item: dict, direction: str, from_doi: str) -> Paper | None:
         paper = SemanticScholarSearcher._to_paper(item)
         if not paper.title or not paper.title.strip():
             return None
-        paper.source = f"snowball-{direction}·s2({from_doi[:30]})"
+        paper.source = f"snowball-{direction}·s2"
         return paper
     except Exception:  # noqa: BLE001
         return None

@@ -83,7 +83,7 @@ async def search_venue_restricted(
         return []
     select = (
         "id,title,authorships,publication_year,abstract_inverted_index,"
-        "cited_by_count,doi,primary_location,open_access,topics,keywords,biblio"
+        "cited_by_count,doi,primary_location,open_access,topics,keywords,biblio,type"
     )
     src_filter = "|".join(source_ids[:40])
 
@@ -101,7 +101,8 @@ async def search_venue_restricted(
             )
             note_openalex_calls()
             resp.raise_for_status()
-            return [OpenAlexSearcher.to_paper(w) for w in resp.json().get("results", [])]
+            return [p for p in (OpenAlexSearcher.to_paper(w)
+                                for w in resp.json().get("results", [])) if p.title]
         except Exception:  # noqa: BLE001 — optional precision channel
             return []
 
@@ -277,13 +278,14 @@ class OpenAlexSearcher(SearchSource):
             "select": (
                 "id,title,authorships,publication_year,abstract_inverted_index,"
                 "cited_by_count,doi,primary_location,open_access,relevance_score,"
-                "topics,keywords,biblio"
+                "topics,keywords,biblio,type"
             ),
         }
         resp = await client.get(self.BASE_URL, params=apply_api_key(params))
         note_openalex_calls()
         resp.raise_for_status()
-        papers = [self.to_paper(w) for w in resp.json().get("results", [])]
+        papers = [p for p in (self.to_paper(w)
+                              for w in resp.json().get("results", [])) if p.title]
         for p in papers:
             p.matched_queries.append(query)  # retrieval provenance
         self.query_stats[query] = len(papers)
@@ -325,7 +327,11 @@ class OpenAlexSearcher(SearchSource):
         biblio = work.get("biblio") or {}
         fp, lp = str(biblio.get("first_page") or ""), str(biblio.get("last_page") or "")
         return Paper(
-            title=work.get("title", ""),
+            # OpenAlex can return a record with `"title": null`; passing None
+            # into a required str field killed the WHOLE source (one bad row
+            # in a 25-row page -> ValidationError -> every keyword failed,
+            # measured 2026-11-06). Empty titles are filtered by the callers.
+            title=work.get("title") or "",
             authors=authors,
             year=work.get("publication_year"),
             abstract=abstract,
@@ -340,6 +346,10 @@ class OpenAlexSearcher(SearchSource):
             volume=str(biblio.get("volume") or ""),
             issue=str(biblio.get("issue") or ""),
             pages=f"{fp}-{lp}".strip("-") if (fp or lp) else "",
+            # OpenAlex knows which works are reviews; carrying the flag makes
+            # `audit`'s survey-anchor check work on ordinary search records,
+            # not only on the survey-seed family (third-party report P1-4).
+            is_review=(work.get("type") or "").lower() == "review",
         )
 
     @staticmethod
@@ -379,7 +389,7 @@ class OpenAlexRelevanceSearcher(OpenAlexSearcher):
             "select": (
                 "id,title,authorships,publication_year,abstract_inverted_index,"
                 "cited_by_count,doi,primary_location,open_access,relevance_score,"
-                "topics,keywords,biblio"
+                "topics,keywords,biblio,type"
             ),
         }
         if self.constraints and self.constraints.year_from:
@@ -391,7 +401,8 @@ class OpenAlexRelevanceSearcher(OpenAlexSearcher):
         resp = await client.get(self.BASE_URL, params=apply_api_key(params))
         note_openalex_calls()
         resp.raise_for_status()
-        papers = [self.to_paper(w) for w in resp.json().get("results", [])]
+        papers = [p for p in (self.to_paper(w)
+                              for w in resp.json().get("results", [])) if p.title]
         for p in papers:
             p.matched_queries.append(query)
         self.query_stats[query] = len(papers)

@@ -27,9 +27,10 @@ grep -rn "citens\.llm\|citens\.agents\|citens\.orchestration\|citens\.harness" c
 .venv/Scripts/python tests/test_health.py        # health 三态/partial、熔断、litsearch 桶、缓存守卫、fulltext 负缓存
 .venv/Scripts/python tests/test_decide.py        # 决策层：logit readout、selective prediction、Mock 端点全链路（零网络）
 .venv/Scripts/python tests/test_signals.py       # 池级信号：Chao1 手算对照、饱和判定、扩搜建议（纯函数）
+.venv/Scripts/python tests/test_report_fixes.py  # 第三方报告回归：参数接线/fail-closed/scansci/PyMuPDF 等 26 项
 ```
 
-覆盖：MCP 协议（握手/协商/九工具/错误路径/stdout 纯度/干净退出）、安装器六方言
+覆盖：MCP 协议（握手/协商/十三工具/错误路径/stdout 纯度/干净退出）、安装器六方言
 （sandbox HOME 下的 plan/apply/幂等/uninstall/自定义 agents.d/坏 JSON 防护/--all/
 九家族配置迁移）、引擎覆盖与驱动范围化、init 向导、CLI 通道、selftest；screen 的
 BM25/分带/CJK/共识重归一；`verify` 的引用解析（DOI/标题）、编造引用与悬空 marker、

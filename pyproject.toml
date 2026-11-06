@@ -21,6 +21,10 @@ dependencies = [
     "httpx>=0.27",
     "arxiv>=2.0",
     "markitdown[pdf]>=0.0.1",
+    # PDF -> text PRIMARY converter: markitdown's pdfminer path drops
+    # inter-word spaces on many arXiv PDFs, which breaks verbatim span
+    # verification; PyMuPDF preserves them (markitdown stays as fallback).
+    "pymupdf>=1.24",
     # TLS through the OS certificate store: SSL-inspecting proxies (campus/
     # corporate) inject their own CA, which certifi does not carry — without
     # this every inspected host dies with CERTIFICATE_VERIFY_FAILED.
