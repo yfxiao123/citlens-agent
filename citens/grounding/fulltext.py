@@ -209,6 +209,8 @@ def _core_pdf_url(doi: str) -> str | None:
     """Open-access PDF via CORE (aggregates repositories worldwide).
 
     Needs CORE_API_KEY (free registration); disabled when unset.
+    v3 work objects have no `locations` field — the download link is the
+    top-level `downloadUrl` (with links[type=download] as an alternate).
     """
     key = settings.core_api_key
     if not key or not doi:
@@ -222,7 +224,15 @@ def _core_pdf_url(doi: str) -> str | None:
             )
             r.raise_for_status()
             for hit in r.json().get("results", []):
-                for loc in hit.get("locations", []):
+                pdf = (hit.get("downloadUrl") or "").strip()
+                if pdf:
+                    return pdf
+                for link in hit.get("links") or []:
+                    if link.get("type") == "download":
+                        url = (link.get("url") or "").strip()
+                        if url:
+                            return url
+                for loc in hit.get("locations") or []:
                     pdf = (loc.get("pdfUrl") or "").strip()
                     if pdf:
                         return pdf
