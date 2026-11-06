@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — verification closure: the three uncovered gaps, all closed
+
+验收报告里诚实列出的三个未覆盖项，逐项解决：
+
+### POSIX pid 分支（代码审查 + mock 单测，发现一个真 bug）
+
+- **bug**：`_pid_alive` 的 POSIX 分支用 blanket `except Exception` 兜底，
+  把 `PermissionError` 也读成"进程已死"——POSIX 上 `kill(pid, 0)` 抛
+  PermissionError 恰恰意味着**进程存在**（属于其它 uid）。多用户场景下
+  活 runner 会被回收成 lost。修正为标准三段式：ProcessLookupError→死、
+  PermissionError→活、其余 OSError→死。
+- **tests/test_pid.py（8 项）**：Windows 分支真跑（自身 pid 活/不可能
+  pid 死）；POSIX 分支 mock `os.name`+`os.kill`（探测信号必须为 0、
+  三种异常语义、falsy pid）。
+
+### 真实并发竞争（tools/verify_online.py 第 I 组）
+
+3 个**真**搜索作业同时运行 + 第 4 个被 `max_concurrent_jobs` 拒绝
+（返回体携带在跑清单）——此前只用假状态文件验过护栏算术。4/4 过。
+
+### 联网端到端（tools/verify_online.py 第 II/III 组）
+
+直连全断、代理部分可用的网络下走 `HTTPS_PROXY`（httpx trust_env）：
+OpenAlex 键控/相关性端点 + Crossref 真实可用，S2/arXiv 如实降级。三个
+真搜索全部 `done`、各 15 条入池（共 45）+ 报告落盘；真实 expand
+（OpenAlex related 方向）解析种子 1、在线并入 5 条、产物文件落盘。
+脚本自身一处种子路径错误（读共享 litdb 而非 run 池——直调 start_job
+未传 append_pool 时记录只写 run 目录）被诊断修正并在脚本中注明。
+
+### 推送
+
+`5175189` 与本提交经代理路由推送成功（直连 GitHub 仍断，git 全局
+http.proxy 配置生效）。
+
+## Unreleased — harness-first: the CLI is the primary interface（接下节）
+
 ### 验证（tools/verify_harness.py，34 项全绿）
 
 对 harness 框架做了一次**可执行验收**（不是复述结论）：真实数据家 +

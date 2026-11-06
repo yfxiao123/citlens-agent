@@ -17,6 +17,18 @@ harness**：每个对应一次具体诊断，结论都写进了对应提交信�
 
 （离线可跑；临时产物写到 gitignored 的 `.verify/`。）
 
+**`verify_online.py` 是联网补充验收**：覆盖离线套件够不到的两项——
+真实并发竞争（3 个真搜索作业同时跑 + 第 4 个被拒，不是假状态文件）
+与在线端到端（经代理的真实 search → 池/报告落盘 → OpenAlex related
+方向的真实 expand）。需要网络（可走 `HTTPS_PROXY` 环境变量）：
+
+```
+HTTPS_PROXY=http://127.0.0.1:7897 .venv/Scripts/python.exe tools/verify_online.py
+```
+
+（首轮实测 2026-11-06：并发 4/4、三搜索 45 条入池、expand 并入 5 条。
+脚本自身一处种子路径错误被诊断修正——记录在 CHANGELOG。）
+
 ## 代码（按诊断时间线）
 
 | 脚本 | 回答的问题 | 结论（见提交信息） |

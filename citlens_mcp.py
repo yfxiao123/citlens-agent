@@ -234,6 +234,10 @@ def _pid_alive(pid: int | None) -> bool:
 
     On Windows os.kill(pid, 0) would TERMINATE the process (any signal other
     than the two console events is TerminateProcess), so use OpenProcess.
+    On POSIX, signal 0 is the existence probe: ProcessLookupError means gone,
+    but PermissionError means the process EXISTS under another uid — the old
+    blanket `except Exception` read that as dead and would reap a live runner
+    (caught by review during the POSIX verification pass; mocked-testable).
     """
     if not pid:
         return False
@@ -248,7 +252,11 @@ def _pid_alive(pid: int | None) -> bool:
             return True
         os.kill(int(pid), 0)
         return True
-    except Exception:  # noqa: BLE001
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists — we merely may not signal it
+    except Exception:  # noqa: BLE001 — anything else (bad pid type, ...)
         return False
 
 
