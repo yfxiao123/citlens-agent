@@ -41,7 +41,7 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 
 ## Two surfaces, one engine — harness CLI first
 
-The same 18 tools, same JSON, same shared data home, two ways in:
+The same 13 tools, same JSON, same shared data home, two ways in:
 
 **1. Harness CLI — PREFERRED when you have a shell** (every coding agent
 does). One subprocess per call, results printed as one JSON document, full

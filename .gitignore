@@ -27,3 +27,6 @@ dist/
 build/
 *.exe
 *.spec
+
+# verification scratch artifacts
+.verify/

@@ -1,5 +1,32 @@
 # Changelog
 
+### 验证（tools/verify_harness.py，34 项全绿）
+
+对 harness 框架做了一次**可执行验收**（不是复述结论）：真实数据家 +
+真实 CLI/MCP 入口，34 项检查覆盖 8 组。验收过程中**发现并修复 3 个真
+缺陷**：
+
+1. **`citlens.cmd tools` 不可达**：shim 恒前置 `cli`，顶层 `tools` 发现
+   命令被当成工具名 → `unknown tool 'tools'`。cli 分支现路由它。
+2. **CLI 退出码恒为 0**：`ok:false` 也返回 0，harness 语义下自动化无法
+   感知失败。改为"显式 false 或裸 error 才算失败"——第一版规则写错
+   （`status` 视图无 `ok` 键 → state=done 却 exit 1），被验收套件自己
+   的 A9 抓到后收紧；`tool_status` 同时补显式 `ok`（unknown → false）。
+3. **文档虚报工具数**：SKILL/README 写 "18 tools"，实际 `TOOL_DEFS` 为
+   **13**。已改正。
+
+验收覆盖：A 调用面（tools/doctor/pool/notes/dedup/export/status + 失败
+退出码）；B 同步语义（三个长工具拒绝 --background、同步 screen 0.7s 出
+带、screening 真 JSONL、legacy 布局兼容读）；C MCP 路由（screen/gaps/
+expand 默认脱离任务、background:false 同步）；D 作业（死 runner 回收
+落盘、握手宽限、pid 复用静默 45 分钟判死、并发护栏拒绝）；E 共享数据
+家（CLI 与 MCP 同池同笔记）；F stdout 压缩视图；G 断网 embedding 缓存
+加载；H 产物证据（48 条双家族共识、pivot 点火、run 池多家族 found_by）。
+
+一个**数据与代码的区分**被明确记录：共享 litdb 池里的旧记录仍是修复前
+的单家族 found_by（历史数据），修复的效果体现在修复后运行产出的 run 池
+（6/20 多家族佐证）——不是代码回归。
+
 ## Unreleased — harness-first: the CLI is the primary interface
 
 A股动量机制实跑暴露的工具面缺陷全部收拢后，调用面正式定为主辅两层。

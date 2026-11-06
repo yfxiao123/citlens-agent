@@ -45,7 +45,7 @@ citlens-agent 把 CiteLens 的文献检索能力做成一个 MCP 工具服务器
 
 ## 两种调用面，同一引擎（harness 优先）
 
-同一 18 个工具、同一份共享数据家、同样的 JSON：
+同一 13 个工具、同一份共享数据家、同样的 JSON：
 
 1. **Harness CLI（有 shell 的 agent 首选）**：`citlens.cmd <tool> ...`，每次调用一个子进程、结果单 JSON 打印、全量记录始终落盘在池旁文件里。长操作（search 2-6 分钟、screen/expand 1-2 分钟）用你 shell 自己的后台机制包裹——CLI 永远同步执行（实测：从短命 shell 命令派生的脱离任务会随 shell 进程树一起被清理，所以 harness 不做 detach）。
 2. **MCP（无 shell 客户端的适配层）**：同名工具。长工具（screen/gaps/expand）**默认以脱离任务运行**、立即返回 job_id，轮询 `status` 取结果——MCP 客户端会在 ~30s 强杀调用（实测三次），长命 server 才能保住脱离进程。

@@ -4,6 +4,19 @@
 harness**：每个对应一次具体诊断，结论都写进了对应提交信息与 CHANGELOG。
 重跑需要真实网络与各家配额；离线测试套件在 `tests/`，勿混。
 
+**例外：`verify_harness.py` 是长期验收套件**（不是一次性测量）。它用
+真实数据家与真实 CLI/MCP 入口跑 34 项检查，覆盖调用面（工具表、退出
+码、参数解析）、CLI 同步语义、MCP 默认后台、产物契约（真 JSONL）、
+作业生命周期与死任务回收、并发护栏、共享数据家一致性、stdout 压缩
+视图、断网下的 embedding 回退、以及 pipeline 修复在产物上的证据。
+改动 citlens_mcp.py / drivers / screening 后跑它：
+
+```
+.venv/Scripts/python.exe tools/verify_harness.py
+```
+
+（离线可跑；临时产物写到 gitignored 的 `.verify/`。）
+
 ## 代码（按诊断时间线）
 
 | 脚本 | 回答的问题 | 结论（见提交信息） |

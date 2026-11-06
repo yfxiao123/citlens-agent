@@ -1113,7 +1113,9 @@ def tool_status(cfg: dict, args: dict) -> dict:
         return {"ok": False, "error": "job_id is required"}
     st = job_state(cfg, job_id)
     if st.get("state") == "unknown":
+        st["ok"] = False
         return st
+    st["ok"] = True  # the read succeeded — the JOB's own state is in `state`
     if st.get("kind") != "search":
         # tools jobs (fetch/screen/verify via background:true) print their
         # result JSON to the job log — the tail IS the deliverable; the
@@ -1884,6 +1886,12 @@ def main(argv: list[str] | None = None) -> int:
             rest2.append(rest[i])
             i += 1
         name, args = _parse_cli_args(rest2)
+        if name == "tools":
+            # the shim always prepends `cli`, so the top-level `tools`
+            # discovery command was unreachable through `citlens.cmd tools`
+            # (measured 2026-11-06: "unknown tool 'tools'"). Route it.
+            print(json.dumps(TOOL_DEFS, ensure_ascii=False, indent=1))
+            return 0
         if name in ("screen", "gaps", "expand"):
             # harness-first: a CLI caller HAS a shell — detachment is the
             # caller's job (run the command itself in background). A detached
@@ -1911,7 +1919,16 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:  # noqa: BLE001
             payload = {"ok": False, "error": f"{type(e).__name__}: {e}"}
         print(json.dumps(payload, ensure_ascii=False, indent=1, default=str))
-        return 0
+        # harness semantics: the exit code is part of the contract — automation
+        # branches on it. This returned 0 unconditionally, so `citlens.cmd pool
+        # --topic missing` and unknown tools both read as success (measured
+        # 2026-11-06). NOTE: several views (status, doctor) carry no `ok` key —
+        # absence must mean success, only an explicit false (or a bare error)
+        # fails; the first cut of this rule broke `status` (state=done, exit 1).
+        failed = payload.get("ok") is False or (
+            payload.get("ok") is None and bool(payload.get("error"))
+        )
+        return 1 if failed else 0
     if cmd == "selftest":
         return selftest(load_config(config))
     if cmd == "run-job":
