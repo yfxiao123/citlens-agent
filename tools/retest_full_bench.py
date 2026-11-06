@@ -35,8 +35,8 @@ sys.path.insert(0, str(HERE.parent))
 from citens.eval.litsearch import _key_of, fuse_multi_query, search_one_query
 
 POOLS = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\ranklab_pools.json")
-LADDER = HERE / "ablation_ladder_queries.json"
-OUT = HERE / "full_bench_retest.json"
+LADDER = HERE / "results" / "ablation_ladder_queries.json"
+OUT = HERE / "results" / "full_bench_retest.json"
 PER = 20
 
 STOP = {

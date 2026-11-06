@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 POOLS = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\ranklab_pools.json")
-LADDER = Path(__file__).parent / "ablation_ladder_queries.json"
+LADDER = Path(__file__).parent / "results" / "ablation_ladder_queries.json"
 SOURCES = ["arxiv", "semantic_scholar", "openalex", "openalex_relevance", "crossref"]
 
 from citens.search.base import search_round  # noqa: E402

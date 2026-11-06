@@ -138,7 +138,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pools", required=True, help="ranklab_pools.json (engine bench artifact)")
     ap.add_argument("--model", default=settings.screen_embedding_model)
-    ap.add_argument("--out", default=str(Path(__file__).parent / "calibration_screen.json"))
+    ap.add_argument("--out", default=str(Path(__file__).parent / "results" / "calibration_screen.json"))
     args = ap.parse_args()
 
     entries = json.loads(Path(args.pools).read_text(encoding="utf-8"))

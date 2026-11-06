@@ -75,6 +75,52 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
      the specific intersection ("entity-level factual consistency abstractive
      summarization"), then single-block coverage queries. Combination-first
      is the measured fix — head-first broad queries picked only coverage.
+     But NEVER let the conjunction grow long: a 7-block AND-conjunction
+     missed a bench gold that a 3-block query ranked #1 (measured
+     2026-11-06) — each extra block ANDs away records whose titles don't
+     carry that token. Two to three blocks is the sweet spot.
+   - **Restate before you query** (misread guard): restate the question in
+     one sentence of your own and check you did not misread it ("performance
+     decline in various LANGUAGES" is not about quantization — a real bench
+     misread that no retrieval could fix).
+   - Climb the **register ladder** ALL the way: question words → field
+     jargon → method names → task/dataset names → COMMUNITY names. The top
+     rung is the one agents skip (measured 2026-11-06: a question phrased
+     in NLP words whose gold lived in the HCI community — "inspiration for
+     science writing", a CHI paper — was invisible to every NLP-register
+     query; another gold framed as a GEN-task paper, "entity description
+     generation", never matched any "error distribution for unfamiliar
+     entities" synonym). When the ladder feels dry, ask WHICH community
+     owns this task and what THEY would call it — then write one query and
+     one title-probe in their framing words. Framing gaps are invisible to
+     every in-pool mechanism (pivot only amplifies vocabulary already in
+     the pool; the gold is not in the pool); only out-of-register words or
+     citation-graph `expand` can cross them.
+   - **Scout before you search** (vocabulary reconnaissance — mine the
+     FIELD's words, don't guess from the question). Every query word
+     written before seeing the corpus comes only from your own head, and
+     the field's framing words may not be in it. Protocol:
+     1. **Split the question into 2-3 content blocks** (noun blocks, not
+        sentences): "language models" + "factual errors" + "entities".
+     2. **Broad scout, SMALL target (20-30)**: pair the blocks into
+        two-block queries. One guessed-ideal-title probe alongside is
+        cheap.
+     3. **Harvest from the papers, four buckets**: task names (the coinage
+        the field uses, e.g. "entity description generation"), method /
+        metric names, dataset names, and the COMMUNITY signal (venues of
+        the hits: ACL-heavy vs CHI-heavy answers "which community owns
+        this"). If the community looks foreign, run ONE more scout in
+        their language ("creativity support" surfaced the CHI line whose
+        ancestor was the gold, one citation hop away).
+     4. **Craft the formal set with harvested words** — combination
+        queries from task+method names, one query per detected community,
+        title probes carrying the coinages — then `search` with
+        `append_pool` true. `--pivot 2` adds the mechanical harvest on
+        top (terms the corroborated head actually uses); your reading is
+        the semantic layer it cannot do.
+     Cost: one or two small searches. The last hop for
+     community-coinage golds is usually `expand` off a framing sibling,
+     not any query.
    - Pass them all as `queries` (they become the `agent` family, the
      highest-recall leg). Optionally:
      - `title_probes`: 2-3 **HyDE-style hypothetical titles** — write the
@@ -93,6 +139,13 @@ specific named paper, resolving a DOI, skimming a PDF you already have.
        policy corpus family — NBER working papers, Fed Board FEDS Notes and
        working papers, IMF. Plain wording, not ML-style concept blocks: these
        queries speak the economics the notes themselves use.
+     - `pivot: 2` when the vocabulary is uncertain: after the first wave
+       the driver builds 2 queries from the corroborated head's
+       discriminative terms (LLM-free PRF local analysis — buys the
+       on-topic seed that citation chaining needs). It skips itself when
+       fewer than 3 cross-family-corroborated records exist, so it never
+       drifts alone. Measured to rescue golds no hand-written variant
+       reached.
 3. **`search`** with `topic` + `queries`. Start with `wait_seconds` = 45. A
    rich topic takes 2–6 minutes; if you get a `job_id`, poll `status` rather
    than starting a second search. Keep `append_pool` true so the shared pool

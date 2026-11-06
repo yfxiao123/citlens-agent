@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased — recall endgame & repo reorg: bench sealed, S2 hardened, skills unified
+
+接上节。剩余 7 个漏召金标的终局处理 + 仓库整体收拢。
+
+### 新增
+
+- **探针家族的 Crossref 第二备胎**：S2 过载时的失败形态比 429 更阴——
+  实测（2026-11-06）配额风暴中 36/72 个 S2 槽返回 **200+空数据**，健康表
+  上与"真没命中"无法区分。覆盖链升级为 OpenAlex 标题索引 → S2 →
+  Crossref（无 key、无配额游戏、礼貌池）。调研结论随提交：S2 没有商业
+  中转市场（免费 API 无人中转）；PaperQA2/Undermind 的三件套（实体级
+  缓存 / 引文图用法 / 接受延迟）本仓库已具备其二。
+- **全 15 题端到端复测（`tools/retest_full_bench.py`）**：首次全套开关
+  一起开、按出厂深度（裸题@20 + 阶梯@40）跑整场。晴天口径：**q3/q8/q12
+  复活**，其中 q12 用真 driver 封箱——阶梯查询作 agent 查询 + pivot 2，
+  160s，金标 SafeDreamer 终池 **#3/173**（此前"被 family_quota 截掉"的
+  诊断在 agent 腿 @40 深度下不成立）。金标命中@20：基线 5/15 → 9/15
+  稳定，另 2 题在门槛波动。S2 风暴中的下限口径与全 @20 过严变体分别
+  归档（`tools/results/full_bench_retest{,_s2down,_d20}.json`）。
+- **查询纪律三则入 skill**（仓库版与装机版统一，464 行三处一致）：
+  ① **复述自检**（防误读，"languages ≠ quantization"）；② **寄存器阶梯
+  爬满**——问句词→行话→方法名→任务名→**社区名**，顶档是 agent 最常
+  跳过的（实测：NLP 措辞的问题金标是 CHI 论文 "inspiration for science
+  writing"，NLP 寄存器全盲）；③ **侦察先行**——拆块→两块宽查询小搜
+  →读标题四桶收词（任务名/方法名/数据集名/社区信号）→带学到的词正式
+  搜。实测：宽查询把 q2 金标直接排 #1（7 块长 AND 全源漏），换社区语言
+  二次侦察把 q13 的框架兄弟排 #1（金标是其前作，引文一跳）。
+- **scansci-pdf 三档实测通过**（代理 + patchright chromium 后）：出版商
+  直连档（Nature 2024 新文章 8.6MB→83k 字全文）、Unpaywall 绿色 OA 档、
+  Sci-Hub 浏览器档（1976 年零 OA 硬墙论文）。裸 HTTP 镜像全被
+  Cloudflare/ALTCHA 挡——该档必须装浏览器 extras，未装时自动缺席不伤
+  其它档。
+
+### 修复
+
+- **scansci CLI 解析在生产 PATH 下找不到**：`shutil.which` 单独兜底在
+  MCP 任务（cwd=数据家）里必返 cli-absent，通道静默缺失——回退到
+  `sys.executable` 同级（同 venv），同一调用从 cli-absent 变 83k 字全文。
+
+### 仓库收拢
+
+- `tools/` 代码与产物分离：六个 JSON 证据产物移入 `tools/results/`，
+  五个 harness 的路径同步更新；新增 `tools/README.md`（逐脚本回答的
+  问题 + 结论 + 产物对照）。
+- `README.md` 重写为当前架构：框架总览图（八家族 × 5 源 → RRF → 分带/
+  决策层/信号层 → 全文链含 scansci 末棒 → verify）、实测效果表（金标
+  命中 5/15→9/15、决策层 86%/0 硬错、scansci 三档）、Roadmap 去除已完成
+  项。
+- skill 分叉消除：仓库版（八家族/policy/gaps，411 行）缺本轮查询纪律，
+  装机版（299 行）缺新工具——合并为 464 行，三处同步。
+
 ## Unreleased — reliability: one retrying transport, honest failures
 
 起因：检索"看起来不稳定"。审计发现它不是容易失败，而是**失败之后伪装成

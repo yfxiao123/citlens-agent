@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 POOLS = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\ranklab_pools.json")
 GEN = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\gen_cache.json")
-OUT = Path(__file__).parent / "ablation_vocab.json"
+OUT = Path(__file__).parent / "results" / "ablation_vocab.json"
 SOURCES = ["arxiv", "semantic_scholar", "openalex", "crossref"]
 DEPTH = 20
 
@@ -235,7 +235,7 @@ async def main() -> int:
         _save()
       except Exception as ex:  # noqa: BLE001 — an arm failing must not kill the run
         print(f"[ladder] arm failed: {str(ex)[:120]}", flush=True)
-        OUT_LADDER = OUT.with_name("ablation_ladder_queries.json")
+        OUT_LADDER = OUT.with_name("ablation_ladder_queries.json")  # already in results/
         OUT_LADDER.write_text(json.dumps(bundles, ensure_ascii=False, indent=1), encoding="utf-8")
     if "ladder_pivot" in arms:
       try:

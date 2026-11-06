@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 POOLS = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\ranklab_pools.json")
 GEN = Path(r"D:\Desktop\personal-knowledge\citlens\citens\bench_results\gen_cache.json")
-LADDER = Path(r"D:\Desktop\personal-knowledge\citlens\citlens-agent\tools\ablation_ladder_queries.json")
+LADDER = Path(r"D:\Desktop\personal-knowledge\citlens\citlens-agent\tools\results\ablation_ladder_queries.json")
 SOURCES = ["arxiv", "semantic_scholar", "openalex", "crossref"]
 DEPTH = 20
 
