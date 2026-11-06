@@ -90,8 +90,14 @@ async def main() -> None:
         queries = [e["query"]] + (ladder.get(qid) or [])
         try:
             cells: dict[str, dict] = {}
-            for q in queries:
-                cells[q] = await search_one_query(q, sources, PER, health)
+            for j, q in enumerate(queries):
+                # mirror the driver's shipped depths exactly: the raw topic
+                # leg at PER_SOURCE=20, agent-crafted (ladder) queries at
+                # AGENT_DEPTH=40 (drivers/citlens_recall.py:50-51) — the
+                # first full run did everything at 20, stricter than shipped,
+                # and moved boundary golds (q10 @24-at-20 vs @5-at-40).
+                depth = PER if j == 0 else 40
+                cells[q] = await search_one_query(q, sources, depth, health)
             fused = fuse_multi_query(cells, sources)
             rank_a = gold_rank(e["golds"][0], fused)
 
