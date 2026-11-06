@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased — harness-first: the CLI is the primary interface
+
+A股动量机制实跑暴露的工具面缺陷全部收拢后，调用面正式定为主辅两层。
+
+### 架构定位（用户决策：全量 harness 化）
+
+- **Harness CLI 为主**（`citlens.cmd <tool>`，有 shell 的 agent 首选）：
+  同步执行——实测从短命 shell 派生的脱离任务会随 shell 进程树一起被
+  清理（screen 任务在 embedding 中途随 shell 返回而死），所以 harness
+  永不 detach，长操作由 agent 用自己 shell 的后台机制包裹。CLI 显式
+  拒绝 `--background` 并给出可操作报错。
+- **MCP 为无 shell 客户端的适配层**：长工具（screen/gaps/expand）
+  **默认以脱离任务运行**、立即返回 job_id、轮询 `status` 取结果——
+  长命 server 才能保住脱离进程；30s 客户端强杀问题按构造消失。
+- SKILL.md 改版（499 行，三处同步）：新增 "Two surfaces, one engine"
+  节，CLI 升为首选、MCP 降为适配层，写明两侧的时序语义。
+
+### 修复
+
+- **死任务回收统一**：原先三处各自为政（`_running_jobs` 落盘、
+  `job_state` 只改内存返回值、`tool_status` 直读不回收）——实测状态
+  在 running/lost 间翻转（Windows pid 复用让存活性检查双向说谎）。合并
+  为单一 `reap_dead_jobs`：pid 死亡或**静默超 45 分钟**（无 state/log
+  触碰）均判 lost 并落盘原因；`job_state` 读取前先回收，所有调用方
+  共享一个真相。实测：挂 10 分钟的僵尸 job 被 status 轮询即时回收。
+- **embedding 模型加载离线化**：sentence-transformers 在模型已完整缓存时
+  仍先打电话给 huggingface.co 解析快照——网络断时**挂死**（实测零 CPU 卡
+  10+ 分钟；etag 超时只封顶单个请求，封不住十几连发）。`_load_model` 现在
+  检测本地 HF 缓存（refs/main + 非空 snapshots）齐全即设
+  `HF_HUB_OFFLINE=1`，零网络秒级加载；未缓存时保持联网（首次下载照常）。
+  实测断网：embed_local 7.1s 完成（修复前挂死），整场 CLI 分带 165 篇
+  正常出带。
+
 ## Unreleased — recall endgame & repo reorg: bench sealed, S2 hardened, skills unified
 
 接上节。剩余 7 个漏召金标的终局处理 + 仓库整体收拢。

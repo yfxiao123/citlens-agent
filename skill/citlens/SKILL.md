@@ -1,12 +1,13 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens MCP tools (server "citlens": search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded survey writing through the CiteLens tools — the harness CLI (%USERPROFILE%\.citlens\bin\citlens.cmd <tool>, preferred when you have a shell) or the MCP server "citlens" (search, pool, screen, expand, fetch, export, audit, verify, status, doctor). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
 
 `citlens` is a tool, not a prompt. The retrieval mechanics live in a Python
-core running behind an MCP server; you call it and report what it returns.
+core exposed as a harness CLI (one subprocess per call — preferred) and an
+MCP server (for shell-less clients); you call it and report what it returns.
 That is the whole point: **the tool is what makes the search reproducible** —
 two different agents calling `search` with the same queries get the same
 pool, and an agent that searched can hand its pool to an agent that writes.
@@ -38,14 +39,48 @@ Your client prefixes tool names with the server name (`mcp__citlens__search`,
 | `verify` | MECHANICAL review check (no LLM, no key): every `[n]`→reference→pool (honeypot), quoted span must occur verbatim in the cited source, six-grade verdicts validated, honesty block computed |
 | `status` | poll a running search job: state, elapsed, log tail, artifacts, stats |
 
-If your client has no MCP, the same tools are one shell call away:
+## Two surfaces, one engine — harness CLI first
+
+The same 18 tools, same JSON, same shared data home, two ways in:
+
+**1. Harness CLI — PREFERRED when you have a shell** (every coding agent
+does). One subprocess per call, results printed as one JSON document, full
+records always in artifact files next to the pool:
 
 ```
-%USERPROFILE%\.citlens\bin\citlens.cmd search --topic "..." --queries "..." --target 80
+%USERPROFILE%\.citlens\bin\citlens.cmd search --topic "..." --queries "..." --target 60 --pivot 2
+%USERPROFILE%\.citlens\bin\citlens.cmd screen --topic "..." --queries "..."
+%USERPROFILE%\.citlens\bin\citlens.cmd notes --topic "..." --doi "..." --verdict core --note "..."
+%USERPROFILE%\.citlens\bin\citlens.cmd expand --topic "..." --from-notes core
 %USERPROFILE%\.citlens\bin\citlens.cmd pool --topic "..." --min-citations 50
+%USERPROFILE%\.citlens\bin\citlens.cmd fetch --doi "..." --topic "..."
+%USERPROFILE%\.citlens\bin\citlens.cmd status --job_id "..."
 ```
-Same JSON, same shared data home. Never reimplement the search yourself when
-the CLI or the MCP tool is available.
+(macOS/Linux: `~/.citlens/bin/citlens` shim, same syntax.)
+
+Timing: `search` takes 2–6 min, `screen`/`expand` ~1–2 min — run the
+command through your shell's OWN background mechanism (run_in_background)
+and read stdout when it completes. CLI calls always run synchronously:
+a detached job spawned from a short-lived shell command dies with the
+shell's process tree (measured), so the harness never detaches — your
+shell IS the background mechanism. Long operations write artifacts as
+they go (`screening.jsonl`, `<topic>.expand.json`, `pool.jsonl`), so a
+killed run keeps its evidence.
+
+**2. MCP tools — for clients without a shell** (Claude Desktop and
+friends). Same tool names as the table above. Long tools (`screen`,
+`gaps`, `expand`) run as DETACHED JOBS by default and return a `job_id`
+immediately — poll `status`; the result JSON arrives in log_tail. This
+is mandatory there because MCP clients hard-kill calls at ~30s (measured
+three times); a long-lived MCP server can keep detached runners alive, a
+short-lived shell cannot.
+
+Dead jobs self-heal: any state read reaps runners whose process died or
+that went silent >45 min, persisting state=lost with the reason — a job
+never sits in "running" forever.
+
+Never reimplement the search yourself when the CLI or the MCP tool is
+available.
 
 ## The one rule
 

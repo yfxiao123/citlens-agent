@@ -91,6 +91,27 @@ _model_singleton = None
 _model_name_loaded: str | None = None
 
 
+def _model_cached_locally(name: str) -> bool:
+    """True when a complete snapshot of ``name`` sits in the local HF cache
+    (refs/main + a non-empty snapshots dir). Loading from cache needs ZERO
+    network — and must not phone home: measured 2026-11-06, with the network
+    down SentenceTransformer() hung for many minutes despite a full cache,
+    because the etag timeout only caps each of the ~dozen snapshot-resolution
+    requests, not the sequence."""
+    import os
+
+    hf_home = os.environ.get("HF_HOME")
+    base = Path(hf_home) if hf_home else Path.home() / ".cache" / "huggingface"
+    d = base / "hub" / ("models--" + name.replace("/", "--"))
+    try:
+        if not (d / "refs" / "main").is_file():
+            return False
+        snaps = d / "snapshots"
+        return snaps.is_dir() and any(snaps.iterdir())
+    except OSError:
+        return False
+
+
 def _load_model(name: str):
     """sentence-transformers singleton; None whenever the extra is absent or
     the model cannot load (offline, bad name) — semantic channel then skips
@@ -99,6 +120,14 @@ def _load_model(name: str):
     if _model_singleton is not None and _model_name_loaded == name:
         return _model_singleton
     try:
+        # BEFORE any huggingface_hub import reads its constants: a fully
+        # cached model loads with zero network. Without this, a down network
+        # turned every uncached screen run into a minutes-long hang even
+        # with the weights on disk (measured 2026-11-06).
+        if _model_cached_locally(name):
+            import os
+
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
         from sentence_transformers import SentenceTransformer
     except Exception:  # noqa: BLE001 — the extra is optional by design
         return None

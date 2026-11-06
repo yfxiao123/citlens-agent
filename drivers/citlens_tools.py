@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -50,6 +51,17 @@ def _force_utf8_stdio() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:  # noqa: BLE001
             pass
+
+
+# The semantic screen channel loads a LOCAL sentence-transformers model, but
+# sentence-transformers still phones huggingface.co for an etag check first —
+# and when the network is down that check HANGS (measured 2026-11-06: screen
+# blocked ~10 min at zero CPU with the model fully cached, huggingface.co
+# unreachable). Fail fast to the cache instead: hub requests give up in 5s
+# and snapshot_download falls back to the local snapshot. Must run before
+# anything imports huggingface_hub (its constants are read at import time).
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "5")
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "10")
 
 
 def _load_papers(topic: str | None, run_dir: str | None) -> tuple[list[Paper], str]:
