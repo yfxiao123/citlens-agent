@@ -325,8 +325,9 @@ def refine_screen_report(
     )
     rows: list[dict] = []
     if out_path is not None and out_path.exists():
-        payload = json.loads(out_path.read_text(encoding="utf-8"))
-        rows = payload.get("papers") or []
+        from citens.screening import read_screening
+
+        rows = read_screening(out_path)["papers"]
     if not rows:
         rows = [
             {
@@ -358,13 +359,20 @@ def refine_screen_report(
     report["expand_advice"] = expand_advice(rows)
 
     if out_path is not None and out_path.exists():
-        payload["papers"] = rows
-        payload["bands"] = bands
-        payload["decide"] = summary
-        from citens.signals import expand_advice
+        from citens.screening import read_screening
 
-        payload["expand_advice"] = expand_advice(rows)
-        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+        meta = read_screening(out_path)["meta"]
+        meta["bands"] = bands
+        meta["decide"] = summary
+        meta["expand_advice"] = report["expand_advice"]
+        # same JSONL contract as screening.write: line 1 meta, then records
+        out_path.write_text(
+            "\n".join(
+                [json.dumps(meta, ensure_ascii=False)]
+                + [json.dumps(r, ensure_ascii=False) for r in rows]
+            ) + "\n",
+            encoding="utf-8",
+        )
 
     report["decide"] = {
         "enabled": True,

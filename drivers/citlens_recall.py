@@ -148,8 +148,15 @@ async def recall(args) -> dict:
     # A paper found by 3 independent families (query + snowball + survey
     # harvest) is far likelier on-topic than a single web hit — the vote is
     # recorded on the Paper (found_by) and consumed by `screen`'s consensus
-    # channel. Votes are noted over each family's SEAT-truncated head (the
-    # part that could actually enter the pool), not its full recall.
+    # channel. Votes are noted over each family's FULL recall — membership,
+    # not seat order. Head-truncated voting (the original design) starved
+    # corroboration by construction: two families retrieving the same paper
+    # but ranking it 5th vs 35th contributed ZERO votes, and every downstream
+    # consumer went dark in one shot (measured live 2026-11-06, A股动量机制
+    # run: consensus 0/165, pivot gate "found_by≥2 仅 0 篇" -> skipped, Chao1
+    # f2=0 -> saturation estimator blind, expand_advice's single-family
+    # signal fired at a constant 100%). Seats still decide who ENTERS the
+    # pool; votes only describe WHO FOUND IT.
     from citens.eval.litsearch import _key_of as _fuse_key
 
     votes: dict[str, set[str]] = {}
@@ -164,7 +171,7 @@ async def recall(args) -> dict:
         fam = fuse_multi_query(agent_cells, sources)
         families.append(fam)
         family_sizes["agent"] = len(fam)
-        _note("agent", fam[:FAMILY_QUOTA])
+        _note("agent", fam)
         _log(f"family agent: {len(fam)} (from {len(agent_qs)} queries)")
     elif "agent" in want:
         notes.append("agent: 无查询，已跳过")
@@ -174,7 +181,7 @@ async def recall(args) -> dict:
     raw_fam = fuse_multi_query(raw_cells, sources)
     families.append(raw_fam)
     family_sizes["raw"] = len(raw_fam)
-    _note("raw", raw_fam[:FAMILY_QUOTA])
+    _note("raw", raw_fam)
     _log(f"family raw: {len(raw_fam)}")
 
     agent_raw = fuse_multi_query({**agent_cells, **raw_cells}, sources)
@@ -225,44 +232,15 @@ async def recall(args) -> dict:
             "命中过低通常意味着词汇错配，不是池子太小"
         )
 
-    # ── mechanical pivot expansion (opt-in: --pivot N, default 0 = off) ──────
-    # The vocabulary-mismatch escape hatch that needs no LLM: corroborated
-    # head records (surfaced by ≥2 families) carry the vocabulary the
-    # sources actually answer to; their discriminative terms become the
-    # second wave. Drift guards: corroborated seeds only, term caps, normal
-    # family seats (citens/search/pivot.py for the full rationale).
-    pivot_n = int(getattr(args, "pivot", 0) or 0)
-    if pivot_n and agent_raw:
-        try:
-            from citens.search.pivot import build_pivot_queries
-
-            corroborated = {
-                k for k, v in votes.items() if len(v) >= 2
-            }
-            seeds = [p for p in agent_raw if _fuse_key(p) in corroborated]
-            if len(seeds) < 3:
-                notes.append(
-                    f"pivot: 佐证种子不足（found_by≥2 仅 {len(seeds)} 篇）——跳过，"
-                    "不拿单家族记录冒险（防 query drift）"
-                )
-            else:
-                p_queries = build_pivot_queries(seeds, agent_raw, n_queries=pivot_n)
-                if p_queries:
-                    _log(f"pivot queries: {p_queries}")
-                    pivot_cells = await _cells(p_queries, sources, health, PER_SOURCE)
-                    pfam = fuse_multi_query(pivot_cells, sources)
-                    if pfam:
-                        families.append(pfam)
-                        _note("pivot", pfam[:FAMILY_QUOTA])
-                        family_sizes["pivot"] = len(pfam)
-                        _log(f"family pivot: {len(pfam)} (queries: {p_queries})")
-                        notes.append(f"pivot: 机械扩展查询 {p_queries} → {len(pfam)} 条")
-                    else:
-                        notes.append("pivot: 扩展查询 0 命中，已跳过")
-                else:
-                    notes.append("pivot: 种子词汇无判别力，未能构造查询——跳过")
-        except Exception as e:  # noqa: BLE001
-            notes.append(f"pivot: 失败，跳过（{str(e)[:120]}）")
+    # NOTE: the mechanical pivot wave used to run HERE — between family 2
+    # (raw) and family 3 (oa_title). That placement made its corroboration
+    # gate decide on a PARTIAL ballot: only agent+raw had voted by then, and
+    # for a Chinese topic those two never intersect, so `--pivot` was dead on
+    # arrival for exactly the runs that needed it (measured 2026-11-06,
+    # verify-votes run: consensus showed 7 corroborated records AFTER the
+    # full ballot while the pivot gate, evaluated mid-sequence, saw 0 and
+    # skipped). The wave now runs after ALL families vote — see the
+    # "pivot expansion" block just before ordering.
 
     # ── family 3: OpenAlex title index over agent-supplied probe titles ──────
     probes = [t for t in (args.title_probes or []) if t.strip()]
@@ -280,7 +258,7 @@ async def recall(args) -> dict:
                 )
                 families.append(fam)
                 family_sizes["oa_title"] = len(fam)
-                _note("oa_title", fam[:FAMILY_QUOTA])
+                _note("oa_title", fam)
                 _log(f"family oa_title: {len(fam)}")
             else:
                 notes.append("oa_title: 0 命中（OpenAlex 标题索引无匹配或预算耗尽），已跳过")
@@ -311,11 +289,11 @@ async def recall(args) -> dict:
                     for item in items
                 ) if r is not None
             ]
-            # Vote on the family's OWN head (not only the records it added):
+            # Vote on the family's OWN recall (not only the records it added):
             # a paper already in the pool that S2 also recommends is an
             # independent confirmation, and dropping that vote undercounted
             # exactly the cross-family consensus `screen` consumes.
-            _note("s2_rec", recs[:FAMILY_QUOTA])
+            _note("s2_rec", recs)
             quota_cut.extend(recs[FAMILY_QUOTA:])
             added = 0
             added_papers = []
@@ -342,7 +320,7 @@ async def recall(args) -> dict:
                     backward=True, forward=True, related=False,
                     limit_per_paper=100, top=120,
                 )
-                _note("snowball", expanded[:FAMILY_QUOTA])
+                _note("snowball", expanded)
                 quota_cut.extend(expanded[FAMILY_QUOTA:])
                 seen = {_key_of(p) for p in pool}
                 added = 0
@@ -370,7 +348,7 @@ async def recall(args) -> dict:
                 # query. Keyless engines fail by returning [], so without this
                 # a dead bridge looked exactly like "the web had nothing".
                 health["web"] = list(web_src.health)
-                _note("web", web_papers[:FAMILY_QUOTA])
+                _note("web", web_papers)
                 quota_cut.extend(web_papers[FAMILY_QUOTA:])
                 from citens.eval.litsearch import _key_of
                 seen = {_key_of(p) for p in pool}
@@ -409,7 +387,7 @@ async def recall(args) -> dict:
                 topic, pool[:40], planner=agent_qs or [topic], quota=FAMILY_QUOTA
             )
             report["survey_seeds"] = seeds
-            _note("survey", survey_papers[:FAMILY_QUOTA])
+            _note("survey", survey_papers)
             quota_cut.extend(survey_papers[FAMILY_QUOTA:])
             seen = {_key_of(p) for p in pool}
             added = 0
@@ -440,7 +418,7 @@ async def recall(args) -> dict:
             pol_papers = await pol_src.search(policy_qs, 24)
             for org, b in pol_src.health.items():
                 health[f"policy-{org}"] = list(b)
-            _note("policy", pol_papers[:FAMILY_QUOTA])
+            _note("policy", pol_papers)
             quota_cut.extend(pol_papers[FAMILY_QUOTA:])
             from citens.eval.litsearch import _key_of
             seen = {_key_of(p) for p in pool}
@@ -454,6 +432,60 @@ async def recall(args) -> dict:
             _log(f"family policy: +{added} (head {len(pol_papers)})")
         except Exception as e:  # noqa: BLE001
             notes.append(f"policy: 失败，跳过（{str(e)[:120]}）")
+
+    # ── mechanical pivot expansion (opt-in: --pivot N, default 0 = off) ──────
+    # The vocabulary-mismatch escape hatch that needs no LLM: corroborated
+    # records (surfaced by ≥2 families) carry the vocabulary the sources
+    # actually answer to; their discriminative terms become the second wave.
+    # Drift guards: corroborated seeds only, term caps, normal family seats
+    # (citens/search/pivot.py for the full rationale). Runs AFTER every
+    # family has voted — the gate reads the FULL ballot, not the partial one
+    # an early placement used to see (agent+raw only, which for a Chinese
+    # topic never intersect -> --pivot silently dead; measured 2026-11-06).
+    pivot_n = int(getattr(args, "pivot", 0) or 0)
+    if pivot_n and agent_raw:
+        try:
+            from citens.search.pivot import build_pivot_queries
+
+            corroborated = {
+                k for k, v in votes.items() if len(v) >= 2
+            }
+            seeds = [p for p in agent_raw if _fuse_key(p) in corroborated]
+            if len(seeds) < 3:
+                notes.append(
+                    f"pivot: 佐证种子不足（found_by≥2 仅 {len(seeds)} 篇）——跳过，"
+                    "不拿单家族记录冒险（防 query drift）"
+                )
+            else:
+                p_queries = build_pivot_queries(seeds, agent_raw, n_queries=pivot_n)
+                if p_queries:
+                    _log(f"pivot queries: {p_queries}")
+                    pivot_cells = await _cells(p_queries, sources, health, PER_SOURCE)
+                    pfam = fuse_multi_query(pivot_cells, sources)
+                    if pfam:
+                        families.append(pfam)
+                        _note("pivot", pfam)
+                        family_sizes["pivot"] = len(pfam)
+                        # late wave: pool/quota_cut were already built from the
+                        # earlier families — merge seats by hand like s2_rec et al.
+                        from citens.eval.litsearch import _key_of
+
+                        seen_pv = {_key_of(p) for p in pool}
+                        quota_cut.extend(pfam[FAMILY_QUOTA:])
+                        added_pv = 0
+                        for p in pfam[:FAMILY_QUOTA]:
+                            if _key_of(p) not in seen_pv:
+                                seen_pv.add(_key_of(p))
+                                pool.append(p)
+                                added_pv += 1
+                        _log(f"family pivot: {len(pfam)} (+{added_pv} new to pool; queries: {p_queries})")
+                        notes.append(f"pivot: 机械扩展查询 {p_queries} → {len(pfam)} 条")
+                    else:
+                        notes.append("pivot: 扩展查询 0 命中，已跳过")
+                else:
+                    notes.append("pivot: 种子词汇无判别力，未能构造查询——跳过")
+        except Exception as e:  # noqa: BLE001
+            notes.append(f"pivot: 失败，跳过（{str(e)[:120]}）")
 
     # ── ordering: RRF/family seat order (NO LLM cascade in this build) ──────
     # Stamp the consensus signal BEFORE dedup so every kept record carries it;

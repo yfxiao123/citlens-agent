@@ -375,7 +375,7 @@ def cmd_expand(args) -> dict:
          "citation_count": p.citation_count, "source": p.source}
         for p in result["papers"][:args.top]
     ]
-    return {
+    payload = {
         "ok": True,
         "topic": args.topic,
         "seeds": seeds,
@@ -391,6 +391,17 @@ def cmd_expand(args) -> dict:
             "命中过低时换种子或补方向（--directions recs 只跑相似推荐）。"
         ),
     }
+    # full payload as an artifact next to the pool — stdout/MCP results carry
+    # only a preview since 2026-11-06 (the whole-JSON dump truncated on long
+    # pools and bloated MCP results; the file is the source of truth).
+    if not args.no_write:
+        exp_path = pool_path(args.topic).with_suffix(".expand.json")
+        exp_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=1, default=str),
+            encoding="utf-8",
+        )
+        payload["expand_path"] = str(exp_path)
+    return payload
 
 
 # ── dedup ─────────────────────────────────────────────────────────────────────
@@ -490,6 +501,30 @@ def cmd_audit(args) -> dict:
         "收工判据见 SKILL.md 阶段 F：coverage 低或 reviews_checked=0 时不得声明覆盖。"
     )
     return out
+
+
+def _stdout_view(payload: dict) -> dict:
+    """The stdout/MCP view of a driver result: big record lists collapse to a
+    5-item preview + count, the full data stays in the artifact file
+    (screening.jsonl / expand.json / the pool itself). The driver used to
+    dump the whole JSON — thousands of lines for real pools — which
+    truncated in logs and bloated every MCP result (measured 2026-11-06 on
+    the A股动量机制 run: two `| tail` truncations forced re-parsing dances).
+    """
+    for k in ("papers", "records", "rows", "items", "groups"):
+        v = payload.get(k)
+        if isinstance(v, list) and len(v) > 8:
+            payload = dict(payload)
+            payload[k] = {
+                "n": len(v),
+                "top": [
+                    {kk: r.get(kk) for kk in ("title", "doi", "year", "band") if r.get(kk) is not None}
+                    for r in v[:5] if isinstance(r, dict)
+                ],
+                "_note": f"preview only — full {len(v)} records in the artifact file",
+            }
+            return payload
+    return payload
 
 
 def main(argv=None) -> int:
@@ -607,7 +642,7 @@ def main(argv=None) -> int:
         payload = fn(args)
     except Exception as e:  # noqa: BLE001
         payload = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-    print(json.dumps(payload, ensure_ascii=False, indent=1, default=str))
+    print(json.dumps(_stdout_view(payload), ensure_ascii=False, indent=1, default=str))
     return 0 if payload.get("ok") else 1
 
 

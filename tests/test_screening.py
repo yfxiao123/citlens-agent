@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from citens.models import Paper
-from citens.screening import bm25_scores, screen_papers
+from citens.screening import bm25_scores, read_screening, screen_papers
 from citens.search.snowball import _query_terms, _rank_by_query_overlap
 
 PASS, FAIL = [], []
@@ -82,9 +82,19 @@ def test_screen_bands_offline() -> None:
         )
         check("screening.jsonl written with all records + bands",
               res["screening_path"] is not None and out_path.is_file())
-        payload = json.loads(out_path.read_text(encoding="utf-8"))
-        check("artifact holds every paper row", len(payload["papers"]) == 3
-              and {"band", "score", "channels"} <= set(payload["papers"][0]))
+        # TRUE JSONL contract: line 1 = meta (kind=screening), then one
+        # record per line — the file used to be one pretty-printed OBJECT
+        # under a .jsonl name and every line-consumer crashed on it.
+        lines = [ln for ln in out_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        meta = json.loads(lines[0])
+        rec_rows = [json.loads(ln) for ln in lines[1:]]
+        check("jsonl: line 1 is the screening meta", meta.get("kind") == "screening"
+              and meta.get("n") == 3)
+        check("artifact holds every paper row", len(rec_rows) == 3
+              and {"band", "score", "channels"} <= set(rec_rows[0]))
+        stored = read_screening(out_path)
+        check("read_screening round-trips the jsonl layout",
+              stored["meta"]["n"] == 3 and len(stored["papers"]) == 3)
     rows = {r["title"]: r for r in res["papers"]}
     check("result carries the three bands",
           set(res["bands"]) == {"core", "uncertain", "likely_off"})

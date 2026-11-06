@@ -252,7 +252,8 @@ def screen_papers(
     written = None
     if out_path is not None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
+        meta = {
+            "kind": "screening",
             "queries": qs,
             "channels": {
                 "semantic": sem_note,
@@ -263,10 +264,18 @@ def screen_papers(
             "n": len(rows),
             "bands": bands,
             "expand_advice": advice,
-            "papers": rows,
         }
+        # TRUE JSONL: line 1 = meta, then one record per line. The file used
+        # to hold one pretty-printed JSON OBJECT under a .jsonl name — any
+        # line-by-line consumer crashed on it (measured 2026-11-06: two parse
+        # attempts died before raw_decode saved the day). read_screening()
+        # below still reads the legacy single-object layout.
         out_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
+            "\n".join(
+                [json.dumps(meta, ensure_ascii=False)]
+                + [json.dumps(r, ensure_ascii=False) for r in rows]
+            ) + "\n",
+            encoding="utf-8",
         )
         written = str(out_path)
 
@@ -295,3 +304,28 @@ def screen_papers(
             "报告 bands 时请同时报告阈值与通道。"
         ),
     }
+
+
+def read_screening(path) -> dict:
+    """Read a screening artifact in EITHER layout: true JSONL (line 1 meta,
+    then one record per line — the current writer) or the legacy single
+    pretty-printed JSON object. Returns ``{"meta": {...}, "papers": [...]}``.
+
+    The only reader that ever needed this (decide.refine_screen_report) used
+    to ``json.loads`` the whole file; that broke the day anyone streamed the
+    ``.jsonl`` line by line — one canonical reader stops the format from
+    forking again.
+    """
+    p = Path(path)
+    text = p.read_text(encoding="utf-8")
+    first_line = text.split("\n", 1)[0].strip()
+    try:
+        head = json.loads(first_line)
+        if isinstance(head, dict) and head.get("kind") == "screening":
+            papers = [json.loads(ln) for ln in text.splitlines()[1:] if ln.strip()]
+            return {"meta": head, "papers": papers}
+    except json.JSONDecodeError:
+        pass
+    obj = json.loads(text)  # legacy single-object layout
+    return {"meta": {k: v for k, v in obj.items() if k != "papers"},
+            "papers": obj.get("papers") or []}

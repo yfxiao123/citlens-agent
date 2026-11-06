@@ -326,8 +326,24 @@ def _running_jobs(cfg: dict) -> list[dict]:
         if not d.is_dir():
             continue
         st = _read_json(d / "state.json")
-        if st.get("state") == "running" and _pid_alive(st.get("pid")):
+        if st.get("state") != "running":
+            continue
+        pid = st.get("pid")
+        if pid and _pid_alive(pid):
             out.append(st)
+        elif not pid and time.time() - d.stat().st_mtime < 120:
+            # spawned but the runner hasn't written its pid yet — too young
+            # to call dead (start_job -> run_job handshake window)
+            out.append(st)
+        else:
+            # reap: a job whose runner died (client kill took a pre-detach
+            # runner with it, machine rebooted, ...) must not sit in
+            # "running" forever — the 2026-11-05 ghost job displayed as
+            # running for days and made doctor's job list lie. Rewrite once
+            # on read; the log keeps the evidence.
+            st["state"] = "lost"
+            st["error"] = "runner process is dead (client kill / reboot); see log"
+            _write_json(d / "state.json", st)
     return out
 
 
@@ -878,6 +894,26 @@ def _search_view(cfg: dict, st: dict) -> dict:
     return out
 
 
+def _maybe_background(cfg: dict, args: dict, argv: list, tool_name: str, topic: str):
+    """Long tools (screen / gaps / expand) can outlive MCP clients that
+    hard-kill calls at ~30s — the SAME failure that job-ified `search` and
+    background-ified `fetch` (measured twice on 2026-11-06: screen killed at
+    30s mid-triage, expand killed mid-crawl; the run only survived because
+    the operator had shell access to the drivers). `background: true` runs
+    the same driver argv as a detached job; poll `status` — for tools jobs
+    the log_tail IS the result JSON (compact view; full records in the
+    artifact files)."""
+    if not args.get("background"):
+        return None
+    started = start_job(cfg, tool_name, {"argv": argv, "topic": topic or ""})
+    if started.get("ok"):
+        started["hint"] = (
+            "poll `status` with this job_id; the result JSON arrives in "
+            "log_tail when state=done"
+        )
+    return started
+
+
 def tool_screen(cfg: dict, args: dict) -> dict:
     topic = (args.get("topic") or "").strip()
     run_dir = (args.get("run_dir") or "").strip()
@@ -902,6 +938,9 @@ def tool_screen(cfg: dict, args: dict) -> dict:
         if args.get("decide_limit") is not None:
             argv += ["--decide-limit", str(args["decide_limit"])]
     # first call may download the local model; give it room
+    bg = _maybe_background(cfg, args, argv, "screen", topic)
+    if bg is not None:
+        return bg
     return _run_driver_json(cfg, "tools", argv, timeout=900)
 
 
@@ -930,6 +969,9 @@ def tool_gaps(cfg: dict, args: dict) -> dict:
     if args.get("model") is not None:
         argv += ["--model", str(args["model"])]
     # embedding model download on first call can be slow; mining is local I/O
+    bg = _maybe_background(cfg, args, argv, "gaps", topic)
+    if bg is not None:
+        return bg
     return _run_driver_json(cfg, "tools", argv, timeout=900)
 
 
@@ -956,6 +998,9 @@ def tool_expand(cfg: dict, args: dict) -> dict:
             argv += [flag, str(args[key])]
     if args.get("no_write"):
         argv += ["--no-write"]
+    bg = _maybe_background(cfg, args, argv, "expand", topic)
+    if bg is not None:
+        return bg
     out = _run_driver_json(cfg, "tools", argv, timeout=600)
     out.setdefault("note", "")
     out["note"] = (
@@ -1303,6 +1348,8 @@ TOOL_DEFS = [
                            "description": "Decision layer (opt-in): an LLM logit readout re-bands records with calibrated 3-way probabilities; high-confidence auto-banded, the rest escalate to uncertain for your own review. Needs LLM_API_BASE/LLM_API_KEY/LLM_MODEL in the data home .env; without them the report says so and mechanical bands stand."},
                 "decide_limit": {"type": "integer",
                                  "description": "Max records the decision layer processes (0 = all; default 0)."},
+                "background": {"type": "boolean",
+                               "description": "Run as a detached job and return a job_id immediately (recommended for large pools or decide:true — MCP clients hard-kill calls at ~30s). Poll `status`."},
             },
             "required": [],
         },
@@ -1336,6 +1383,8 @@ TOOL_DEFS = [
                 "limit": {"type": "integer", "description": "Cap for novelty neighbours and stated-gap hits (default 40)."},
                 "model": {"type": "string",
                           "description": "Novelty-check embedding model override (empty string disables the semantic channel — use for offline runs)."},
+                "background": {"type": "boolean",
+                               "description": "Run as a detached job and return a job_id immediately (the embedding download or a big coverage matrix can exceed MCP clients' ~30s kill). Poll `status`."},
             },
             "required": [],
         },
@@ -1391,6 +1440,8 @@ TOOL_DEFS = [
                 "top": {"type": "integer", "description": "Records to return/merge (default 30)."},
                 "limit_per_paper": {"type": "integer", "description": "Per seed per direction (default 20)."},
                 "no_write": {"type": "boolean", "description": "Return without merging into the pool."},
+                "background": {"type": "boolean",
+                               "description": "Run as a detached job and return a job_id immediately (recommended — citation crawls are throttled and can exceed MCP clients' ~30s kill). Poll `status`."},
             },
             "required": ["topic"],
         },
