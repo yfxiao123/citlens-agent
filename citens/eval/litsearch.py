@@ -166,6 +166,51 @@ async def _s2_title_fallback(title: str) -> list[dict]:
         await client.aclose()
 
 
+async def _crossref_title_fallback(title: str) -> list[dict]:
+    """Crossref bibliographic query — the probe family's SECOND coverage
+    fallback, after S2.
+
+    S2's anonymous pool is shared and its key tier throttles under load, and
+    the failure shape is nastier than a 429: overloaded S2 often answers
+    200 with ZERO rows (measured 2026-11-06: 36/72 bench cells read as
+    "empty" during a quota storm — indistinguishable from real misses).
+    Crossref has no key, no quota games, and a polite pool: it is the
+    coverage role's honest backstop when both OpenAlex's title index and
+    S2 come back with nothing.
+    """
+    from citens import net
+    from citens.config import settings
+
+    params: dict[str, object] = {
+        "query.bibliographic": title, "rows": 10,
+        "select": "title,DOI,issued,is-referenced-by-count",
+    }
+    if settings.crossref_email:
+        params["mailto"] = settings.crossref_email
+    client = net.async_client("crossref", timeout=25, headers={"User-Agent": "citlens-probe"})
+    try:
+        r = await client.get("https://api.crossref.org/works", params=params)
+        r.raise_for_status()
+        out = []
+        for w in r.json().get("message", {}).get("items", []):
+            t = (w.get("title") or [""])[0]
+            year = None
+            try:
+                year = (w.get("issued", {}).get("date-parts") or [[None]])[0][0]
+            except (IndexError, KeyError, TypeError):
+                pass
+            out.append({
+                "title": t,
+                "doi": (w.get("DOI") or "").replace("https://doi.org/", ""),
+                "year": year,
+                "cited": w.get("is-referenced-by-count") or 0,
+                "abstract": "",
+            })
+        return out
+    finally:
+        await client.aclose()
+
+
 async def oa_title_search(
     titles: list[str], per_page: int = 20, fetch=None
 ) -> dict[str, list[Paper]]:
@@ -230,6 +275,16 @@ async def oa_title_search(
                     except Exception as e:  # noqa: BLE001
                         print(f"[oa-title] s2 fallback for {t[:40]}… failed: {e}", flush=True)
                         cached = []
+                    if not any(c["title"] for c in cached):
+                        # second backstop: S2 down/throttled answers 200 with
+                        # zero rows under load (measured 2026-11-06) — Crossref
+                        # has no key tier to starve, so the coverage chain is
+                        # OpenAlex title index -> S2 -> Crossref.
+                        try:
+                            cached = await _crossref_title_fallback(t)
+                        except Exception as e:  # noqa: BLE001
+                            print(f"[oa-title] crossref fallback for {t[:40]}… failed: {e}", flush=True)
+                            cached = []
                 else:
                     cached = []
             if any(c["title"] for c in cached):

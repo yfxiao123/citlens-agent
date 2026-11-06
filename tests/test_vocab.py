@@ -81,6 +81,55 @@ check("pivot: a term present in ONE seed alone cannot steer the query",
 
 check("pivot: no seeds -> no queries", build_pivot_queries([], pool) == [])
 
+# ── F6: probe coverage chain — Crossref as the second title fallback ─────────
+# S2 under load answers 200 with ZERO rows (measured 2026-11-06: 36/72 bench
+# cells starved during a quota storm read as "empty"), so the probe family's
+# coverage role needs a second backstop with no key tier to starve.
+
+import asyncio
+from unittest.mock import patch
+
+from citens.eval.litsearch import _crossref_title_fallback
+
+
+class _FakeResp:
+    status_code = 200
+
+    def raise_for_status(self) -> None:
+        pass
+
+    def json(self) -> dict:
+        return {"message": {"items": [
+            {"title": ["SafeDreamer: Safe RL with World Models"],
+             "DOI": "10.1000/fake", "issued": {"date-parts": [[2023]]},
+             "is-referenced-by-count": 7},
+            {"title": [], "DOI": "", "issued": {}},
+        ]}}
+
+
+class _FakeClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return None
+
+    async def get(self, url, params=None):
+        return _FakeResp()
+
+    async def aclose(self):
+        return None
+
+
+with patch("citens.net.async_client", lambda *a, **k: _FakeClient()):
+    _rows = asyncio.run(_crossref_title_fallback("SafeDreamer"))
+check("F6: crossref fallback parses items (title/doi/year/cited)",
+      _rows and _rows[0]["title"].startswith("SafeDreamer")
+      and _rows[0]["doi"] == "10.1000/fake" and _rows[0]["year"] == 2023
+      and _rows[0]["cited"] == 7, str(_rows[:1]))
+check("F6: crossref fallback tolerates title-less rows",
+      len(_rows) == 2 and _rows[1]["title"] == "")
+
 # ── summary ──────────────────────────────────────────────────────────────────
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
