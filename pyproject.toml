@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "citlens-agent"
-version = "0.3.0"
-description = "CiteLens for AI agents: high-recall literature search and citation-grounded survey tools behind one MCP server — no LLM key required."
+version = "2.0.0"  # the CLI-only interface release (see citlens_cli.SERVER_VERSION)
+description = "CiteLens for AI agents: high-recall literature search and citation-grounded survey tools behind one CLI (citlens.cmd <tool> — one JSON document per call) — no LLM key required."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "CiteLens contributors" }]
 keywords = [
-    "literature-review", "systematic-review", "mcp", "model-context-protocol",
+    "literature-review", "systematic-review", "cli", "harness",
     "academic-search", "citation", "agent-tools",
 ]
 # Deliberately tiny and LLM-free: the calling agent is the model.

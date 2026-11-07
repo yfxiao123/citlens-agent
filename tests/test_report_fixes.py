@@ -132,9 +132,12 @@ def _fake_driver(cfg, kind, argv, timeout=0):
 m._run_driver_json = _fake_driver
 m.tool_verify({}, {"review": "r.md", "run_dir": "/tmp/run", "text_dir": "/tmp/txt"})
 argv = captured.get("argv") or []
+# path args are resolved against the CALLER's cwd (2.0 retest): on Windows
+# "/tmp/run" is not absolute, so it arrives as its resolved form
 check("verify passes hyphenated --run-dir/--text-dir",
       "--run-dir" in argv and "--text-dir" in argv
-      and "/tmp/run" in argv and "/tmp/txt" in argv, str(argv))
+      and argv[argv.index("--run-dir") + 1] == str(Path("/tmp/run").resolve())
+      and argv[argv.index("--text-dir") + 1] == str(Path("/tmp/txt").resolve()), str(argv))
 check("verify never sends the snake_case flags argparse rejects",
       "--run_dir" not in argv and "--text_dir" not in argv, str(argv))
 

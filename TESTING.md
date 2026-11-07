@@ -27,7 +27,8 @@ grep -rn "citens\.llm\|citens\.agents\|citens\.orchestration\|citens\.harness" c
 .venv/Scripts/python tests/test_health.py        # health 三态/partial、熔断、litsearch 桶、缓存守卫、fulltext 负缓存
 .venv/Scripts/python tests/test_decide.py        # 决策层：logit readout、selective prediction、Mock 端点全链路（零网络）
 .venv/Scripts/python tests/test_signals.py       # 池级信号：Chao1 手算对照、饱和判定、扩搜建议（纯函数）
-.venv/Scripts/python tests/test_report_fixes.py  # 第三方报告回归：参数接线/fail-closed/scansci/PyMuPDF 等 26 项
+.venv/Scripts/python tests/test_report_fixes.py  # 第三方报告回归：参数接线/fail-closed/scansci/PyMuPDF 等 38 项
+.venv/Scripts/python tests/test_retest_fixes.py  # 2.0 复测回归：config 传播/失败路径/相对路径/fetch 分流 19 项
 ```
 
 覆盖：CLI 分发（目录/十三工具/错误路径/退出码契约）、安装器（shim/配置/skill/旧注册清理）

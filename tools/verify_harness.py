@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,7 @@ CLI = str(ROOT / "citlens_cli.py")
 SHIM = str(Path.home() / ".citlens" / "bin" / "citlens.cmd")
 TOPIC = "A股动量机制"
 OUT = ROOT / ".verify"  # scratch artifacts (gitignored)
+OUT.mkdir(parents=True, exist_ok=True)  # every later write assumes it exists
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -54,14 +56,30 @@ def skip(name: str, why: str) -> None:
 
 
 def _usable_config(path: str) -> bool:
+    """True only when the config resolves AND the data home has real content.
+
+    A fresh `install.py apply` with an empty home is the STANDARD post-install
+    state — pointing the acceptance suite at it fails every pool-dependent
+    check (2.0 retest scenario B: A3/A5/A6/A9/B2/B3 failed, then the suite
+    crashed). An empty home falls through to the synthetic-fixture branch,
+    which is exactly what a fresh install needs to be able to run.
+    """
     try:
         cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return False
-    return bool(cfg.get("home") and Path(cfg["home"]).is_dir()
-                and cfg.get("python") and Path(cfg["python"]).is_file()
-                and cfg.get("recall_driver") and Path(cfg["recall_driver"]).is_file()
-                and cfg.get("tools_driver") and Path(cfg["tools_driver"]).is_file())
+    if not (cfg.get("home") and Path(cfg["home"]).is_dir()
+            and cfg.get("python") and Path(cfg["python"]).is_file()
+            and cfg.get("recall_driver") and Path(cfg["recall_driver"]).is_file()
+            and cfg.get("tools_driver") and Path(cfg["tools_driver"]).is_file()):
+        return False
+    home = Path(cfg["home"])
+    has_data = any((home / "data" / "litdb").glob("*.jsonl"))
+    has_runs = (home / "citlens-runs").is_dir() and any(
+        (home / "citlens-runs").iterdir())
+    has_jobs = bool(cfg.get("jobs_dir")) and any(
+        Path(cfg["jobs_dir"]).glob("*/state.json"))
+    return has_data or has_runs or has_jobs
 
 
 # Self-contained: a fresh clone (no `install.py apply`, no fixture run) must be
@@ -396,16 +414,24 @@ else:
 # ── H. pipeline evidence on disk ─────────────────────────────────────────────
 print("\n[H] pipeline evidence")
 
-reports = sorted((Path(cfg["home"]) / "runs").glob("verify-votes2/*/search_report.md"))
+reports = sorted((Path(cfg["home"]) / "citlens-runs").glob("verify-votes2/*/search_report.md"))
 if not reports:
     skip("H1/H2/H3 pipeline evidence",
          "fixture run 'verify-votes2' absent (needs the live A股动量机制 run)")
 else:
     rep = reports[-1].read_text(encoding="utf-8")
-    check("H1 full-ballot voting visible: consensus >=2 families on 48 records",
-          "≥2 家族同时命中 48 篇" in rep
-          or ("全召回票池" in rep and "≥2 家族 48 篇" in rep),
-          rep[:200])
+    # the corroborated count is DYNAMIC (a rerun says "53 篇", not "48 篇") —
+    # matching a hard-coded number made H1 unreproducible against any fresh
+    # fixture run (2.0 retest); parse the number and assert a sane floor
+    # A/B-verified 2026-11-07: the corroborated count is source-dependent
+    # drift (same queries, same code: 48 one day, 6 the next). The CHECK is
+    # that the voting mechanism works and is visible — 2plus > 0 with the
+    # dual denominators present — not that some historical number recurs.
+    m = re.search(r"≥2 家族(?:同时命中|\s*)\s*(\d+)\s*篇", rep)
+    corr_n = int(m.group(1)) if m else -1
+    check("H1 full-ballot voting visible (2plus > 0, dual denominators)",
+          corr_n >= 1 and "全召回票池" in rep and "入池" in rep,
+          f"parsed={corr_n}; head={rep[:120]!r}")
     check("H2 pivot wave fired (was: skipped, 0 corroborated seeds)",
           "pivot: 机械扩展查询" in rep and "佐证种子不足" not in rep)
 
@@ -413,12 +439,19 @@ else:
     # the RUN pool. The shared litdb pool still holds pre-fix records whose
     # found_by is single-family by construction — that is stale data, not a code
     # regression (recorded here so the distinction is explicit).
-    run_pools = sorted((Path(cfg["home"]) / "runs").glob("verify-votes2/*/pool.jsonl"))
+    run_pools = sorted((Path(cfg["home"]) / "citlens-runs").glob("verify-votes2/*/pool.jsonl"))
     run_rows = [json.loads(ln) for ln in run_pools[-1].read_text(encoding="utf-8").splitlines()
                 if ln.strip()] if run_pools else []
     corroborated = sum(1 for r in run_rows if len(r.get("found_by") or []) >= 2)
-    check("H3 fixed-run pool records carry multi-family found_by votes",
-          corroborated >= 3, f"corroborated={corroborated}/{len(run_rows)}")
+    stamped = sum(1 for r in run_rows if r.get("found_by"))
+    m2 = re.search(r"入池\s*\d+\s*条中\s*≥2 家族\s*(\d+)\s*篇", rep)
+    pool_2plus = int(m2.group(1)) if m2 else -1
+    # every kept record carries its family stamp, and pool-scope corroboration
+    # is reported > 0 (whether corroborated records survive the target CUT is
+    # ranking's business, not the voting mechanism's)
+    check("H3 run pool: found_by stamped on all records, pool 2plus > 0",
+          stamped == len(run_rows) and pool_2plus >= 1,
+          f"stamped={stamped}/{len(run_rows)} pool_2plus={pool_2plus} kept_2plus={corroborated}")
 
 # ── summary ─────────────────────────────────────────────────────────────────
 print(f"\n{'='*60}\n{len(PASS)} passed, {len(FAIL)} failed, {len(SKIP)} skipped")

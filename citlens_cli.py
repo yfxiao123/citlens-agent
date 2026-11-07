@@ -745,6 +745,12 @@ def _run_driver_json(cfg: dict, kind: str, argv: list[str], timeout: int = 240) 
     env = dict(os.environ)
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
+    # An explicit --config must reach the driver's OWN config resolution:
+    # without this the driver re-reads ~/.citlens/config.json and pools land
+    # in the default home while the caller reads the custom one (2.0 retest
+    # P1-2: export reported "pool not found", audit silently returned 0).
+    if cfg.get("home"):
+        env["CITLENS_HOME"] = cfg["home"]
     try:
         r = subprocess.run(
             [python, driver, *argv],
@@ -837,14 +843,42 @@ def tool_fetch(cfg: dict, args: dict) -> dict:
             )
         return started
     out = _run_driver_json(cfg, "tools", argv, timeout=300)
+    if out.get("ok") is False:
+        return out  # the driver's error speaks for itself
     out.setdefault("note", "")
-    out["note"] = (
-        "Use the text (text_path / head) as the ONLY grounding for claims about "
-        "this paper. fulltext=false means abstract-only: claims must stay within "
-        "what the abstract states, and the review's honesty block must count it. "
-        + str(out.get("note") or "")
-    )
+    # The prefix must match what ACTUALLY came back: the old blanket "abstract-
+    # only" line also fired for records with NO abstract at all, overriding the
+    # driver's honest "cannot be cited as evidence" note (2.0 retest P2).
+    if out.get("fulltext"):
+        prefix = (
+            "Use the text (text_path / head) as the ONLY grounding for claims "
+            "about this paper; cite locatable page/section when quoting. "
+        )
+    elif out.get("abstract"):
+        prefix = (
+            "fulltext=false → abstract-only: claims must stay within what the "
+            "abstract states, and the review's honesty block must count it. "
+        )
+    else:
+        prefix = (
+            "fulltext=false and NO abstract: this record cannot ground any "
+            "claim — do not cite it (fix metadata via another source, or drop). "
+        )
+    out["note"] = prefix + str(out.get("note") or "")
     return out
+
+
+def _caller_path(v) -> str:
+    """Resolve a path argument against the CALLER's cwd.
+
+    Drivers run with cwd=<data home>, so a relative path forwarded verbatim
+    resolves against the home and the caller gets "review not found" for a
+    file sitting next to their shell (2.0 retest P2: SKILL's own examples
+    `verify --review review.md`, `export --out refs.bib` hit this).
+    """
+    s = str(v)
+    p_ = Path(s)
+    return s if p_.is_absolute() else str(p_.resolve())
 
 
 def tool_export(cfg: dict, args: dict) -> dict:
@@ -854,7 +888,7 @@ def tool_export(cfg: dict, args: dict) -> dict:
     if args.get("run_dir"):
         argv += ["--run-dir", str(args["run_dir"])]
     if args.get("out"):
-        argv += ["--out", str(args["out"])]
+        argv += ["--out", _caller_path(args["out"])]
     if args.get("with_labels"):
         argv += ["--with-labels"]
     return _run_driver_json(cfg, "tools", argv, timeout=120)
@@ -1147,17 +1181,20 @@ def tool_verify(cfg: dict, args: dict) -> dict:
     review = str(args.get("review") or "").strip()
     if not review:
         return {"ok": False, "error": "review is required (path to the review markdown)"}
+    # resolve BEFORE argv construction — the driver's cwd is the data home, so
+    # a caller-relative review path must anchor to the caller's cwd first
+    review = _caller_path(review)
     argv = ["verify", "--review", review]
     # argparse accepts ONLY the hyphenated long options. The old list passed
     # `--run_dir`/`--text_dir` (the tool-argument snake_case names) straight
     # through, so the driver exited 2 with "unrecognized arguments" and MCP
     # surfaced "driver produced no JSON" (found by the 2026-11-06 third-party
     # test, offline-tools P1-1).
-    for flag, key in (("--topic", "topic"), ("--run-dir", "run_dir"),
-                      ("--verdicts", "verdicts"), ("--text-dir", "text_dir"),
-                      ("--out", "out_dir"), ("--out", "out")):
+    for flag, key, rel in (("--topic", "topic", False), ("--run-dir", "run_dir", True),
+                           ("--verdicts", "verdicts", True), ("--text-dir", "text_dir", True),
+                           ("--out", "out_dir", True), ("--out", "out", True)):
         if args.get(key):
-            argv += [flag, str(args[key])]
+            argv += [flag, _caller_path(args[key]) if rel else str(args[key])]
     if args.get("core_papers") not in (None, ""):
         argv += ["--core-papers", str(args["core_papers"])]
     out = _run_driver_json(cfg, "tools", argv, timeout=600)
@@ -1310,7 +1347,7 @@ TOOL_DEFS = [
             "returned pool yourself. Writes pool.jsonl + search_report.md + "
             "exclusions.jsonl + queries.json (per-query hit feedback — rephrase "
             "empty/thin blocks in paper-side vocabulary). Returns a job id; pass "
-            "wait_seconds (default 45) or poll `status`. Use this instead of "
+            "wait_seconds (default 20 from config) or poll `status`. Use this instead of "
             "your own web search for any literature question."
         ),
         "inputSchema": {
@@ -1368,10 +1405,11 @@ TOOL_DEFS = [
         "name": "fetch",
         "description": (
             "Grounding substrate: fetch one paper's open-access full text (arXiv -> "
-            "S2 -> OpenAlex -> Unpaywall -> CORE, PDF converted to text, cached) or "
-            "fall back to the abstract. Use it BEFORE citing claims about a paper's "
-            "methods/results; fulltext=false means the paper can only be cited "
-            "abstract-only."
+            "S2 -> OpenAlex -> Unpaywall -> CORE, PDF converted to text, cached; "
+            "optional scansci-pdf last resort). Falls back to the abstract when "
+            "there is no OA copy — and to an explicit not-citable note when there "
+            "is no abstract either. Use it BEFORE citing claims about a paper's "
+            "methods/results."
         ),
         "inputSchema": {
             "type": "object",
@@ -1384,7 +1422,7 @@ TOOL_DEFS = [
                 "force": {"type": "boolean",
                           "description": "Ignore both the fulltext cache and the short-lived failure cache and retry every leg (use after a network/proxy outage)."},
                 "background": {"type": "boolean",
-                               "description": "Run as a detached job and return a job_id immediately (for clients that kill calls at ~30s; a fulltext download can take minutes). Poll `status` — for tools jobs log_tail IS the result JSON."},
+                               "description": "DEFAULT FALSE. Pass true to run as a detached job and get a job_id immediately (a fulltext download + PDF conversion can take minutes). Poll `status` — for tools jobs log_tail IS the result JSON. This and `search` are the only detaching tools."},
             },
             "description": "Pass doi / title / arxiv (one is enough; with topic or run_dir the record is resolved from the pool).",
         },
@@ -1458,7 +1496,7 @@ TOOL_DEFS = [
                 "decide_limit": {"type": "integer",
                                  "description": "Max records the decision layer processes (0 = all; default 0)."},
                 "background": {"type": "boolean",
-                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (long tools would hold the caller's shell hostage otherwise). Poll `status`. Pass false to run synchronously — only for small pools / quick checks."},
+                               "description": "CLI contract: ALWAYS synchronous — run the command through your shell's own background mechanism when the pool is big. `--background true` is refused with exit 2 (a detached job spawned from a short-lived shell dies with the shell's process tree, measured). Only `search` and `fetch --background true` detach."},
             },
             "required": [],
         },
@@ -1493,7 +1531,7 @@ TOOL_DEFS = [
                 "model": {"type": "string",
                           "description": "Novelty-check embedding model override (empty string disables the semantic channel — use for offline runs)."},
                 "background": {"type": "boolean",
-                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (the embedding download or a big coverage matrix runs for many minutes). Poll `status`. Pass false to run synchronously."},
+                               "description": "CLI contract: ALWAYS synchronous (the embedding download or a big coverage matrix runs for many minutes — wrap in your shell's background mechanism). `--background true` is refused with exit 2."},
             },
             "required": [],
         },
@@ -1550,7 +1588,7 @@ TOOL_DEFS = [
                 "limit_per_paper": {"type": "integer", "description": "Per seed per direction (default 20)."},
                 "no_write": {"type": "boolean", "description": "Return without merging into the pool."},
                 "background": {"type": "boolean",
-                               "description": "DEFAULT TRUE: run as a detached job and return a job_id immediately (citation crawls are throttled and run for many minutes). Poll `status`. Pass false to run synchronously."},
+                               "description": "CLI contract: ALWAYS synchronous (citation crawls are throttled and run for many minutes — wrap in your shell's background mechanism). `--background true` is refused with exit 2."},
             },
             "required": ["topic"],
         },
@@ -1744,6 +1782,7 @@ def run_job(job_dir: str, config: str, kind: str) -> int:
         # newer than the job start when the failure happens seconds after
         # the last run), so `status` attributed old artifacts to the failed
         # job (third-party report, live-recall P2-7).
+        run_dir = None
         state.pop("run_dir", None)
         state["error"] = f"driver exited {code}; see log"
     _write_json(jd / "state.json", state)
@@ -1932,7 +1971,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "selftest":
         return selftest(load_config(config))
     if cmd == "run-job":
-        job_dir = config_kind = None
+        job_dir = None
         kind = "search"
         i = 0
         while i < len(rest):
@@ -1942,15 +1981,17 @@ def main(argv: list[str] | None = None) -> int:
             elif rest[i] == "--kind" and i + 1 < len(rest):
                 kind = rest[i + 1]
                 i += 2
-            elif rest[i] == "--config" and i + 1 < len(rest):
-                config_kind = rest[i + 1]
-                i += 2
             else:
                 i += 1
         if not job_dir:
             _log("run-job needs --job-dir")
             return 2
-        return run_job(job_dir, config_kind or "", kind)
+        # `config` was extracted globally above (it is NOT in `rest` any
+        # more). The runner MUST load the SAME config the caller passed —
+        # with the default config it spawns the default interpreter and
+        # drivers, which on a machine with multiple checkouts silently runs
+        # a diverged driver tree (2.0 retest P1-2).
+        return run_job(job_dir, config or "", kind)
     if cmd in _TOOL_NAMES:  # bare tool form: `citlens.cmd search --topic ...`
         return _cli_dispatch(load_config(config), [cmd, *rest])
     if not cmd:

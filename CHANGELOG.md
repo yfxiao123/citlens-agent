@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased — 2.0 retest fixes: config propagation, harness reproducibility
+
+第三方对 `main @ 3b59964` 的满血复测（`test-report/21-harness2-full-test.md`）
+暴露的 P1/P2 修复，重点是两条 P1：
+
+### P1-1 推送缺口
+- 2.0 的两个 commit（2716084 / 3b59964）此前只在本地——第三方 clone 拿到的
+  还是 1.x MCP 版。本次随修复一并推送。
+
+### P1-2 显式 --config / 自定义数据家不传播到 driver
+- `_run_driver_json` 现在注入 `CITLENS_HOME`：此前同步工具
+  （export/audit/screen/gaps/expand/notes/dedup/verify/fetch）的 driver
+  各自重读默认 `~/.citlens/config.json`，自定义数据家下 export 报
+  "pool 不存在"、audit 静默 0 结果。
+- `run-job` 重新拿到全局剥离的 `--config`：此前 runner 加载默认配置，
+  在多检出机器上会用默认配置指向的**另一套解释器/driver** 跑任务。
+
+### P2
+- `run_job` 失败路径 `run_dir` 未初始化 → UnboundLocalError 掩盖真实失败
+  （job 卡 running）。
+- `verify --review` / `export --out` 相对路径现在按**调用者 cwd** 解析
+  （driver 的 cwd 是数据家，SKILL 示例 `--review review.md` 会撞
+  "review not found"）。
+- `tool_fetch` 的前端 note 按实际结果分流：fulltext / 仅摘要 / **无摘要
+  不可引用**——旧的 blanket "abstract-only" 前缀盖掉了驱动层的诚实说明。
+- `tools` 目录里 screen/gaps/expand 的 background 描述改为 CLI 真实契约
+  （同步执行、`--background true` exit 2）；fetch 的 background 标明
+  DEFAULT FALSE；search 的 wait_seconds "default 45" 笔误改正。
+
+### verify_harness 可复现性（复测 P2-5）
+- `OUT.mkdir` 提到所有分支之前——"已 apply 但空家"环境此前在
+  `legacy_screening.jsonl` 处直接 FileNotFoundError 崩溃。
+- `_usable_config` 现在要求家里有真实数据（池/run/job 任一）：空家 =
+  走合成 fixture 分支，与干净 clone 同为 29/0/2（复测场景 B 此前
+  6 FAIL + 崩溃）。
+- H1-H3 改读 `citlens-runs/`（2.0 布局；旧 `runs/` 路径只能被重命名前的
+  历史产物满足）；H1/H3 从硬编码数字（"48 篇"、kept≥3）改为机制断言
+  （2plus>0、双分母在场、found_by 全打标）——A/B 实测同代码同查询两天
+  分别 48/6 篇，共识数是源端漂移，不该当回归门槛。
+- CHANGELOG 数字改为可复现口径：干净/装机空家 29/0/2，真机带新 fixture
+  34/34（fixture 由一次真实检索生成，缺失时诚实 skip）。
+
+### 元数据
+- pyproject 0.3.0 → 2.0.0，description/keywords 去除 MCP 叙事，
+  `citens.__version__` 兜底同步。（wheel 不含 drivers/skill 属已知缺口，
+  clone+editable 安装是文档路径，后续单独处理。）
+
 ## Unreleased — 2.0: the MCP server is removed; the CLI is the interface
 
 全面拥抱 harness：`citlens_mcp.py` 更名 **`citlens_cli.py`** 并删除整个 MCP
