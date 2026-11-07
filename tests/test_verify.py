@@ -64,7 +64,6 @@ ABSTRACT = (
 
 def test_references_and_claims() -> None:
     print("\n== reference/claim parsing ==")
-    pool = [_paper("Semantic ID Tokenization for Generative Recommendation", "10.1/aaa")]
     body, refs, _ = split_references(_review(["A claim [1]."], ["Lovelace, A. (2024). Semantic ID Tokenization for Generative Recommendation. *J*."]))
     check("references parsed into a number->text map", refs.get(1, "").startswith("Lovelace"))
     check("body excludes the references section", "Lovelace, A." not in body)

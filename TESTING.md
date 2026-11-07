@@ -40,8 +40,10 @@ span 逐字匹配、六类判定、precision/grounding 算术与产物；网络�
 限流槽位；失败可见性（failed/partial/empty 互斥、熔断开合、401 即刻开路、
 失败查询不进 query_stats、空值不进缓存、fulltext 失败短 TTL 负缓存）。
 
-> 注意：`test_selftest` 假设本机已经 `install.py apply` 过（`~/.citlens` 存在）。
-> 在全新 HOME 下运行它会报 home 不存在——那是环境问题，不是代码回归。
+> 编码前提（round-3 R4）：测试对子进程输出的解码一律显式 UTF-8，GBK 控制台不加
+> `PYTHONUTF8=1` 也能全绿；交互式跑安装器等中文输出命令时建议设置，只为控制台可读。
+> `test_selftest` 已沙箱化（临时 HOME + 手写配置），不要求本机 apply 过、不碰真实
+> `~/.citlens`（H1）。
 
 ## 3. 干跑与冒烟
 

@@ -59,14 +59,24 @@ def _cli(config: Path, *args: str, timeout: float = 180.0) -> tuple[int, dict]:
 
 
 def _temp_config() -> tuple[Path, Path]:
-    """Real repo paths (so doctor is meaningful) + a throwaway jobs dir."""
-    sys.path.insert(0, str(ROOT))
-    import install  # noqa: PLC0415
+    """Repo paths (so doctor is meaningful) + a throwaway home AND jobs dir.
 
-    cfg = install.discover()
+    Round-3 R1: this used install.discover(), which reads the REAL
+    ~/.citlens/config.json and mkdirs the REAL data home — a fresh HOME came
+    out of the suite with .citlens/home created. Hand-build the config from
+    THIS checkout instead; the suite must never touch the real machine.
+    """
     tmp = Path(tempfile.mkdtemp(prefix="citlens-test-"))
-    cfg["jobs_dir"] = str(tmp / "jobs")
-    Path(cfg["home"]).mkdir(parents=True, exist_ok=True)
+    home = tmp / "home"
+    home.mkdir(parents=True)
+    cfg = {
+        "home": str(home),
+        "python": sys.executable,
+        "engine": str(ROOT),
+        "recall_driver": str(ROOT / "drivers" / "citlens_recall.py"),
+        "tools_driver": str(ROOT / "drivers" / "citlens_tools.py"),
+        "jobs_dir": str(tmp / "jobs"),
+    }
     cfg_path = tmp / "config.json"
     cfg_path.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
     return cfg_path, tmp
@@ -571,6 +581,9 @@ def test_config_migration() -> None:
         "engine": str(ROOT),
         "recall_driver": str(ROOT / "drivers" / "citlens_recall.py"),
         "tools_driver": str(ROOT / "drivers" / "citlens_tools.py"),
+        # round-3 R1: without this, doctor falls back to the DEFAULT
+        # ~\.citlens\jobs and mkdirs it on the real machine
+        "jobs_dir": str(tmp / "jobs"),
         "families": nine,
         "target": 60,
     }
@@ -592,6 +605,7 @@ def test_config_migration() -> None:
         doc = subprocess.run(
             [sys.executable, str(SERVER), "cli", "--config", str(cfg_path), "doctor"],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+            env=env,  # sandboxed: never inherit the real machine's CITLENS_* env
         )
         payload = json.loads(doc.stdout) if doc.stdout.strip().startswith("{") else {}
         check("doctor flags an unsupported family list",

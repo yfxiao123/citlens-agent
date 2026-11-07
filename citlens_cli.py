@@ -554,9 +554,9 @@ def read_pool_records(path: Path) -> list[dict]:
 def _pool_path_for(cfg: dict, *, run_dir: str | None, topic: str | None) -> tuple[Path | None, str]:
     home = Path(cfg["home"])
     if run_dir:
-        cand = Path(run_dir)
-        if not cand.is_absolute():
-            cand = home / cand
+        # same semantics as the five forwarding tools (round-3 R2): a relative
+        # --run-dir is the CALLER's path, not the data home's
+        cand = Path(_caller_path(run_dir))
         for p in (cand / "pool.jsonl", cand):
             if p.is_file():
                 return p, str(p)

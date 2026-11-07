@@ -241,6 +241,29 @@ with tempfile.TemporaryDirectory() as td:
     check("search jobs find citlens-runs run dirs",
           found2 is not None and "citlens-runs" in str(found2), str(found2))
 
+# ── round-3 R2: pool resolves a relative --run-dir against the CALLER's cwd ───
+print("\n== round-3: pool run_dir semantics ==")
+_, where = m._pool_path_for({"home": "D:/home"}, run_dir="run/x", topic=None)
+cwd = Path.cwd().resolve()
+check("pool: relative run_dir resolves against the caller's cwd, not home",
+      where == f"no pool.jsonl under {cwd / 'run' / 'x'}", where)
+with tempfile.TemporaryDirectory() as td:
+    work = Path(td) / "work"
+    (work / "run" / "x").mkdir(parents=True)
+    (work / "run" / "x" / "pool.jsonl").write_text(
+        json.dumps({"doi": "10.1/x", "title": "caller-cwd pool"}) + "\n",
+        encoding="utf-8")
+    home = Path(td) / "home"
+    home.mkdir()
+    old = _os.getcwd()
+    _os.chdir(work)
+    try:
+        out = m.tool_pool({"home": str(home)}, {"run_dir": "run/x"})
+    finally:
+        _os.chdir(old)
+    check("pool finds the pool.jsonl under the caller's cwd",
+          out.get("ok") is True and out.get("total") == 1, str(out)[:120])
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILED:", *FAIL, sep="\n  - ")

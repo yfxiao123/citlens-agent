@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — round-3 retest: R1–R4 (suite hermeticity, pool path parity)
+
+对 `main @ 0c0059a` 的复测（23-fix-round3.md）确认 H1/H2/H3 目标问题全部修复
+（530 项全绿、无 P0/P1 回归），新抠出四条 P3 一并清掉；同时复核了上轮
+"未独立复核"项：真机 verify_harness 34/34/0 未变，H4/H5/H6 现状未变（留下轮）。
+
+- **R1 · 套件真机污染**：H1 只修了 `test_selftest`——`_temp_config()` 仍经
+  `install.discover()` 读真机 `~/.citlens/config.json` 并 mkdir 真机数据家
+  （`test_protocol`），`test_config_migration` 的 doctor 调用缺 `jobs_dir`
+  兜到默认 `~\.citlens\jobs`（`jobs_root()` mkdir）。现在 `_temp_config`
+  直接用本 checkout 路径手写配置（home/jobs 全在 tmp），migration cfg 补
+  `jobs_dir` 且 doctor 子进程走沙箱 env。全新 HOME 跑完 17 套后目录树为空。
+- **R2 · `pool` 的 `--run-dir` 漏统一**：`_pool_path_for()` 是 CLI 本地读，
+  没走 `_caller_path`——同一相对 `run/x`，pool 按数据家、export 按调用者
+  cwd 解析。现在与五个转发工具同语义（相对路径锚定调用者 cwd）。
+- **R3 · 全仓 lint**：删 `tests/test_verify.py` 既有的 F841（未用 `pool`），
+  `ruff check --select F,E9 .` 全仓干净。
+- **R4 · GBK 终端**：`test_gaps.py` 两处子进程 `text=True` 不带 `encoding`，
+  父进程按 GBK 解码 UTF-8 输出 → reader 线程 UnicodeDecodeError、
+  `json.loads(None)`。显式 `encoding="utf-8"`；TESTING.md 补编码前提说明，
+  并更新过期的 `test_selftest` 沙箱说明（H1 后不再假设本机 apply 过）。
+
+Tests: test_retest_fixes +2（pool 相对 run_dir 双断言）；test_portable 101
+不变；全量 17 套 532 项绿（新 HOME 零污染）；GBK 控制台不加
+`PYTHONUTF8=1` 全绿；verify_harness 34/34。
+
 ## Unreleased — round-2 retest: H1/H2/H3 (test sandboxing, path semantics)
 
 对 `main @ 9419fcf` 的轻量复测确认上一轮修复全部生效（22-fix-round2.md），

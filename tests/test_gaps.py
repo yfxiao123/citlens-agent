@@ -160,6 +160,7 @@ with tempfile.TemporaryDirectory() as td:
          "--check", "the natural rate under fiscal dominance",
          "--limit", "8", "--model", ""],
         capture_output=True, text=True, timeout=180, env=env, check=False,
+        encoding="utf-8", errors="replace",  # child writes UTF-8; locale GBK would raise
     )
     out = json.loads(r.stdout)
     check("CLI gaps returns coverage + novelty", out.get("ok") and "coverage" in out
@@ -169,6 +170,7 @@ with tempfile.TemporaryDirectory() as td:
         [str(ROOT / ".venv" / "Scripts" / "python.exe"),
          str(ROOT / "drivers" / "citlens_tools.py"), "gaps", "--run-dir", str(rd)],
         capture_output=True, text=True, timeout=180, env=env, check=False,
+        encoding="utf-8", errors="replace",
     )
     out2 = json.loads(r2.stdout)
     check("no channel requested -> clean error", out2.get("ok") is False)
