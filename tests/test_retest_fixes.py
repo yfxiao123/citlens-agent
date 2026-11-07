@@ -202,6 +202,45 @@ search_desc = tools["search"]["description"]
 check("search description no longer claims wait_seconds default 45",
       "default 45" not in search_desc)
 
+# ── round-2 H2: --run-dir resolves against the caller's cwd EVERYWHERE ──────
+print("\n== run_dir path semantics unified ==")
+m._run_driver_json = _capture_driver  # re-point at the argv-capturing stub
+for tool_args, tool_fn, flag in (
+        ({"topic": "x", "run_dir": "run/x"}, m.tool_export, "--run-dir"),
+        ({"run_dir": "run/x", "queries": ["q"], "background": False},
+         m.tool_screen, "--run-dir"),
+        ({"run_dir": "run/x", "queries": ["q"], "background": False},
+         m.tool_gaps, "--run-dir"),
+        ({"run_dir": "run/x"}, m.tool_dedup, "--run-dir"),
+        ({"doi": "10.1/x", "run_dir": "run/x"}, m.tool_fetch, "--run-dir")):
+    sent.clear()
+    tool_fn({"home": "D:/home"}, tool_args)
+    argv = sent.get("argv") or []
+    resolved = str((Path.cwd() / "run" / "x").resolve())
+    check(f"{argv[0]} --run-dir resolves against cwd",
+          flag in argv and argv[argv.index(flag) + 1] == resolved, str(argv))
+
+# ── round-2 H3: _find_run_dir reads the 2.0 layout, never legacy runs/ ───────
+print("\n== _find_run_dir layout ==")
+real_find = m._find_run_dir
+with tempfile.TemporaryDirectory() as td:
+    home = Path(td)
+    legacy = home / "runs" / "old-topic-20260101"
+    legacy.mkdir(parents=True)
+    (legacy / "review.md").write_text("stale", encoding="utf-8")
+    import os as _os
+
+    _os.utime(legacy)  # fresh mtime: a 1.x leftover that LOOKS recent
+    found = real_find({"home": str(home)}, "fetch", 0)
+    check("legacy runs/ is never scanned (1.x leftovers not misattributed)",
+          found is None, str(found))
+    modern = home / "citlens-runs" / "t-20261107"
+    modern.mkdir(parents=True)
+    (modern / "pool.jsonl").write_text("{}", encoding="utf-8")
+    found2 = real_find({"home": str(home)}, "search", 0)
+    check("search jobs find citlens-runs run dirs",
+          found2 is not None and "citlens-runs" in str(found2), str(found2))
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILED:", *FAIL, sep="\n  - ")

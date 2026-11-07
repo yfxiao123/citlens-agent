@@ -313,14 +313,40 @@ def test_install() -> None:
 
 
 def test_selftest() -> None:
-    print("\n== selftest ==")
-    r = subprocess.run([sys.executable, str(SERVER), "selftest"],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace",
-                       timeout=300)
-    check("selftest exits 0 on a healthy install", r.returncode == 0, r.stdout[-600:])
-    check("selftest lists the nine tools",
-          all(t in r.stdout for t in ("search", "pool", "fetch", "export", "audit",
-                                      "screen", "verify")))
+    """Sandboxed: the old version ran selftest against the REAL HOME, so a
+    fresh clone without `install.py apply` failed this one case (2.0 retest
+    H1: 99/100) and the run created ~/.citlens dirs on the tester's machine."""
+    print("\n== selftest (sandbox HOME) ==")
+    tmp = Path(tempfile.mkdtemp(prefix="citlens-selftest-"))
+    env = _sandbox_home(tmp)
+    try:
+        home = tmp / "home"
+        (home / "data" / "litdb").mkdir(parents=True)
+        jobs = tmp / "jobs"
+        jobs.mkdir()
+        cfg = {
+            "home": str(home),
+            "python": sys.executable,
+            "recall_driver": str(ROOT / "drivers" / "citlens_recall.py"),
+            "tools_driver": str(ROOT / "drivers" / "citlens_tools.py"),
+            "jobs_dir": str(jobs),
+        }
+        cfg_path = tmp / "config.json"
+        cfg_path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+        r = subprocess.run([sys.executable, str(SERVER), "selftest",
+                            "--config", str(cfg_path)],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", env=env, timeout=300)
+        check("selftest exits 0 on a healthy (sandbox) install",
+              r.returncode == 0, r.stdout[-600:])
+        check("selftest lists the thirteen tools",
+              all(w in r.stdout for w in ("search", "pool", "fetch", "export", "audit",
+                                          "screen", "gaps", "verify", "expand",
+                                          "notes", "dedup", "status", "doctor")))
+        check("selftest reports the sandbox config, not the real one",
+              str(cfg_path) in r.stdout, r.stdout[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_registry() -> None:

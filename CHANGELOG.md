@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — round-2 retest: H1/H2/H3 (test sandboxing, path semantics)
+
+对 `main @ 9419fcf` 的轻量复测确认上一轮修复全部生效（22-fix-round2.md），
+顺手修掉点名的三条隐藏项：
+
+- **H1**：`test_selftest` 沙箱化——旧版直接对真实 HOME 跑 `selftest`，
+  全新 clone 未 apply 时 99/100，且测试本身会在测试机上创建
+  `~/.citlens` 目录。现在用例内自建 tmp HOME + 配置，任何机器都是
+  101/101，TESTING.md "不碰真实配置" 的声明恢复为真。
+- **H2**：`--run-dir` 相对路径语义统一——export/screen/gaps/dedup/fetch
+  此前只有 verify 侧按调用者 cwd 解析，export 仍按数据家（同一发布两种
+  语义）。现在全部经 `_caller_path` 解析后再转发 driver。
+- **H3**：`_find_run_dir` 只扫 `citlens-runs/`——非 search 任务此前仍找
+  1.x 的 `home/runs/`，2.0 布局下 run_dir 永远 None；1.x 升级机上还可能
+  把旧目录错记进 job state。legacy `runs/` 不再扫描。
+
+Tests: test_retest_fixes +7（run_dir 五路解析、legacy 不扫、citlens-runs
+可寻）；test_portable selftest 三项沙箱断言。全量 17 套 530 项绿；
+verify_harness 34/34。
+
 ## Unreleased — 2.0 retest fixes: config propagation, harness reproducibility
 
 第三方对 `main @ 3b59964` 的满血复测（`test-report/21-harness2-full-test.md`）

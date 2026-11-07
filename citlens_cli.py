@@ -397,7 +397,10 @@ def _running_jobs(cfg: dict) -> list[dict]:
 def _find_run_dir(cfg: dict, kind: str, since: float) -> str | None:
     """Newest artifact directory the driver could have written for this job."""
     home = Path(cfg["home"])
-    roots = [home / "citlens-runs"] if kind == "search" else [home / "runs"]
+    # 2.0 layout for BOTH kinds. The legacy home/runs (1.x) is deliberately
+    # NOT scanned: nothing writes there any more, so any match would wrongly
+    # attribute an old artifact dir to a fresh job (2.0 retest H3).
+    roots = [home / "citlens-runs"]
     best: tuple[float, str] | None = None
     for root in roots:
         if not root.is_dir():
@@ -824,7 +827,7 @@ def tool_fetch(cfg: dict, args: dict) -> dict:
     for flag, key in (("--doi", "doi"), ("--title", "title"), ("--arxiv", "arxiv"),
                       ("--topic", "topic"), ("--run-dir", "run_dir")):
         if args.get(key):
-            argv += [flag, str(args[key])]
+            argv += [flag, _caller_path(args[key]) if key == "run_dir" else str(args[key])]
     if args.get("force"):
         # bypass the caches (positive fulltext + the 1-day miss negative
         # cache) and re-run every leg — the only escape after an outage-day
@@ -886,7 +889,7 @@ def tool_export(cfg: dict, args: dict) -> dict:
     if args.get("topic"):
         argv += ["--topic", str(args["topic"])]
     if args.get("run_dir"):
-        argv += ["--run-dir", str(args["run_dir"])]
+        argv += ["--run-dir", _caller_path(args["run_dir"])]
     if args.get("out"):
         argv += ["--out", _caller_path(args["out"])]
     if args.get("with_labels"):
@@ -1045,7 +1048,7 @@ def tool_screen(cfg: dict, args: dict) -> dict:
     if topic:
         argv += ["--topic", topic]
     if run_dir:
-        argv += ["--run-dir", run_dir]
+        argv += ["--run-dir", _caller_path(run_dir)]
     queries = _as_list(args.get("queries"))
     if queries:
         argv += ["--queries", *queries]
@@ -1080,7 +1083,7 @@ def tool_gaps(cfg: dict, args: dict) -> dict:
         return {"ok": False, "error": "pass topic or run_dir"}
     argv = ["gaps"]
     if run_dir:
-        argv += ["--run-dir", run_dir]
+        argv += ["--run-dir", _caller_path(run_dir)]
     if topic:
         argv += ["--topic", topic]
     queries = _as_list(args.get("queries"))
@@ -1168,7 +1171,7 @@ def tool_dedup(cfg: dict, args: dict) -> dict:
     if args.get("topic"):
         argv += ["--topic", str(args["topic"])]
     if args.get("run_dir"):
-        argv += ["--run-dir", str(args["run_dir"])]
+        argv += ["--run-dir", _caller_path(args["run_dir"])]
     if args.get("merge"):
         argv += ["--merge"]
     if args.get("limit") is not None:
