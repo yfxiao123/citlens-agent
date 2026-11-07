@@ -414,10 +414,22 @@ else:
 # ── H. pipeline evidence on disk ─────────────────────────────────────────────
 print("\n[H] pipeline evidence")
 
-reports = sorted((Path(cfg["home"]) / "citlens-runs").glob("verify-votes2/*/search_report.md"))
+# Prefer a LIVE fixture run in the data home; fall back to the RECORDED one
+# shipped in the repo (H4) so third parties run H1-H3 instead of skipping.
+_h_live = Path(cfg["home"]) / "citlens-runs" / "verify-votes2"
+_h_rec = ROOT / "tools" / "fixtures" / "verify-votes2"
+reports = sorted(_h_live.glob("*/search_report.md"))
+_h_root = _h_live
+if reports:
+    print("  [H] evidence source: live data-home fixture")
+else:
+    reports = sorted(_h_rec.glob("*/search_report.md"))
+    _h_root = _h_rec
+    if reports:
+        print("  [H] evidence source: RECORDED fixture shipped in the repo")
 if not reports:
     skip("H1/H2/H3 pipeline evidence",
-         "fixture run 'verify-votes2' absent (needs the live A股动量机制 run)")
+         "no verify-votes2 run — neither live nor the recorded fixture (H4)")
 else:
     rep = reports[-1].read_text(encoding="utf-8")
     # the corroborated count is DYNAMIC (a rerun says "53 篇", not "48 篇") —
@@ -439,7 +451,7 @@ else:
     # the RUN pool. The shared litdb pool still holds pre-fix records whose
     # found_by is single-family by construction — that is stale data, not a code
     # regression (recorded here so the distinction is explicit).
-    run_pools = sorted((Path(cfg["home"]) / "citlens-runs").glob("verify-votes2/*/pool.jsonl"))
+    run_pools = sorted(_h_root.glob("*/pool.jsonl"))
     run_rows = [json.loads(ln) for ln in run_pools[-1].read_text(encoding="utf-8").splitlines()
                 if ln.strip()] if run_pools else []
     corroborated = sum(1 for r in run_rows if len(r.get("found_by") or []) >= 2)

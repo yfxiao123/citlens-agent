@@ -66,5 +66,6 @@ OA 论文，确认七家族健康桶（含 web 的 ok/empty/failed）与 PRISMA 
 ```
 
 0.3.0 起输出包含 Wilson 95% 区间、配对 McNemar/bootstrap、`manifest_latest.json`；
-`--driver-arm` 接入仓库自己的七家族 recall leg（live），`--all-questions` 跑全量
-LitSearch 题目（只有 raw 家族——冻结 planner cache 仅覆盖 15 题）。
+`--driver-arm` 接入仓库自己的全家族（八家族，含 policy）recall leg（live），
+`--all-questions` 跑全量 LitSearch 题目（只有 raw 家族——冻结 planner cache 仅覆盖
+15 题）。

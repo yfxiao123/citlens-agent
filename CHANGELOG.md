@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — round-4: H4/H5/H6 (recorded fixture, engine-switch drivers, log purity)
+
+按约定清掉 round-2 复测遗留的 H4/H5/H6（23-fix-round3.md 后作者自测确认现状未变）：
+
+- **H4 · fixture 入库**：harness H 组（投票机制可见性）此前只能对作者真机的
+  live `verify-votes2/` 产物跑，第三方 clone 恒 2 skips。现在把该 run 的
+  report/pool/queries **原样录制**进 `tools/fixtures/verify-votes2/`（含溯源
+  README，数字为冻结录制值，与今日重跑不同属源漂移非回归），harness 在数据家
+  找不到 live 产物时回退到录制件并明示来源。第三方从 29/0/2 → **32/0/1**
+  （仅剩 G 组嵌入模型的环境 skip）；真机 live 优先，34/34/0 不变。
+- **H5 · `--engine B` 驱动混装**：`discover()` 按运行 installer 的那棵树解析
+  drivers，`A/install.py apply --engine B` 写出 engine=B + drivers=A 的混合
+  配置。现在显式 engine（flag 或 `CITLENS_ENGINE`）时，若新树带齐两个
+  driver 则一并跟随新树；INSTALL.md "驱动路径一并跟随新树" 恢复为真。
+- **H6 · 四处收尾**：doctor 提示去掉硬编码的 "seven families"（家族数会变，
+  改说 current family list）；TESTING.md bench 段 "七家族" → 八家族（含
+  policy）；wheel 是库形态（仅 citens+citlens_cli）——INSTALL.md/pyproject
+  明说 drivers/skill/installer 只随仓库走，可用安装 = clone + editable；
+  tools job 的 `log.txt` 不再写 `== citlens job ==`/`cmd:`/`== done ==` 头尾
+  行（cmd/home 入 state.json 的 `runner_cmd`/`runner_home`），"log_tail IS
+  the result JSON" 字面成立；失败诊断（`FAILED`/launch 错误）保留在 log。
+
+Tests: test_retest_fixes +6（fixture 三断言守卫漂移、日志纯净、metadata 入
+state）；test_portable engine-scoping 增第三棵树场景。全量 17 套 540 项绿；
+harness 真机 34/34/0、全新 HOME 32/0/1。
+
 ## Unreleased — round-3 retest: R1–R4 (suite hermeticity, pool path parity)
 
 对 `main @ 0c0059a` 的复测（23-fix-round3.md）确认 H1/H2/H3 目标问题全部修复

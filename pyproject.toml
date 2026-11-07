@@ -15,6 +15,10 @@ keywords = [
     "academic-search", "citation", "agent-tools",
 ]
 # Deliberately tiny and LLM-free: the calling agent is the model.
+# NOTE: the wheel is LIBRARY-ONLY (citens + citlens_cli). drivers/, skill/ and
+# install.py ship with the repo only — a working CLI install is clone +
+# `pip install -e .` (see INSTALL.md); a bare wheel gives a citlens-agent
+# entry that cannot find its drivers.
 dependencies = [
     "pydantic>=2.6",
     "pydantic-settings>=2.1",

@@ -770,6 +770,19 @@ def cmd_apply(registry: dict, names: list[str], *, dry_run: bool, remove: bool,
                 and str(cfg["engine"]) == str(old.get("engine"))):
             cfg["recall_driver"] = str(old_recall)
             cfg["tools_driver"] = str(old_tools)
+    else:
+        # An explicit engine switch must carry the NEW tree's drivers —
+        # discover() resolved drivers against the tree RUNNING this installer
+        # (checkout A), so `A/install.py apply --engine B` wrote engine=B with
+        # A's drivers: a mixed config that silently kept executing a diverged
+        # copy (third-party report, H5). Only retarget when the new tree
+        # actually ships both drivers.
+        eng = Path(cfg.get("engine") or "")
+        drv_r, drv_t = (eng / "drivers" / "citlens_recall.py",
+                        eng / "drivers" / "citlens_tools.py")
+        if drv_r.is_file() and drv_t.is_file():
+            cfg["recall_driver"] = str(drv_r)
+            cfg["tools_driver"] = str(drv_t)
     if cfg.get("home") and not dry_run:
         try:
             Path(cfg["home"]).mkdir(parents=True, exist_ok=True)

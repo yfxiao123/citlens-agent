@@ -715,7 +715,7 @@ def tool_doctor(cfg: dict) -> dict:
             "config families contains entries this build does not implement: "
             + ", ".join(families_invalid)
             + " — `search` will reject the config. Run `install.py apply` to migrate "
-              "the config (or edit ~/.citlens/config.json to the seven families)."
+              "the config (or edit ~/.citlens/config.json to the current family list)."
         )
     if screen_emb is None:
         notes.append(
@@ -1744,13 +1744,15 @@ def run_job(job_dir: str, config: str, kind: str) -> int:
         except Exception:  # noqa: BLE001
             pass
 
-    emit(f"== citlens job {state.get('job_id')} kind={kind} runner_pid={os.getpid()} ==")
-    emit(f"home={cfg.get('home')}")
+    # The log is the DRIVER's document: for tools jobs `status` hands the
+    # log_tail to the agent as the result JSON, so no header/trailer lines may
+    # surround it (H6d). Job metadata — cmd, home, pid — lives in state.json.
     python = cfg.get("python")
     driver = cfg.get("recall_driver") if kind == "search" else cfg.get("tools_driver")
     argv = _driver_argv(cfg, kind, payload)
     cmd = [python, driver, *argv]
-    emit("cmd: " + " ".join(f'"{c}"' if " " in str(c) else str(c) for c in cmd))
+    state.update(runner_cmd=[str(c) for c in cmd], runner_home=cfg.get("home"))
+    _write_json(jd / "state.json", state)
     started = time.time()
     env = dict(os.environ)
     env["PYTHONUTF8"] = "1"
@@ -1788,8 +1790,8 @@ def run_job(job_dir: str, config: str, kind: str) -> int:
         run_dir = None
         state.pop("run_dir", None)
         state["error"] = f"driver exited {code}; see log"
+        emit(f"FAILED code={code} elapsed={elapsed:.0f}s — driver output follows")
     _write_json(jd / "state.json", state)
-    emit(f"== {'done' if code == 0 else 'FAILED'} code={code} elapsed={elapsed:.0f}s run_dir={run_dir} ==")
     return 0
 
 

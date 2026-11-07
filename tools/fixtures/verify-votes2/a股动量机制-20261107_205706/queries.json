@@ -1,0 +1,112 @@
+{
+ "query_feedback": [
+  {
+   "query": "momentum absence reversal Chinese stock market",
+   "total": 143,
+   "verdict": "ok",
+   "by_source": {
+    "arxiv": 40,
+    "semantic_scholar": 2,
+    "openalex": 37,
+    "openalex_relevance": 37,
+    "crossref": 27
+   },
+   "corroboration": 0.234
+  },
+  {
+   "query": "individual investors turnover momentum China",
+   "total": 149,
+   "verdict": "ok",
+   "by_source": {
+    "arxiv": 40,
+    "semantic_scholar": 4,
+    "openalex": 39,
+    "openalex_relevance": 39,
+    "crossref": 27
+   },
+   "corroboration": 0.075
+  },
+  {
+   "query": "daily price limits momentum Chinese stocks",
+   "total": 147,
+   "verdict": "ok",
+   "by_source": {
+    "arxiv": 40,
+    "semantic_scholar": 0,
+    "openalex": 39,
+    "openalex_relevance": 39,
+    "crossref": 29
+   },
+   "corroboration": 0.082
+  },
+  {
+   "query": "short-sale constraints limits to arbitrage momentum China",
+   "total": 148,
+   "verdict": "ok",
+   "by_source": {
+    "arxiv": 40,
+    "semantic_scholar": 0,
+    "openalex": 40,
+    "openalex_relevance": 40,
+    "crossref": 28
+   },
+   "corroboration": 0.075
+  },
+  {
+   "query": "factor momentum industry momentum Chinese stock market",
+   "total": 174,
+   "verdict": "ok",
+   "by_source": {
+    "arxiv": 40,
+    "semantic_scholar": 28,
+    "openalex": 40,
+    "openalex_relevance": 40,
+    "crossref": 26
+   },
+   "corroboration": 0.234
+  },
+  {
+   "query": "investor sentiment Chinese stock returns momentum",
+   "total": 165,
+   "verdict": "ok",
+   "by_source": {
+    "arxiv": 40,
+    "semantic_scholar": 17,
+    "openalex": 40,
+    "openalex_relevance": 40,
+    "crossref": 28
+   },
+   "corroboration": 0.058
+  },
+  {
+   "query": "A股动量机制",
+   "total": 78,
+   "verdict": "isolated",
+   "by_source": {
+    "arxiv": 0,
+    "semantic_scholar": 19,
+    "openalex": 20,
+    "openalex_relevance": 20,
+    "crossref": 19
+   },
+   "corroboration": 0.0
+  }
+ ],
+ "saturation": {
+  "chao": {
+   "observed": 171,
+   "f1": 167,
+   "f2": 4,
+   "families": 6,
+   "n_hat": 3657.1,
+   "coverage": 0.047
+  },
+  "new_share": 0.05,
+  "weak_query_share": 0.143,
+  "verdict": "keep_going",
+  "reasons": [
+   "估计覆盖 5% < 80%（N̂≈3657，还有约 3486 篇未召回）"
+  ]
+ },
+ "saturation_note": "建议继续——估计覆盖 5% < 80%（N̂≈3657，还有约 3486 篇未召回）。Chao1 假定家族独立：agent/raw 同源查询会高估覆盖，判定是信号不是结论；收工仍需 `audit` 锚点核验。"
+}

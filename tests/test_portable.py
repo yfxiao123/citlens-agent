@@ -490,6 +490,25 @@ def test_engine_override_and_driver_scoping() -> None:
               and Path(cfg2["tools_driver"]).resolve()
               == (ROOT / "drivers" / "citlens_tools.py").resolve(),
               f"got {cfg2['recall_driver']} / {cfg2['tools_driver']}")
+
+        # 3) --engine pointing at a THIRD tree (not the installer's repo, not
+        # the old install): drivers must follow THAT tree. discover() resolves
+        # drivers against the tree RUNNING the installer, so pre-H5 this wrote
+        # engine=B with the installer-repo's drivers — a mixed config.
+        tree_b = tmp / "tree-b"
+        (tree_b / "drivers").mkdir(parents=True)
+        (tree_b / "drivers" / "citlens_recall.py").write_text("# B", encoding="utf-8")
+        (tree_b / "drivers" / "citlens_tools.py").write_text("# B", encoding="utf-8")
+        r3 = _run_install(env, "apply", "--no-dsh-auto", "--engine", str(tree_b))
+        check("apply --engine <third tree> runs", r3.returncode == 0,
+              r3.stdout[-300:])
+        cfg3 = json.loads((cc / "config.json").read_text(encoding="utf-8"))
+        check("third-tree switch: drivers follow the NEW tree, not the installer's",
+              Path(cfg3["recall_driver"]).resolve()
+              == (tree_b / "drivers" / "citlens_recall.py").resolve()
+              and Path(cfg3["tools_driver"]).resolve()
+              == (tree_b / "drivers" / "citlens_tools.py").resolve(),
+              f"engine={cfg3['engine']} got {cfg3['recall_driver']} / {cfg3['tools_driver']}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

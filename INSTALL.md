@@ -30,6 +30,10 @@ python -m venv .venv
 依赖极小且无 LLM SDK：pydantic、httpx、arxiv、markitdown[pdf]（PDF 转文本；缺失时
 `fetch` 自动降级为摘要兜底并明说）。
 
+> wheel 只含 `citens` 包与 `citlens_cli`（库形态）；`drivers/`、`skill/`、
+> `install.py` 只随仓库分发——可用的 CLI 安装路径是**克隆 + `pip install -e .`**
+> （上面的方式），从 wheel 直接装会得到一个找不到 drivers 的 `citlens-agent` 入口。
+
 ## 2.（可选）录入检索源 key
 
 ```bash

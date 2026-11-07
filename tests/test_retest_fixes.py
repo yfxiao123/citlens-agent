@@ -264,6 +264,54 @@ with tempfile.TemporaryDirectory() as td:
     check("pool finds the pool.jsonl under the caller's cwd",
           out.get("ok") is True and out.get("total") == 1, str(out)[:120])
 
+# ── round-4 H4: the recorded evidence fixture ships and satisfies H floors ────
+print("\n== round-4: recorded fixture + job-log purity ==")
+import re  # noqa: E402
+
+fx = ROOT / "tools" / "fixtures" / "verify-votes2"
+reps = sorted(fx.glob("*/search_report.md"))
+check("recorded verify-votes2 fixture ships in the repo", bool(reps))
+if reps:
+    rep = reps[-1].read_text(encoding="utf-8")
+    m1 = re.search(r"≥2 家族(?:同时命中|\s*)\s*(\d+)\s*篇", rep)
+    m2 = re.search(r"入池\s*\d+\s*条中\s*≥2 家族\s*(\d+)\s*篇", rep)
+    check("fixture report meets the H1/H3 floors",
+          bool(m1) and int(m1.group(1)) >= 1 and bool(m2)
+          and int(m2.group(1)) >= 1 and "全召回票池" in rep and "入池" in rep,
+          f"2plus={m1 and m1.group(1)} pool={m2 and m2.group(1)}")
+    check("fixture report meets the H2 pivot condition",
+          "pivot: 机械扩展查询" in rep and "佐证种子不足" not in rep)
+    pools_fx = sorted(fx.glob("*/pool.jsonl"))
+    rows_fx = [json.loads(ln) for ln in
+               pools_fx[-1].read_text(encoding="utf-8").splitlines() if ln.strip()]
+    check("fixture pool: every record stamped with found_by",
+          bool(rows_fx) and all(r.get("found_by") for r in rows_fx),
+          f"{sum(1 for r in rows_fx if r.get('found_by'))}/{len(rows_fx)}")
+
+# ── round-4 H6d: the job log is the DRIVER's document, metadata in state ──────
+with tempfile.TemporaryDirectory() as td:
+    jd = Path(td) / "j2"
+    jd.mkdir()
+    (jd / "payload.json").write_text("{}", encoding="utf-8")
+    (jd / "state.json").write_text(
+        json.dumps({"job_id": "j2", "kind": "tools", "state": "queued"}),
+        encoding="utf-8")
+    (jd / "log.txt").write_text("", encoding="utf-8")
+    bad = {"python": sys.executable, "recall_driver": "Z:/no/driver.py",
+           "tools_driver": "Z:/no/driver.py", "home": td, "jobs_dir": td}
+    cf = Path(td) / "c.json"
+    cf.write_text(json.dumps(bad), encoding="utf-8")
+    m.run_job(str(jd), str(cf), "tools")
+    log = (jd / "log.txt").read_text(encoding="utf-8")
+    st2 = json.loads((jd / "state.json").read_text(encoding="utf-8"))
+    check("job log carries no header/trailer (log_tail IS the driver doc)",
+          "== citlens job" not in log and "cmd:" not in log
+          and "FAILED" in log, log[:100])
+    check("cmd/home metadata lives in state.json",
+          st2.get("runner_cmd") and Path(st2["runner_cmd"][1]) == Path("Z:/no/driver.py")
+          and st2.get("runner_home") == td,
+          f"cmd={str(st2.get('runner_cmd'))[:80]} home={st2.get('runner_home')}")
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
 if FAIL:
     print("FAILED:", *FAIL, sep="\n  - ")
