@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased — 功能模块分离：找文献 / 写综述 / 答问题（module split）
+
+用户实测：找完文献后 agent 会自动写综述，且质量不稳定。根因全在教学层——
+504 行单体 SKILL.md 的 description 同时声明"找论文"和"写综述"两种触发，
+激活即把约 200 行写作指令灌进上下文（opt-in 闸门埋在第 305 行，读完前
+300 行流水线叙事后已失效）；`tools`/裸调用打印的 DISCIPLINE 单串把检索
+纪律与完整写作布道（归评找定、去AI味、verify 流程）混装，纯检索咨询也被
+反复注入写作指令；"解决某个特定问题"这一工种完全不存在——问题类请求
+检索后唯一学过的产出形态就是综述。
+
+- **SKILL.md → 路由器（~220 行）**：工具表 / CLI surface / the one rule /
+  学科层 / 失败语义等共享核心保留；新增高位 "Route FIRST" 路由表
+  （用户要什么 → 模块文件 → 交付物 → 完成条件）与四条硬闸门——找文献
+  请求报完数字即完成、永不升级为写作；综述仅显式请求开闸且先答七问；
+  问题得到的是答案不是综述；歧义时问一次再路由。
+- **workflows/ 三模块文件**（copytree 随 skill 整目录分发，安装器零改动）：
+  `search.md`（PRESS 拟词/侦察/检索/screen-expand-notes 环/覆盖纪律，
+  迁移自原 Workflow—searching + Coverage discipline，含检索模块收工）；
+  `review.md`（七问/选材/grounding/归评找定/六档 verdicts/verify/答辩/
+  重写/honesty，**新增逐节生产纪律**：写 归 → 本节 verify → 评 → verify
+  → 找（先 gaps）→ verify → 定，漂移在一节之内被拦而非整篇成型后）；
+  `answer.md`（**新工种**：复述问题 → 定向检索 target 30–60 → 只 fetch
+  决定性 3–8 篇 → 逐条 [n] 直接回答、分歧如实呈现 → 同一套 verify 核验
+  → 明确不套 归评找定、不产 review.md）。
+- **DISCIPLINE 拆分**（citlens_cli.py）：只留检索纪律，写作布道移除；
+  结尾改为模块边界句（search deliverable 到此为止 / 综述见
+  workflows/review.md / 问题见 workflows/answer.md）。`_search_view` 的
+  hint 末尾追加停止规则。verify 工具描述不动（本就只在写作时刻被读）。
+- **驱动指针 3 处**：SKILL.md PRESS/阶段 F 的旧指向改为 workflows/
+  模块路径。
+
+Tests: 新增 tests/test_modules.py 21 项（discipline 无布道/边界句、路由
+闸门、三模块各带收工、逐节 verify、answer 闸门、search hint 停止规则）；
+test_portable 分发检查扩 3 项（workflows/ 随装）。全量 18 套 564 项绿。
+
 ## Unreleased — round-4: H4/H5/H6 (recorded fixture, engine-switch drivers, log purity)
 
 按约定清掉 round-2 复测遗留的 H4/H5/H6（23-fix-round3.md 后作者自测确认现状未变）：

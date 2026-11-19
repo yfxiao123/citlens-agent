@@ -285,6 +285,11 @@ def test_install() -> None:
             check(f"skill distributed -> {target.relative_to(tmp)}",
                   (target / "SKILL.md").is_file()
                   and "name: citlens" in (target / "SKILL.md").read_text(encoding="utf-8"))
+            # the module split ships with the skill dir (copytree): the router
+            # plus the three workflow files must all land in the target
+            check(f"module files ship -> {target.relative_to(tmp)}",
+                  all((target / "workflows" / f).is_file()
+                      for f in ("search.md", "review.md", "answer.md")))
         skill_md = (tmp / ".agents" / "skills" / "citlens" / "SKILL.md").read_text(encoding="utf-8")
         check("skill carries the verification chain",
               all(k in skill_md for k in ("six-grade", "verdicts.jsonl",

@@ -1,6 +1,6 @@
 ---
 name: citlens
-description: High-recall literature search and citation-grounded survey writing through the CiteLens CLI (%USERPROFILE%\.citlens\bin\citlens.cmd <tool> — search, pool, screen, expand, fetch, export, audit, verify, status, doctor; one JSON document per call). Use for any request to find papers, search the literature, map a research field, check coverage, find surveys on a topic, or write a literature review/survey with real citations. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
+description: High-recall literature search and citation-grounded writing through the CiteLens CLI (%USERPROFILE%\.citlens\bin\citlens.cmd <tool> — search, pool, screen, expand, fetch, export, audit, verify, status, doctor; one JSON document per call). Use for any request to find papers, search or map a research field, check coverage, write a literature review/survey with real citations, or answer a specific question from the literature. THREE SEPARATE JOBS routed to three module files — finding literature (workflows/search.md), writing a survey (workflows/review.md, only on an explicit survey request), answering a specific question (workflows/answer.md). A find-papers request delivers the pool and the coverage numbers and STOPS — it never escalates into survey writing. You are the planner and the judge: craft the English concept-block queries yourself and pass them to `search`; feed papers you judge on-topic back via `expand`; the tool handles the eight recall families, RRF fusion, citation snowball, survey harvest, the policy corpus (NBER / Fed / IMF), full-text fetch, mechanical citation/verdict verification and BibTeX export. Do not substitute your own web search for it.
 ---
 
 # CiteLens
@@ -17,6 +17,35 @@ limitation, it is the division of labour: the tool owns everything
 mechanical (multi-source cells, RRF fusion, citation graphs, PDF fetching,
 BibTeX serialization, honest health counting); **you own the intelligence** —
 planning queries, judging relevance, writing, and verifying every claim.
+
+## Route FIRST — three jobs, three modules
+
+Finding literature, writing a survey, and answering a specific question are
+DIFFERENT jobs with different deliverables. Read the module file for the job
+the user actually asked for — not all of them:
+
+| the user asked to | module | deliverable | you are done when |
+|---|---|---|---|
+| find papers, map a field, check coverage | [workflows/search.md](workflows/search.md) | the pool + coverage numbers + evidence trail (health table, query feedback, audit) | the numbers and the trail are reported — **never escalates into prose** |
+| write a survey / literature review (explicit request ONLY) | [workflows/review.md](workflows/review.md) | review.md: 归→评→找→定 body, verdicts.jsonl (six-grade verdicts), `verify` clean=true, honesty block | verify passes, the honesty block is reported |
+| answer a specific question (影响 / 机制 / 有没有证据 / 怎么做) | [workflows/answer.md](workflows/answer.md) | the answer itself, claim by claim with [n] citations, verify-checked | the question is answered and its evidence is named |
+
+Four hard gates:
+
+1. **A search request is COMPLETE when the numbers and the evidence trail
+   are reported.** Starting to write a survey or an essay from a search the
+   user did not ask to have written is the failure this routing exists to
+   prevent.
+2. **The survey module opens only on an explicit review/survey request** —
+   and only after its seven setup questions are asked and answered.
+3. **A question gets an answer, not a survey**: no 归→评→找→定 scaffolding,
+   no review.md, length follows the question.
+4. **When the job is ambiguous, ask once** — "do you want the papers, a
+   survey over them, or an answer to a specific question?" — then route.
+
+The rest of this file is shared by all three modules: the tools, the CLI
+surface, the one rule, discipline layers, failure semantics. The module
+files assume it.
 
 ## Tools
 
@@ -87,194 +116,6 @@ instrument — and a mixture of both makes coverage unauditable.
 Your own search is still useful for things the tool does not do: chasing a
 specific named paper, resolving a DOI, skimming a PDF you already have.
 
-## Workflow — searching
-
-1. **`doctor` first** when anything looks wrong (or on a new machine). It
-   tells you whether a failure is the tool's environment or the retrieval.
-
-2. **Craft the queries — you are the planner.** Before calling `search`,
-   decompose the topic PRESS-style:
-   - Identify 4-6 **concept blocks**: the central concept, its neighbouring
-     mechanisms/method families, the task/domain, the constraint or
-     evaluation dimension.
-   - For each block write 2-4 **English synonyms** (the vocabulary papers
-     actually use — British/US spellings, acronym/expansion pairs).
-   - Build **combination queries first**: multi-block conjunctions that name
-     the specific intersection ("entity-level factual consistency abstractive
-     summarization"), then single-block coverage queries. Combination-first
-     is the measured fix — head-first broad queries picked only coverage.
-     But NEVER let the conjunction grow long: a 7-block AND-conjunction
-     missed a bench gold that a 3-block query ranked #1 (measured
-     2026-11-06) — each extra block ANDs away records whose titles don't
-     carry that token. Two to three blocks is the sweet spot.
-   - **Restate before you query** (misread guard): restate the question in
-     one sentence of your own and check you did not misread it ("performance
-     decline in various LANGUAGES" is not about quantization — a real bench
-     misread that no retrieval could fix).
-   - Climb the **register ladder** ALL the way: question words → field
-     jargon → method names → task/dataset names → COMMUNITY names. The top
-     rung is the one agents skip (measured 2026-11-06: a question phrased
-     in NLP words whose gold lived in the HCI community — "inspiration for
-     science writing", a CHI paper — was invisible to every NLP-register
-     query; another gold framed as a GEN-task paper, "entity description
-     generation", never matched any "error distribution for unfamiliar
-     entities" synonym). When the ladder feels dry, ask WHICH community
-     owns this task and what THEY would call it — then write one query and
-     one title-probe in their framing words. Framing gaps are invisible to
-     every in-pool mechanism (pivot only amplifies vocabulary already in
-     the pool; the gold is not in the pool); only out-of-register words or
-     citation-graph `expand` can cross them.
-   - **Scout before you search** (vocabulary reconnaissance — mine the
-     FIELD's words, don't guess from the question). Every query word
-     written before seeing the corpus comes only from your own head, and
-     the field's framing words may not be in it. Protocol:
-     1. **Split the question into 2-3 content blocks** (noun blocks, not
-        sentences): "language models" + "factual errors" + "entities".
-     2. **Broad scout, SMALL target (20-30)**: pair the blocks into
-        two-block queries. One guessed-ideal-title probe alongside is
-        cheap.
-     3. **Harvest from the papers, four buckets**: task names (the coinage
-        the field uses, e.g. "entity description generation"), method /
-        metric names, dataset names, and the COMMUNITY signal (venues of
-        the hits: ACL-heavy vs CHI-heavy answers "which community owns
-        this"). If the community looks foreign, run ONE more scout in
-        their language ("creativity support" surfaced the CHI line whose
-        ancestor was the gold, one citation hop away).
-     4. **Craft the formal set with harvested words** — combination
-        queries from task+method names, one query per detected community,
-        title probes carrying the coinages — then `search` with
-        `append_pool` true. `--pivot 2` adds the mechanical harvest on
-        top (terms the corroborated head actually uses); your reading is
-        the semantic layer it cannot do.
-     Cost: one or two small searches. The last hop for
-     community-coinage golds is usually `expand` off a framing sibling,
-     not any query.
-   - Pass them all as `queries` (they become the `agent` family, the
-     highest-recall leg). Optionally:
-     - `title_probes`: 2-3 **HyDE-style hypothetical titles** — write the
-       title the ideal paper would carry, in PAPER-side vocabulary (method /
-       dataset / task names), not question phrasing. This is the measured
-       escape hatch for vocabulary mismatch: 71% of bench-missed golds share
-       ≤2 content words with the question, so no query phrasing reaches
-       them, but their own titles do. Anchor titles of known-canonical
-       papers work too (max 3 used).
-     - `web_queries`: for the web bridge, 2-3 English queries quoting the
-       DISTINCTIVE verbatim wording of the question (the 4-8 words a generic
-       paper would NOT share), plus 1-2 natural Chinese phrasings
-       (Zhihu/CSDN style, not translations).
-     - `policy_queries`: for macro/economics/policy topics, 2-3 PLAIN
-       economist phrasings ("natural rate of interest estimates") feeding the
-       policy corpus family — NBER working papers, Fed Board FEDS Notes and
-       working papers, IMF. Plain wording, not ML-style concept blocks: these
-       queries speak the economics the notes themselves use. The family is
-       discipline-gated: without explicit `policy_queries` it runs only when
-       the topic is detected as economics, so it never injects NBER records
-       into a non-economics pool.
-     - `pivot: 2` when the vocabulary is uncertain: after the first wave
-       the driver builds 2 queries from the corroborated head's
-       discriminative terms (LLM-free PRF local analysis — buys the
-       on-topic seed that citation chaining needs). It skips itself when
-       fewer than 3 cross-family-corroborated records exist, so it never
-       drifts alone. Measured to rescue golds no hand-written variant
-       reached.
-3. **`search`** with `topic` + `queries`. Start with `wait_seconds` = 20 (the
-   config default — you get the job_id early instead of a held shell; raise
-   it for scripted runs that prefer to wait). A
-   rich topic takes 2–6 minutes; if you get a `job_id`, poll `status` rather
-   than starting a second search. Keep `append_pool` true so the shared pool
-   grows. **Reuse the topic string byte-identically** across searches — pools
-   are keyed by a slug of it.
-4. **Read the evidence before you claim anything.** The result carries
-   `artifacts.pool_jsonl`, `artifacts.search_report`, `artifacts.exclusions`
-   and a `report_head`. Read `search_report.md` — it has per-family seat
-   counts and per-source `ok / empty / failed` health. **A failed source is
-   not a zero-hit source.** If `failed > 0`, say which source failed.
-   **Check `query_feedback`** (also `weak_queries` in the tool result, and
-   the 查询反馈 table in the report): every query's actual hit count with a
-   verdict. empty/thin blocks are vocabulary mismatch — rephrase THAT block
-   in paper-side vocabulary (method name / dataset name / task acronym) and
-   search again with the fixed block; do not just re-run the same words.
-5. **Triage, then judge relevance yourself.** The pool order is RRF/family-seat
-   order, NOT a relevance ranking. Call `screen` with the SAME concept-block
-   queries you gave `search`: it bands the pool into core / uncertain /
-   likely_off on three mechanical channels (local embeddings, BM25,
-   `found_by` family votes) and writes `screening.jsonl`. The bands are
-   TRIAGE, not verdicts — never treat them as exclusions. Then read the
-   core + uncertain records (title + abstract) carefully, bucket by
-   concept-block coverage (a paper covering ZERO blocks is `off_topic`),
-   and batch-review the likely_off band. Append every paper you screen OUT
-   to the run's `exclusions.jsonl` with a reason code (`off_topic`,
-   `wrong_subfield`, `duplicate`, `not_peer_reviewed`, ...) — PRISMA
-   discipline, machine-written log. Report bands WITH their thresholds and
-   which channels fired (they are heuristic defaults, uncalibrated).
-   Deep-recall note (bench-measured): the target/seat cut removes golds
-   screening would rank top — for review workflows search with
-   `target: 0` (or screen the accumulated litdb pool) before screening.
-5b. **Feed your judgments back — `expand`.** After reading the pool, take the
-   records you judged genuinely on-topic (even 2-3 of them) and call
-   `expand` with `topic` + `seeds` (their DOIs / arXiv ids / titles). It
-   fetches their references (backward), their citers (forward), OpenAlex
-   related works, and S2 recommendations — the neighborhood query
-   vocabulary cannot name. Citation chaining is the strongest recall lever
-   the bench knows: it reaches the 71% of golds that share ≤2 words with
-   the question. The added records carry `found_by: ["expand"]` and are
-   STILL UNJUDGED — screen and read them like any other addition. Iterate:
-   judge the expansion's best hits → expand again from the new seeds
-   (diminishing returns = saturation signal). Check `unresolved` in the
-   result: a seed that did not resolve is a hint, not an error to hide.
-   While you read, record verdicts with `notes` (core/uncertain/off + one
-   line each) — the next `expand` can pass from_notes=core and seed from
-   everything you already judged, and `dedup` before `export` keeps the
-   bibliography free of preprint/published twins.
-6. **`pool`** to iterate without re-searching: `min_citations`, `year_from`,
-   `is_review: true` for surveys, `query` for a substring, `sort_by`. This
-   reads disk; it never retrieves.
-7. **Report numbers, not adjectives.** Kept count, pool size, year spread,
-   missing DOI/venue counts, reviews found, and the health table. "Found 47
-   papers" is weaker than "七家族共入池 49 → 保留 47，其中综述 9，无 DOI 2；
-   web 家族因缺 SERPER_API_KEY 全部 failed".
-
-**Policy corpus mechanics (macro/economics topics).** The `policy` family
-pulls NBER working papers, Fed Board FEDS Notes plus the FEDS/IFDP
-working-paper series, and IMF papers — mechanically, over Crossref DOI
-prefixes, no scraping. It is discipline-gated (runs only for economics
-topics or when you pass `policy_queries` explicitly), so a CRISPR or ML
-topic never receives policy noise. Every pool record carries `doc_type` (journal /
-preprint / working_paper / policy_note / report) and `policy_org`, so journal
-evidence and the policy side can be read as two perspectives on one
-question. Regional Fed banks, BIS and ECB deposit no Crossref DOIs — for
-those, `web_queries` with site-scoped phrasings ("site:dallasfed.org working
-paper ...") is the documented route. The target cut would normally drop
-policy records first (they seat after the journal families); 8 policy seats
-are reserved through the cut, so a default `target` search still returns
-them. For a policy-topic review, still search with `target: 0`.
-
-## Coverage discipline
-
-High recall is not "enough results". Before telling a user a field is
-covered, check the shapes that are cheap to check:
-
-- **Anchors.** The most-cited works on the topic should be in the pool. If a
-  famous survey or the canonical paper is missing, the search is not done —
-  re-`search` with differently-phrased queries, or probe its title via
-  `title_probes`.
-- **Surveys.** `pool` with `is_review: true`. A field with zero surveys in a
-  large pool usually means the survey family missed, not that no surveys exist.
-- **Time.** `pool` returns `by_year`. A pool that stops at 2021 is stale, not
-  complete; sources drift.
-- **Saturation.** If a second differently-phrased search adds almost nothing
-  new, that is evidence of saturation. Say "no new distinct records on the
-  second phrasing" rather than "exhaustive".
-- **Audit.** `audit` measures pool coverage of the top surveys'
-  bibliographies — the cheapest external recall anchor. Surveys are anchored
-  by the indexer's `is_review` flag OR a title that declares survey/review/
-  overview/meta-analysis (the flag alone missed most real surveys). Low
-  coverage or `reviews_checked = 0` means keep searching, not conclude;
-  `reviews_available` shows whether the pool even contains an anchor.
-
-Never present a subset as the whole field. If you filtered the pool (as the
-user asked), say what the filter was and what it removed.
-
 ## Discipline layers (学科层)
 
 Some rules are not literature-search mechanics — they belong to a field.
@@ -299,184 +140,6 @@ field's native epistemic conventions and say which you used — do not import
 another field's. The registry (`citens/disciplines.py`) and the
 `disciplines/` folder are the extension point: a new layer is one registry
 entry plus one file.
-
-## Writing a review — opt-in only, and YOU write it
-
-Writing a survey is opt-in: start only after the user explicitly asked for
-one. Before starting, ask and WAIT for answers:
-
-1. **Output language** — `zh` or `en`.
-2. **Which themes / sub-directions** to centre on (never invent them).
-3. **How many core papers** to deep-read (default 12).
-4. **Supporting layer** — one layer of abstract-only citations (default 15) or off.
-5. **Full-text grounding** — on by default; off is faster but every
-   full-text-level claim must be dropped and the output labelled abstract-only.
-6. **Own research to position** — for the 定 step: a description of the
-   user's own work/idea. Without it the review ends at 找 (the gaps), and
-   that ending is complete — never invent a positioning for them.
-7. **Policy dimension** (macro/econ topics) — whether to bring in the
-   policy-side corpus and its perspective (NBER / Fed Board / IMF). Default
-   yes when the topic is policy-adjacent; a policy-topic pool with zero
-   `policy_org` records means the `policy` family never fired — check
-   `families` and the health table before writing.
-
-Then run the whole chain below. It is the engine's measured pipeline
-translated into your discipline — the numbers it produced (citation
-precision 73%→98% after the rewrite loop) came from these steps, not from a
-model being told to "be careful".
-
-**Select.** From the ranked pool pick the core papers (full-text read) and
-the supporting layer (abstract-only citations). Every screened-out paper
-goes to `exclusions.jsonl` with a reason code. A large pool with an empty
-exclusion log means you did not actually screen.
-
-**Ground.** `fetch` each core paper. `fulltext: true` gives `text_path` —
-that text is the ONLY grounding for claims about methods and results.
-`fulltext: false` means abstract-only: claims about that paper are
-restricted to what its abstract states. Write the unfetchable ones into
-`fetch_list.md` (DOI + suggested filename) and count them — they cap how
-strong the review can honestly be.
-
-**Write with numbered claims, structured 归 → 评 → 找 → 定.** Every factual
-sentence carries a `[n]` citation marker tied to the reference list; no
-uncited claims, no markers that decorate rather than ground. And the review
-ARGUES — it never lists one paper's findings after another's. Organize the
-body in four movements:
-
-1. **归 (consolidate).** Open with what the corpus AGREES on. A consensus
-   statement cites the papers that establish it (`[3][7][12]`): one sentence
-   synthesized across several papers beats five sentences quoting each.
-2. **评 (discriminate).** Map the disagreements: who claims what, under
-   which conditions, and WHY they diverge (different benchmarks, scales,
-   task definitions, datasets). Put the disagreeing papers side by side
-   (`[4]` vs `[9]`) so the reader sees the fault line — two unrelated
-   paragraphs are a listing failure, not an analysis.
-3. **找 (locate the gap).** State what the searched corpus does NOT
-   establish, precisely and relative to what it does: cite what exists
-   (`[2][5]`), then name the missing piece — the setting never tested, the
-   contradiction never reconciled, the population absent. A gap must be
-   EARNED by the preceding 归 and 评; a gap no cited disagreement or stated
-   limitation supports is a guess, not a finding.
-
-   Run `gaps` before writing this movement — it turns the gap from an
-   inference into contrastable structure, mechanically: the coverage matrix
-   (your concept blocks × time bands) exposes cells the pool never reached —
-   structural gap candidates, visible rather than argued; `mine: true`
-   returns verbatim limitation/future-work sentences from the fetched
-   fulltexts — quote those with `[n]` and they become gap evidence `verify`
-   can check like any other span (author-testimony beats inference from
-   silence); `check: "<draft gap statement>"` scores the draft against the
-   pool and returns its nearest existing work — a close neighbour is
-   mechanical refutation that the gap may already be done. No close
-   neighbour is WEAK positive evidence — never ship it alone.
-4. **定 (position).** Place the user's own work on that gap: what it does
-   differently and which 找-finding it answers. If the user gave no
-   description of their own work, STOP after 找 and present the gaps —
-   never invent their contribution.
-
-The integration is the deliverable (整合辨析): each movement synthesizes
-ACROSS papers. The claim-level verification below applies unchanged — a 归
-claim is verdict-checked against every cited paper's span, a 评 claim needs
-spans from both sides, a 找 claim grounds its "what exists" half normally
-while its "what is missing" half must stay inside what the searched corpus
-actually shows.
-
-**Prose style — 去 AI 味.** Four tics mark machine-written prose; write
-against all four, and reread the draft against them before delivery:
-
-1. **Alternate long and short sentences.** A wall of long sentences with no
-   short ones reads generated. After a long analysis sentence, land a short
-   one — "This advantage disappears at scale." Two long sentences in a row
-   is the limit; the third must be short.
-2. **No quotes around concepts.** Introduce a term once in plain text, then
-   use it bare. Wrapping every concept in double quotes when it is neither
-   a quotation nor a coined term is a tell. Reserve quote marks for actual
-   quotations.
-3. **No parenthetical results.** Numbers belong in the sentence: "F1 drops
-   4.1 points when the adapter is removed", not "performance drops (−4.1
-   F1)". Parentheses are for citations and mathematics, not for smuggling
-   results past the sentence.
-4. **No templated layered listing.** If every paragraph opens with the same
-   shape, or a section is a stack of bullets that could have been an
-   argument, restructure into prose. Lists are for content that genuinely
-   IS an enumeration; structure templates are a tell.
-
-Each sentence states its subject clearly — a "this means…" with no
-antecedent, or a sentence whose main claim hides inside a subordinate
-clause, fails this test. The `[n]` citation markers and the verify workflow
-(verdicts, spans, honesty numbers) are exempt: they are grounding machinery,
-not review prose.
-
-**Verify every claim (six-grade verdicts + mechanical check).** For each
-claim, compare it against the cited paper's ground text and record one of the
-engine's six verdicts: `supported` / `partial` / `background` /
-`contradictory` / `unsupported` / `unverifiable`. Quote the source **span**
-that justifies the verdict — a verdict without a span is a guess.
-`background` = the source backs the field context but not this claim;
-`contradictory` = the source conflicts with or narrows it; `unverifiable` =
-neither abstract nor fetched text can settle it (never silently upgrade).
-
-Write those verdicts to `verdicts.jsonl` beside the review — one object per
-line:
-
-```json
-{"claim":"<exact claim sentence incl. [n]>","verdict":"supported",
- "span":"<verbatim quote from the cited source>","citations":[3]}
-```
-
-Then call **`verify --review review.md --topic <byte-identical topic>
---verdicts verdicts.jsonl`**. It is mechanical (no LLM, no key) and checks:
-
-- every `[n]` resolves to a reference, and every reference resolves to the
-  pool by DOI/title — an unresolved reference is the fabricated-citation
-  (蜜罐) case; delete it and the claims it supported;
-- each verdict value is one of the six, and every claim has one;
-- each `span` occurs **verbatim** in the cited paper's fetched full text
-  (abstract floor otherwise) — a span that does not occur is a guess;
-- it returns `honesty` (computed, not estimated) and `artifacts`
-  (`verification.jsonl`, `honesty.json`).
-
-`clean: false` means fix before delivery; a verifiable claim with no ground
-text must be downgraded to `unverifiable`. Fix, re-run, and only then report.
-
-**Defense pass (辩护律师).** Re-read every `supported` verdict arguing the
-OPPOSITE: hunt for the span that contradicts or weakens the claim. Verdicts
-that flip get rewritten, not defended; re-run `verify` afterwards.
-
-**Rewrite and re-verify.** Delete or rewrite `unsupported` / `contradictory`
-claims to match what the source says; re-verify the rewritten text (record
-pre-rewrite and post-rewrite precision). Do not keep a claim because it reads
-well.
-
-**Report the honesty block the tool computed, verbatim:**
-
-```
-citation_precision   = (supported + partial) / verifiable_claims
-unverifiable_rate    = unverifiable / total_claims
-grounding            = with_fulltext / core_papers   (0 ⇒ the review is ABSTRACT-ONLY — label it)
-papers_cited          = n / pool_size
-```
-
-If `grounding` is 0, the review is **abstract-only** — label it. If your
-verification was rushed, say so; a review that hides its weaknesses is
-worthless.
-
-**Deliver.** `review.md`, `verdicts.jsonl`, `verification/verification.jsonl`,
-`references.bib` (via `export`), `exclusions.jsonl`, `fetch_list.md`, and the
-honesty block in the summary. Save them beside the review or in the run
-directory (`<home>/citlens-runs/<topic>-<ts>/`).
-
-## 收工协议 (stage F — done means verified)
-
-Before declaring a task finished:
-
-1. **Anchor verification**: `audit` the topic; report coverage. Missing
-   anchors = not done.
-2. **Saturation**: one differently-phrased search; report the delta.
-3. **Health**: report per-source ok/empty/failed from the last search
-   report; failed sources are named, never hidden.
-4. **For reviews**: `verify` reports `clean: true`, honesty block reported,
-   defense pass done, exclusions logged.
 
 ## Failure modes and what they mean
 

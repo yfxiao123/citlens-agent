@@ -75,10 +75,15 @@ ALL_FAMILIES = [
 ]
 
 # The retrieval discipline every interface reminds the model about. These are
-# the rules from the CiteLens skill that must survive the trip through an agent
-# that never read the skill at all (e.g. one that only ran `tools` or `search`).
-# It used to ride the MCP initialize handshake; now `tools` prints it and
-# `search` results carry the pointer.
+# the rules from the CiteLens skill's SEARCH module that must survive the trip
+# through an agent that never read the skill at all (e.g. one that only ran
+# `tools` or `search`). It used to ride the MCP initialize handshake; now
+# `tools` prints it and `search` results carry the pointer. The writing
+# disciplines deliberately do NOT ride this string: they live in the skill's
+# workflows/review.md and workflows/answer.md (and the `verify` tool
+# description). The pre-split string mixed them in, and a pure search consult
+# got the full survey-writing sermon — the failure mode of agents sliding
+# from search into writing (module split, 2026-11-20).
 DISCIPLINE = (
     "CiteLens literature search is available. For ANY literature/paper/survey "
     "question, call `search` instead of inventing your own search — and YOU are "
@@ -111,30 +116,19 @@ DISCIPLINE = (
     "source. A search job can take minutes: pass wait_seconds, then poll "
     "`status`. For grounding use `fetch` (open-access full text or abstract "
     "fallback); before declaring a field covered run `audit` (survey-reference "
-    "coverage); export citations with `export`. Writing a review is opt-in and "
-    "YOUR job under the skill's verification discipline — every claim checked "
-    "against the fetched source text, honesty numbers reported. Before "
-    "delivering a review, call `verify` with the review path and your verdicts "
-    "JSONL: it mechanically checks that every [n] resolves to the pool "
-    "(honeypot) and that every quoted span occurs verbatim in the cited source, "
-    "and it computes the honesty block. clean=false means fix, not ship. "
-    "Structure the review body as 归→评→找→定: consolidate the consensus across "
-    "papers, discriminate the disagreements and why they diverge, locate the "
-    "research gap those two movements earn, then position the user's own work "
-    "on it (stop at the gaps if the user described no work of their own) — "
-    "integrative analysis, never a paper-by-paper listing. Search results may "
+    "coverage); export citations with `export`. Finding literature and writing "
+    "are SEPARATE jobs (skill modules): the search deliverable is the pool "
+    "plus the coverage numbers, and it STOPS there — never slide from a "
+    "search into writing a survey. A survey starts only on an explicit "
+    "request, under the skill's review module (workflows/review.md: numbered "
+    "[n] claims, six-grade verdicts in verdicts.jsonl, `verify` must report "
+    "clean=true plus the honesty block). A specific question gets a direct "
+    "cited answer (the answer module, workflows/answer.md), not a survey. "
+    "Search results may "
     "carry a `discipline` hint (e.g. economics), detected mechanically from "
     "your topic and queries: when present, apply that field's disciplines — "
     "the pointer text arriving with the result states their core rules, and "
-    "the skill's discipline layers hold the full versions. Before writing the "
-    "找 movement run `gaps`: its coverage matrix exposes concept blocks x "
-    "periods the pool never reached, `mine` returns verbatim limitation/"
-    "future-work sentences you can cite as span-verifiable gap evidence, and "
-    "`check` mechanically rebuts a draft gap statement by finding its "
-    "nearest existing work. Prose style, 去AI味: "
-    "alternate long and short sentences, no double quotes around concepts, "
-    "results stated in the sentence rather than parenthesized, no templated "
-    "layered listing, and every sentence carries a clear subject."
+    "the skill's discipline layers hold the full versions."
 )
 
 # ── configuration ─────────────────────────────────────────────────────────────
@@ -1010,7 +1004,11 @@ def _search_view(cfg: dict, st: dict) -> dict:
             "ok/empty/failed health, and `exclusions.jsonl` for the PRISMA reasons. "
             "Report failed sources explicitly; never present them as zero hits. "
             "Then use `pool` for filtering, `fetch` for grounding, `audit` before "
-            "claiming coverage, and `export` for the bibliography."
+            "claiming coverage, and `export` for the bibliography. "
+            "This is the SEARCH deliverable — report the numbers and the "
+            "evidence trail and stop: a survey (skill workflows/review.md) or "
+            "an answer to a specific question (workflows/answer.md) starts "
+            "only when the user asks for it."
         )
     return out
 

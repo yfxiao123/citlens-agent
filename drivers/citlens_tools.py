@@ -384,7 +384,7 @@ def cmd_verify(args) -> dict:
     if not verdicts:
         out.setdefault("notes", []).append(
             "no verdicts file: citation truth was checked, but span/precision checks need "
-            "a verdicts JSONL (see SKILL.md)."
+            "a verdicts JSONL (see the skill's review module, workflows/review.md)."
         )
     return out
 
@@ -561,7 +561,7 @@ def cmd_audit(args) -> dict:
     out["ok"] = True
     out["note"] = (
         "coverage = 池子覆盖 top 综述参考文献的比例（外部锚点）。"
-        "收工判据见 SKILL.md 阶段 F：coverage 低或 reviews_checked=0 时不得声明覆盖。"
+        "收工判据见 skill 检索模块（workflows/search.md）的收工节：coverage 低或 reviews_checked=0 时不得声明覆盖。"
     )
     return out
 

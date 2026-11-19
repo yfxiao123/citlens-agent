@@ -836,7 +836,7 @@ def write_run(out_root: Path, topic: str, result: dict) -> Path:
 
 ## agent 供查询（家族 1）
 
-{chr(10).join('- ' + q for q in report.get('agent_queries', [])) or '- （无——调用方未提供；你就是规划器，见 SKILL.md PRESS 纪律）'}
+{chr(10).join('- ' + q for q in report.get('agent_queries', [])) or '- （无——调用方未提供；你就是规划器，见 skill 检索模块 workflows/search.md 的 PRESS 纪律）'}
 
 ## web 桥接查询（英文 + 中文）
 
@@ -925,7 +925,7 @@ def main(argv=None) -> int:
             "policy_queries": args.policy_queries,
             "sources": args.sources,
             "families": args.families,
-            "note": "你就是规划器：查询为空时先按 SKILL.md PRESS 纪律拟好再搜",
+            "note": "你就是规划器：查询为空时先按 skill 检索模块（workflows/search.md）的 PRESS 纪律拟好再搜",
         }, ensure_ascii=False, indent=1))
         return 0
 
